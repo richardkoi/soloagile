@@ -1,0 +1,67 @@
+<script>
+/* How long each waiting card has waited, counted again as the page opens: the build wrote
+   it too, but a quiet project's page may be days old. */
+(function () {
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  document.querySelectorAll('[data-since]').forEach(function (el) {
+    var p = el.getAttribute('data-since').split('-');
+    var days = Math.round((today - new Date(p[0], p[1] - 1, p[2])) / 86400000);
+    if (days >= 0) el.textContent = days ? 'waiting ' + days + (days === 1 ? ' day' : ' days') : 'since today';
+  });
+})();
+/* A card's picture opens full size in a new tab. The picture is a data: address, which
+   browsers refuse to open from a link, so the click hands the new tab the same picture as
+   a blob. */
+document.addEventListener('click', function (e) {
+  var a = e.target.closest && e.target.closest('a.pic-open');
+  if (!a) return;
+  e.preventDefault();
+  var bin = atob(a.getAttribute('href').split(',')[1]), bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  window.open(URL.createObjectURL(new Blob([bytes], { type: 'image/png' })), '_blank');
+});
+/* Live refresh. Served over http: every 3 seconds, ask the server for this file's ETag and
+   reload when it changes. Opened as a file, where no server can be asked: every 3 seconds,
+   load the stamp the last build left, a one-line script saying when the page was built,
+   and reload when that time is not this page's own. The open tab survives the reload
+   because tabs are the URL's #hash. Checks pause while the browser tab is hidden. A reload
+   would shut the card being read, so it waits until that card is closed. */
+(function () {
+  function reload() {
+    if (document.querySelector('.card-modal:popover-open')) return;
+    location.reload();
+  }
+  if (location.protocol === 'file:') {
+    var stamp = "{{stampUrl}}", mine = "{{stamp}}";
+    if (!stamp) return;
+    window.__soloagileBuilt = function (at) { if (at !== mine) reload(); };
+    function look() {
+      if (document.hidden) return;
+      var s = document.createElement('script');
+      s.src = stamp + '?' + Date.now();
+      s.onload = s.onerror = function () { s.remove(); };
+      document.head.appendChild(s);
+    }
+    setInterval(look, 3000);
+    document.addEventListener('visibilitychange', look);
+    return;
+  }
+  if (!/^https?:$/.test(location.protocol)) return;
+  var seen = null;
+  function check() {
+    fetch(location.pathname, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      var tag = r.ok && (r.headers.get('ETag') || r.headers.get('Last-Modified'));
+      if (!tag) return;
+      // Remember the first tag only. A change found while a card is open is checked again
+      // next time, so the reload happens once the card is closed.
+      if (!seen) seen = tag;
+      else if (tag !== seen) reload();
+    }, function () {});
+  }
+  function checkIfShown() { if (!document.hidden) check(); }
+  check();
+  setInterval(checkIfShown, 3000);
+  document.addEventListener('visibilitychange', checkIfShown);
+})();
+</script>

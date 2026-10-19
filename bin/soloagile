@@ -1,0 +1,240 @@
+#!/usr/bin/env node
+// soloagile — builds a project's private page (pm/index.html) from its pm/*.md files.
+// Usage: soloagile build [repo]     (repo defaults to the current directory)
+//        soloagile init [repo]      give a project its pm/ folder from the starter files
+//        soloagile home             build the home page that lists every project's page
+//        soloagile build-all        rebuild every project's page in the projects folder, then the home page
+//        soloagile card add|move|note|set|show …   change a card, checked before it is written (`soloagile card` lists them)
+//        soloagile archive [repo]   move finished cards' text to pm/finished-cards.md, then build
+//        soloagile board [repo]     print the board without its finished cards, for a session to read
+//        soloagile finished <milestone or card number>…   print finished cards in full
+//        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
+//        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
+//          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box.
+//                                Any number of each, done in the order written
+//        soloagile design <card> <letter> <mock-up> [width]
+//                            a picture of a mock-up, shown under that option of a design card
+//        soloagile hook             Claude Code PostToolUse hook; reads the tool call as JSON on stdin
+//        soloagile session-start    SessionStart hook: what waits on the user, and the board for Claude
+//        soloagile session-end      SessionEnd hook: commits and pushes forgotten handoff files, if that option is on
+// Format problems are printed as warnings; the page is still written.
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
+import { buildProject } from '../src/build.js';
+import { CARD_USAGE, Refused, runCard } from '../src/card.js';
+import { addPicture } from '../src/design.js';
+import { isPmProject, runHook } from '../src/hook.js';
+import { buildAll, buildHome } from '../src/home.js';
+import { initProject, localDate } from '../src/init.js';
+import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js';
+import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
+import { parseShotArgs, takeShots } from '../src/shots.js';
+import { newerInstall } from '../src/version.js';
+
+// A session keeps the plugin version it started with, hooks included. When a newer version
+// is installed beside this one, the whole command goes to it, stdin and all, so an old
+// session never rebuilds a page with old code. The variable stops it handing off twice.
+let newer = null;
+try {
+  if (!process.env.SOLOAGILE_HANDED_OFF) newer = newerInstall();
+} catch {}
+if (newer) {
+  const r = spawnSync(process.execPath, [newer, ...process.argv.slice(2)], { stdio: 'inherit', env: { ...process.env, SOLOAGILE_HANDED_OFF: '1' } });
+  if (!r.error) process.exit(r.status ?? 1);
+}
+
+const [cmd, repo = process.cwd()] = process.argv.slice(2);
+
+// Every command, one to a line: what `soloagile help` prints, and what a wrong command gets back.
+const COMMANDS = [
+  ['build [repo]', "build the project's page, pm/index.html"],
+  ['init [repo]', 'give a project its pm/ folder and its page'],
+  ['home', "build the home page that lists every project's page"],
+  ['build-all', "rebuild every project's page in the projects folder, then the home page"],
+  ['card add|move|note|set|show …', 'change a card, checked before it is written; `soloagile card` says how'],
+  ['archive [repo]', "move finished cards' text to pm/finished-cards.md, then build"],
+  ['board [repo]', 'print the board without its finished cards'],
+  ['finished <milestone or card number>…', 'print finished cards in full'],
+  ['link [repo]', "print the address of the project's page"],
+  ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
+  ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
+].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
+
+// Both session hooks run in every project, so, like `soloagile hook`, they never fail a session.
+if (cmd === 'session-start') {
+  try {
+    const out = sessionStartOutput(JSON.parse(readFileSync(0, 'utf8')));
+    if (out) console.log(JSON.stringify(out));
+  } catch {}
+  process.exit(0);
+}
+if (cmd === 'session-end') {
+  try {
+    const { cwd } = JSON.parse(readFileSync(0, 'utf8'));
+    if (typeof cwd === 'string' && savesAtEnd()) commitHandoff(cwd);
+  } catch {}
+  process.exit(0);
+}
+
+if (cmd === 'hook') {
+  // Runs after every tool call in every project, so it must never break a session:
+  // any crash exits 0. Format warnings exit 2, which shows them to Claude to fix.
+  let problems;
+  try {
+    ({ problems } = runHook(JSON.parse(readFileSync(0, 'utf8'))));
+  } catch {
+    process.exit(0);
+  }
+  for (const p of problems) console.error(`soloagile: warning: ${p}`);
+  process.exit(problems.length ? 2 : 0);
+}
+
+if (cmd === 'shots') {
+  // Here the first argument is the page's address, and the second an optional folder for the pictures.
+  let shot;
+  try {
+    shot = parseShotArgs(process.argv.slice(3));
+  } catch (err) {
+    console.error(err.message);
+    process.exit(2);
+  }
+  try {
+    for (const file of await takeShots(shot.url, shot.dir, shot.steps)) console.log(file);
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'design') {
+  // Run in the project's folder: the card's number, the option's letter, then the mock-up.
+  const [, id, letter, source, width] = process.argv.slice(2);
+  try {
+    const { file, problems } = await addPicture(process.cwd(), id ?? '', letter ?? '', source, width === undefined ? undefined : Number(width));
+    for (const p of problems) console.warn(`soloagile: warning: ${p}`);
+    console.log(file);
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'link') {
+  try {
+    console.log(pageUrl(repo));
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'board') {
+  // What the skills read: the board with Done as one line.
+  try {
+    process.stdout.write(openBoard(readFileSync(resolve(repo, 'pm', 'board.md'), 'utf8')));
+  } catch {
+    console.error(`soloagile: no pm/board.md in ${resolve(repo)}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'finished') {
+  // Run in the project's folder: milestones and card numbers, any number of each.
+  const wants = process.argv.slice(3);
+  if (!wants.length) {
+    console.error('usage: soloagile finished <milestone or card number>…   such as: soloagile finished M3, or soloagile finished 12');
+    process.exit(2);
+  }
+  process.stdout.write(finishedCards(readArchive(process.cwd()), wants) || `soloagile: no finished card matches ${wants.join(' ')}\n`);
+  process.exit(0);
+}
+
+// Builds the page and says so, with the checker's warnings, then the home page that lists it.
+function buildAndSay(dir, init = null) {
+  const { out, problems } = init ?? buildProject(dir);
+  for (const p of problems) console.warn(`soloagile: warning: ${p}`);
+  console.log(`soloagile: wrote ${out}`);
+  if (init) console.log(`soloagile: page at ${init.url}`);
+  // The project is listed on its folder's home page, so refresh that too.
+  if (onHome(dir)) console.log(`soloagile: wrote ${buildHome({ root: projectsFolderOf(dir) }).out}`);
+}
+
+function sayArchived({ moved, left }) {
+  const n = (ids, one, many) => `${ids.length} ${ids.length === 1 ? one : many}`;
+  const said = [moved.length && `${n(moved, 'finished card is', 'finished cards are')} in pm/finished-cards.md`, left.length && `${n(left, 'card', 'cards')} left the board after 48 hours`].filter(Boolean);
+  if (said.length) console.log(`soloagile: ${said.join('; ')}`);
+  return said.length;
+}
+
+if (cmd === 'card') {
+  // Run in the project's folder. A wrong move is refused, and then nothing is written.
+  const argv = process.argv.slice(3);
+  if (!argv.length || argv[0] === 'help' || argv[0] === '--help') {
+    console.log(CARD_USAGE);
+    process.exit(0);
+  }
+  const here = process.cwd();
+  const file = resolve(here, 'pm', 'board.md');
+  const read = (f) => (existsSync(resolve(here, 'pm', f)) ? readFileSync(resolve(here, 'pm', f), 'utf8') : '');
+  try {
+    if (!existsSync(file)) throw new Refused(`no pm/board.md in ${here}; run this in the project's folder`);
+    const r = runCard(argv, { board: read('board.md'), plan: read('plan.md'), archive: readArchive(here), today: localDate() });
+    if (r.print) {
+      process.stdout.write(r.print);
+      process.exit(0);
+    }
+    writeFileSync(file, r.board);
+    console.log(`soloagile: ${r.said}`);
+    // A finished card keeps one line on the board; its text goes to the archive at once.
+    if (r.column === 'Done') sayArchived(archiveProject(here, localDate()));
+    buildAndSay(here);
+  } catch (err) {
+    console.error(`soloagile: ${err instanceof Refused ? 'refused: ' : ''}${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
+  console.log(`soloagile: a project's page, built from its pm/*.md files. The commands:\n${COMMANDS}`);
+  process.exit(0);
+}
+if (cmd !== 'build' && cmd !== 'init' && cmd !== 'home' && cmd !== 'build-all' && cmd !== 'archive') {
+  console.error(`soloagile: there is no "${cmd}" command. The commands:\n${COMMANDS}`);
+  process.exit(2);
+}
+
+if (cmd === 'home' || cmd === 'build-all') {
+  try {
+    // The projects folder: the one set, or the one this project sits in, or this folder itself.
+    const here = resolve(process.cwd());
+    const root = resolve(readSettings().projectsFolder ?? (isPmProject(here) ? dirname(here) : here));
+    if (cmd === 'build-all') {
+      const { built, problems } = buildAll(root);
+      for (const p of problems) console.warn(`soloagile: warning: ${p}`);
+      console.log(`soloagile: rebuilt ${built.length} page${built.length === 1 ? '' : 's'} in ${root}`);
+    }
+    const { out, count } = buildHome({ root });
+    console.log(`soloagile: wrote ${out} (${count} project${count === 1 ? '' : 's'})`);
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+try {
+  if (cmd === 'archive' && !sayArchived(archiveProject(repo, localDate()))) console.log('soloagile: nothing to archive');
+  const init = cmd === 'init' ? initProject(repo) : null;
+  if (init) console.log(init.created.length ? `soloagile: added ${init.created.join(', ')}` : 'soloagile: already set up; nothing changed');
+  buildAndSay(resolve(repo), init);
+} catch (err) {
+  console.error(`soloagile: ${err.message}`);
+  process.exit(1);
+}

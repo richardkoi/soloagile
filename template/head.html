@@ -1,0 +1,427 @@
+<!-- Tab icon: a small kanban board in the lane colours, on parchment so it shows on dark and light
+     tab bars. It is inline because the page server serves nothing but the page itself. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23F5EDE0'/%3E%3Crect x='5.5' y='6' width='5.5' height='20' rx='1.5' fill='%23C98500'/%3E%3Crect x='13.25' y='6' width='5.5' height='11' rx='1.5' fill='%23D95926'/%3E%3Crect x='21' y='6' width='5.5' height='15.5' rx='1.5' fill='%23199E70'/%3E%3C/svg%3E">
+<script>
+/* Theme: dark unless this browser chose light. Runs before paint so there's no flash. */
+try { if (localStorage.getItem('pm-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (e) {}
+function toggleTheme() {
+  var root = document.documentElement, next = root.dataset.theme === 'light' ? 'dark' : 'light';
+  root.dataset.theme = next;
+  try { localStorage.setItem('pm-theme', next); } catch (e) {}
+}
+</script>
+<style>
+/* ---------- tokens: scale ---------- */
+:root {
+  --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px;
+  --space-xl: 32px; --space-2xl: 40px; --space-3xl: 64px;
+  --header-pad-y: var(--space-md); --header-pad-x: var(--space-xl); --container-pad: var(--space-lg);
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 20px;
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, Consolas, monospace;
+  --font-xs: 14px; --font-sm: 15px; --font-base: 16px; --font-md: 17px; --font-lg: 20px;
+  --font-xl: 27px; --font-2xl: 32px;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600; --weight-bold: 700;
+  --line-height-tight: 1.25; --line-height: 1.5;
+  --transition-fast: 0.15s ease;
+  --width-reading: 1000px; --width-wide: 1600px;
+}
+
+/* ---------- tokens: dark (default) ---------- */
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --bg-canvas: #0D100D; --bg-surface: #161A15; --bg-overlay: #222820; --bg-inset: #1C211A;
+  --border-default: #666C5C; --border-muted: #2A2E26;
+  --text-primary: #E8E0CE; --text-secondary: #C4BAA4; --text-muted: #A8A18E; --text-faint: #918A78;
+  --accent-link: #8AAD6A; --accent-green: #7AAD5A; --accent-yellow: #D4A843; --accent-orange: #CC7744;
+  --accent-green-bg: #7AAD5A20; --accent-yellow-bg: #D4A84320; --accent-orange-bg: #CC774420;
+  --accent-link-bg: #8AAD6A20; --brand-swatch: #B89438;
+  --proj-1: #3987e5; --proj-2: #d95926; --proj-3: #199e70; --proj-4: #c98500;
+  --proj-5: #d55181; --proj-7: #9085e9; --proj-ink: 100%;
+  --pts-lo: #8FC46C; --pts-hi: #F58A7C;
+  --ms-0: #A3C95A; --ms-1: #5AA2F0; --ms-2: #E08A4A; --ms-3: #B79CF2;
+  --ms-4: #E87BA4; --ms-5: #3FBFAE; --ms-6: #D9B648; --ms-7: #5CC4E6;
+}
+
+/* ---------- tokens: light ---------- */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-canvas: #F5EDE0; --bg-surface: #FBF6EF; --bg-overlay: #EDE4D4; --bg-inset: #F0E8DA;
+  --border-default: #928464; --border-muted: #E4D8C4;
+  --text-primary: #1A1210; --text-secondary: #3A2E28; --text-muted: #554C40; --text-faint: #6B6154;
+  --accent-link: #2A4060; --accent-green: #3A7D2A; --accent-yellow: #6E5600; --accent-orange: #B8520A;
+  --accent-green-bg: #3A7D2A18; --accent-yellow-bg: #9A7A0018; --accent-orange-bg: #B8520A18;
+  --accent-link-bg: #2A406018; --brand-swatch: #C62831;
+  --proj-1: #2a78d6; --proj-2: #eb6834; --proj-3: #1baf7a; --proj-4: #eda100;
+  --proj-5: #e87ba4; --proj-7: #4a3aa7; --proj-ink: 78%;
+  --pts-lo: #2A641C; --pts-hi: #9A1A14;
+  --ms-0: #4A6A12; --ms-1: #1F5FB0; --ms-2: #A8480C; --ms-3: #5B3FB5;
+  --ms-4: #B0306A; --ms-5: #0F6F62; --ms-6: #7A5C00; --ms-7: #0E6585;
+}
+
+/* ---------- base ---------- */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font-family); background: var(--bg-canvas); color: var(--text-secondary);
+  font-size: var(--font-base); line-height: var(--line-height); }
+a { color: var(--accent-link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; border-radius: var(--radius-sm); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
+}
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.dk-skip { position: absolute; left: -9999px; top: 0; z-index: 999; background: var(--bg-surface); color: var(--accent-link);
+  border: 1px solid var(--accent-link); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md); font-size: var(--font-sm); }
+.dk-skip:focus { left: var(--space-sm); top: var(--space-sm); }
+
+/* ---------- header chrome (sticky) ---------- */
+.header { background: var(--bg-surface); border-bottom: 1px solid var(--border-default);
+  padding: var(--header-pad-y) var(--header-pad-x); display: flex; justify-content: space-between;
+  align-items: flex-start; gap: var(--space-md); position: sticky; top: 0; z-index: 100;
+  /* Line the header's content up with the centred board below it on wide screens. */
+  padding-inline: max(var(--container-pad), calc((100% - var(--width-wide)) / 2 + var(--container-pad))); }
+/* The left side keeps its width, so the six tabs stay on one row and the milestone strip wraps instead. */
+.header-left { display: flex; flex-direction: column; gap: var(--space-md); flex: 1 0 auto; min-width: 0; max-width: 100%; }
+.header-title { font-size: var(--font-2xl); font-weight: var(--weight-bold); color: var(--text-primary);
+  letter-spacing: -0.5px; line-height: var(--line-height-tight); }
+.header-subtitle { color: var(--text-muted); font-size: var(--font-md); margin-top: 2px; }
+.header-subtitle b { color: var(--text-secondary); }
+.header-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); }
+.updated { font-size: var(--font-xs); color: var(--text-muted); }
+.ms-strip { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+@media (max-width: 1100px) { .header { flex-wrap: wrap; } .header-right { justify-content: flex-start; } }
+
+/* ---------- nav (the page's tabs) ----------
+   Each link targets an empty anchor at the top of the page, so switching never
+   scrolls; :has() shows the matching section. A milestone chip in the header targets
+   that milestone on the Plan tab (#plan-M9), which shows the Plan tab too. */
+.anchor { display: block; height: 0; }
+.dk-nav { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.dk-nav a { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-base); color: var(--text-muted);
+  padding: 6px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); white-space: nowrap; }
+.dk-nav a:hover { color: var(--accent-link); border-color: var(--accent-link); text-decoration: none; }
+body:not(:has(.anchor:target, .ms-fold:target)) .dk-nav a[href="#board"],
+body:has(#board:target) .dk-nav a[href="#board"],
+body:has(#plan:target, .ms-fold:target) .dk-nav a[href="#plan"],
+body:has(#reports:target) .dk-nav a[href="#reports"],
+body:has(#releases:target) .dk-nav a[href="#releases"],
+body:has(#docs:target) .dk-nav a[href="#docs"],
+body:has(#links:target) .dk-nav a[href="#links"] { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
+.tab { display: none; }
+body:not(:has(.anchor:target, .ms-fold:target)) .tab-board,
+body:has(#board:target) .tab-board,
+body:has(#plan:target, .ms-fold:target) .tab-plan,
+body:has(#reports:target) .tab-reports,
+body:has(#releases:target) .tab-releases,
+body:has(#docs:target) .tab-docs,
+body:has(#links:target) .tab-links { display: block; }
+
+/* ---------- buttons ---------- */
+.btn { display: inline-flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md); border: 1px solid transparent; font-size: var(--font-sm); cursor: pointer;
+  transition: all var(--transition-fast); }
+.btn-ghost { background: none; border-color: var(--border-default); color: var(--text-muted); }
+.btn-ghost:hover { background: var(--bg-overlay); border-color: var(--accent-link); color: var(--text-secondary); }
+.theme-swatch { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border-default);
+  flex-shrink: 0; background: var(--brand-swatch); }
+.theme-name::after { content: "Dark"; }
+[data-theme="light"] .theme-name::after { content: "Light"; }
+
+/* ---------- page wrapper ---------- */
+.board-wrap { max-width: var(--width-wide); margin: 0 auto; padding: var(--container-pad); }
+
+/* ---------- lanes ---------- */
+.lanes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-md); align-items: start; }
+.lane { background: var(--bg-inset); border: 1px solid var(--border-default); border-radius: var(--radius-lg);
+  min-height: 120px; display: flex; flex-direction: column; min-width: 0; }
+.lane-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-sm);
+  padding: var(--space-md) var(--space-md) var(--space-sm); border-bottom: 1px solid var(--border-muted); }
+.lane-name { font-size: var(--font-base); font-weight: var(--weight-bold); color: var(--text-primary);
+  text-transform: uppercase; letter-spacing: 0.6px; }
+.lane-count { font-size: var(--font-base); color: var(--text-muted); }
+.lane-hint { font-size: var(--font-sm); color: var(--text-faint); margin-left: auto; }
+.lane-body { list-style: none; padding: var(--space-sm); display: flex; flex-direction: column; gap: var(--space-sm); flex: 1; }
+.lane-empty { color: var(--text-faint); font-size: var(--font-sm); text-align: center; padding: var(--space-md) 0; }
+/* The ONE coloured rail: the lane of things waiting on the user. */
+.lane-waiting .lane-head { border-bottom: 2px solid var(--hue); }
+/* Each lane's hue colours its icon; cards pick up the same hue below. */
+.lane { --hue: var(--text-muted); }
+.lane-waiting { --hue: var(--proj-4); } .lane-doing { --hue: var(--proj-2); } .lane-up-next { --hue: var(--proj-1); }
+.lane-ideas { --hue: var(--proj-7); } .lane-done { --hue: var(--proj-3); }
+.lane-icon { display: inline-flex; align-self: center; color: var(--hue); }
+.lane-icon .i { width: 20px; height: 20px; }
+.lane-done { opacity: 0.75; }
+/* Five in a row, the lanes run in flow order, so a card moves left to right, the way its
+   stage bar fills. Narrower screens stack them in the page's own order, Waiting on you first. */
+@media (min-width: 1101px) {
+  .lane { order: 6; }
+  .lane-ideas { order: 1; } .lane-up-next { order: 2; } .lane-doing { order: 3; } .lane-waiting { order: 4; } .lane-done { order: 5; }
+}
+@media (max-width: 1100px) { .lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px)  { .lanes { grid-template-columns: 1fr; } }
+
+/* ---------- cards ---------- */
+/* Each card is shaded by its lane: a 10% tint and a 4px left rail in the lane's
+   hue, taken from My Board's colour-blind-safe categorical palette. */
+.card-x { --hue: var(--border-default); background: var(--bg-surface); background: color-mix(in srgb, var(--hue) 10%, var(--bg-surface));
+  border: 1px solid var(--border-default); border-left: 4px solid var(--hue); border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md); }
+.card-decide  { --hue: var(--proj-4); }
+.card-look    { --hue: var(--proj-5); }
+.card-later   { --hue: var(--proj-5); opacity: 0.75; }  /* a look that can't happen yet */
+.card-doing   { --hue: var(--proj-2); }
+.card-up-next { --hue: var(--proj-1); }
+.card-ideas   { --hue: var(--proj-7); }
+.card-done    { --hue: var(--proj-3); }
+.card-top { display: flex; align-items: center; gap: var(--space-xs); margin-bottom: 5px; flex-wrap: wrap; }
+.card-id { font-family: var(--font-mono); font-size: var(--font-xs); color: var(--text-muted); margin-right: auto; }
+.card-title { color: var(--text-primary); font-size: var(--font-base); line-height: 1.35; overflow-wrap: anywhere; }
+.card-meta { margin-top: 6px; font-size: var(--font-xs); color: var(--text-muted); }
+/* The card's one short line: anything past two lines is cut off with "…". */
+.card-note { margin-top: 5px; font-size: var(--font-xs); color: var(--text-faint); line-height: 1.35; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.lane-waiting .card-note { color: var(--text-secondary); }
+.card-note code, .card-title code, .card-modal code { font-family: var(--font-mono); font-size: .9em; background: var(--bg-inset); padding: 0 4px; border-radius: var(--radius-sm); }
+/* The wheel: six blocks, filled up to the card's stage, in the card's own hue. */
+.stage { display: flex; align-items: center; gap: var(--space-sm); margin-top: 8px; font-size: var(--font-xs); color: var(--text-secondary); }
+.stage-bar { display: inline-flex; gap: 3px; }
+.stage-bar i { width: 16px; height: 8px; border-radius: 3px; background: var(--bg-overlay); border: 1px solid var(--border-default); }
+.stage-bar i.on { background: var(--hue, var(--accent-link)); border-color: var(--hue, var(--accent-link)); }
+/* In the key the bar is narrower, to fit the 76px swatch column. */
+.key .stage { margin-top: 0; }
+.key .stage-bar i { width: 10px; }
+
+/* ---------- card modal ---------- */
+/* A card with a description opens it in a modal. Its title is a button stretched over
+   the whole card; the browser's Popover API opens it, and closes it on Esc, on the
+   close button, or on a click outside. */
+.card-x { position: relative; }
+.card-open { font: inherit; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.card-open::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-md); }
+.card-open:focus-visible { outline: none; }
+.card-x:has(.card-open:hover) { background: color-mix(in srgb, var(--hue) 20%, var(--bg-surface)); }
+.card-x:has(.card-open:focus-visible) { outline: 2px solid var(--accent-link); outline-offset: 2px; }
+/* margin: auto centres it; the reset at the top would otherwise pin it to the corner. */
+.card-modal { margin: auto; width: min(640px, calc(100vw - 2 * var(--space-md))); max-height: calc(100dvh - 2 * var(--space-lg));
+  overflow-y: auto; overscroll-behavior: contain; background: var(--bg-surface); color: var(--text-secondary);
+  border: 1px solid var(--border-default); border-left: 4px solid var(--hue); border-radius: var(--radius-lg); padding: var(--space-lg); }
+.card-modal::backdrop { background: rgb(0 0 0 / 0.65); }
+.card-modal .card-top { margin-bottom: var(--space-sm); }
+.modal-title { font-size: var(--font-lg); font-weight: var(--weight-semibold); color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; }
+.modal-body { list-style: none; margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border-muted);
+  font-size: var(--font-base); line-height: var(--line-height); overflow-wrap: anywhere; }
+.modal-body li + li { margin-top: var(--space-sm); }
+/* A design option's picture, at the size it was drawn and never wider than the pop-up. */
+.pic-open { display: block; cursor: zoom-in; }
+.option-pic { display: block; max-width: 100%; height: auto; margin: var(--space-sm) 0 var(--space-md); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+.modal-close { display: inline-flex; padding: 6px; background: none; border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); color: var(--text-muted); cursor: pointer; }
+.modal-close:hover { border-color: var(--accent-link); color: var(--text-secondary); }
+.modal-close .i { width: 20px; height: 20px; }
+
+/* ---------- the command guide: a "?" in the header opens it (template/guide.html) ---------- */
+.help { width: 38px; height: 38px; justify-content: center; padding: 0; border-radius: 50%; font-size: var(--font-lg);
+  font-weight: var(--weight-bold); color: var(--text-primary); border-color: var(--accent-link); background: var(--accent-link-bg); }
+.guide { --hue: var(--accent-link); }
+.guide-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); }
+.guide-list { list-style: none; margin-top: var(--space-md); padding-top: var(--space-sm); border-top: 1px solid var(--border-muted); }
+.guide-list li { padding: var(--space-sm) 0; }
+.guide-list li + li { border-top: 1px solid var(--border-muted); }
+.guide-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 var(--space-sm); }
+.guide-say { font-size: var(--font-md); font-weight: var(--weight-bold); color: var(--text-primary); }
+.guide-typed { font-family: var(--font-mono); font-size: var(--font-xs); color: var(--text-faint); }
+.guide-does { display: block; font-size: var(--font-sm); color: var(--text-muted); line-height: 1.35; }
+
+/* ---------- pills ---------- */
+.tag, .st { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--font-xs);
+  font-weight: var(--weight-semibold); line-height: 1.4; white-space: nowrap; }
+.tag-proj { background: var(--bg-overlay); color: var(--text-muted); font-weight: var(--weight-regular); }
+/* Each milestone has its own colour, one of eight taken in turn by its number (msClass in
+   src/board.js). Its tag is tinted in that colour with a matching outline, on a card, in
+   the header's strip and on the Plan tab; its name in running text takes the colour. */
+.ms-c0 { --m: var(--ms-0); } .ms-c1 { --m: var(--ms-1); } .ms-c2 { --m: var(--ms-2); } .ms-c3 { --m: var(--ms-3); }
+.ms-c4 { --m: var(--ms-4); } .ms-c5 { --m: var(--ms-5); } .ms-c6 { --m: var(--ms-6); } .ms-c7 { --m: var(--ms-7); }
+.tag-proj[class*="ms-c"], .ms-strip .st[class*="ms-c"] { background: color-mix(in srgb, var(--m) 18%, transparent); color: var(--m);
+  border: 1px solid var(--m); font-weight: var(--weight-semibold); }
+.ms-strip .st-quiet[class*="ms-c"] { background: none; border-style: dashed; }
+.ms-strip .ms-current[class*="ms-c"] { box-shadow: 0 0 0 2px var(--m); }
+.ms-ink[class*="ms-c"], .proj-ms b.ms-ink[class*="ms-c"] { color: var(--m); }
+.ms-h .tag-proj { font-size: var(--font-sm); }
+/* A milestone's short name after its number on a chip ("M9 Public plugin"): lighter, so the
+   number still leads. The done chip at the end of the header's strip is a link to the plan. */
+.ms-short { margin-left: 0.4em; font-weight: var(--weight-regular); }
+.ms-strip a.ms-done { text-decoration: none; }
+.ms-strip a.ms-link { color: inherit; text-decoration: none; }
+.ms-fold { scroll-margin-top: var(--space-md); }
+/* The photo icon: a card with pictures inside, and how many. */
+.tag-pics { background: var(--accent-link-bg); color: var(--accent-link); border: 1px solid var(--accent-link); }
+.tag-pics .i { width: 16px; height: 16px; }
+.st-open  { background: var(--accent-link-bg);   color: var(--accent-link); }
+.st-go    { background: var(--accent-green-bg);  color: var(--accent-green); }
+.st-hold  { background: var(--accent-yellow-bg); color: var(--accent-yellow); }
+.st-quiet { background: var(--bg-overlay);       color: var(--text-muted); }
+/* Look shares its card's pink, via My Board's project-pill formula. */
+.st-look  { background: color-mix(in srgb, var(--proj-5) 15%, transparent); color: color-mix(in srgb, var(--proj-5) var(--proj-ink), black); }
+/* Story points run from green (1) to red (13): each step is further along the mix from
+   --pts-lo to --pts-hi, through yellow and orange. The end colours are picked so the text
+   keeps at least 4.5:1 against its own tint on every card, in both themes. */
+.pts { --at: 0%; --pts: color-mix(in oklch, var(--pts-hi) var(--at), var(--pts-lo));
+  background: color-mix(in srgb, var(--pts) 14%, transparent); color: var(--pts); }
+.pts-1 { --at: 0%; } .pts-2 { --at: 20%; } .pts-3 { --at: 40%; } .pts-5 { --at: 60%; } .pts-8 { --at: 80%; } .pts-13 { --at: 100%; }
+.key-hues { display: inline-flex; gap: 3px; }
+.key-hues i { width: 10px; height: 10px; border-radius: 2px; background: var(--hue); }
+.key-hues i.pts { background: var(--pts); }
+.ms-current { box-shadow: inset 0 0 0 1px var(--accent-link); }
+.badge { display: inline-block; min-width: 22px; padding: 0 7px; border-radius: var(--radius-pill); text-align: center;
+  font-size: var(--font-xs); font-weight: var(--weight-bold); background: var(--accent-orange-bg); color: var(--accent-orange); }
+
+/* ---------- icons (Lucide) ---------- */
+.i { width: 1.05em; height: 1.05em; flex: none; vertical-align: -0.16em; }
+.dk-nav a .i { width: 18px; height: 18px; }
+.st .i, .tag .i { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+.updated .i, .card-meta .i { margin-right: 5px; }
+.ms-strip .st { display: inline-flex; align-items: center; }
+.card-meta { display: flex; align-items: center; }
+/* "waiting 6 days", after a waiting card's date and at the end of a row on the home page. */
+.age { color: var(--text-secondary); font-weight: var(--weight-semibold); white-space: nowrap; }
+.card-meta .age::before { content: '·'; margin: 0 6px; font-weight: normal; color: var(--text-muted); }
+.wait-row .age { font-size: var(--font-xs); }
+
+/* ---------- prose tabs (plan, releases, docs, links) ---------- */
+.panel-x { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg);
+  padding: var(--space-lg) var(--space-xl); max-width: var(--width-reading); }
+.md-prose { font-size: var(--font-base); color: var(--text-secondary); line-height: 1.6; overflow-wrap: anywhere; }
+.md-prose > :first-child { margin-top: 0; }
+.md-prose h2 { font-size: var(--font-lg); color: var(--text-primary); line-height: 1.3; margin: var(--space-lg) 0 var(--space-xs); }
+.md-prose h3 { font-size: var(--font-md); color: var(--text-primary); margin: var(--space-md) 0 var(--space-xs); }
+.md-prose p { margin: var(--space-sm) 0; }
+.md-prose ul, .md-prose ol { margin: var(--space-sm) 0 var(--space-sm) var(--space-lg); }
+.md-prose li + li { margin-top: 3px; }
+.md-prose code { font-family: var(--font-mono); font-size: var(--font-sm); background: var(--bg-inset); padding: 1px 5px; border-radius: var(--radius-sm); }
+.md-prose pre { background: var(--bg-inset); border: 1px solid var(--border-muted); border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md); overflow-x: auto; margin: var(--space-sm) 0; }
+.md-prose pre code { background: none; padding: 0; }
+.md-prose b, .md-prose strong { color: var(--text-primary); }
+.md-prose blockquote { border-left: 3px solid var(--border-default); padding-left: var(--space-md); margin: var(--space-sm) 0; color: var(--text-muted); }
+.md-prose table { border-collapse: collapse; margin: var(--space-sm) 0; font-size: var(--font-sm); display: block; overflow-x: auto; }
+.md-prose th, .md-prose td { border: 1px solid var(--border-muted); padding: 5px 9px; text-align: left; vertical-align: top; }
+.md-sec { font-size: var(--font-base); font-weight: var(--weight-bold); color: var(--text-secondary); text-transform: uppercase;
+  letter-spacing: 0.6px; margin: var(--space-2xl) 0 var(--space-sm); padding-top: var(--space-lg); border-top: 1px solid var(--border-muted); }
+.empty { color: var(--text-muted); }
+.md-prose .h-icon .i, .ms-h > .i, .dated > .i { width: 20px; height: 20px; color: var(--accent-link); margin-right: 8px; vertical-align: -3px; }
+.md-prose strong.h-icon .i { width: 18px; height: 18px; color: var(--proj-4); margin-right: 6px; }
+.ms-h, .dated { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.ms-h > .i, .dated > .i { margin-right: 0; }
+.dated-title { color: var(--text-primary); }
+/* Plan: a milestone folds out; the arrow turns when it is open. */
+.ms-fold { margin: var(--space-md) 0; }
+.ms-fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.ms-fold > summary::-webkit-details-marker { display: none; }
+.ms-fold > summary::before { content: ""; flex: none; width: 9px; height: 9px; margin: 0 4px 0 2px; border-right: 3px solid var(--text-muted);
+  border-bottom: 3px solid var(--text-muted); transform: rotate(-45deg); transition: transform 0.15s; }
+.ms-fold[open] > summary::before { transform: rotate(45deg); }
+.ms-fold > summary h3 { margin: var(--space-sm) 0; flex: 1; }
+.ms-fold > summary:focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; }
+.ms-body { padding-left: 25px; }
+
+.sha { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-xs) !important; color: var(--text-muted); }
+.sha .i { width: 14px; height: 14px; }
+/* Plan: one segment per milestone. */
+.progress { margin-bottom: var(--space-lg); padding-bottom: var(--space-lg); border-bottom: 1px solid var(--border-muted); }
+.progress-bar { display: flex; gap: 4px; margin-bottom: var(--space-sm); }
+.seg { flex: 1; height: 10px; border-radius: 5px; background: var(--bg-overlay); border: 1px solid var(--border-default); }
+.seg-done { background: var(--accent-green); border-color: var(--accent-green); }
+.seg-in-progress { background: var(--accent-link-bg); border-color: var(--accent-link); }
+.progress-label { display: flex; align-items: center; gap: 6px; margin: 0 !important; color: var(--text-secondary); }
+.progress-label .i { color: var(--accent-green); }
+/* Links: icon by kind of address, then the link, then its note. */
+.md-prose ul:has(> li.link-row) { list-style: none; margin-left: 0; }
+.link-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.link-row > .i { width: 18px; height: 18px; color: var(--accent-link); align-self: center; }
+.link-note { color: var(--text-muted); font-size: var(--font-sm); }
+
+/* ---------- key (legend) ---------- */
+.key { margin-top: var(--space-2xl); border-top: 1px solid var(--border-muted); padding-top: var(--space-lg); }
+.key-h { font-size: var(--font-base); font-weight: var(--weight-bold); color: var(--text-secondary); text-transform: uppercase;
+  letter-spacing: 0.6px; margin-bottom: var(--space-sm); }
+.key-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 0 var(--space-lg); }
+.key-row { display: grid; grid-template-columns: 76px 118px 1fr; gap: var(--space-sm); align-items: baseline; padding: 5px 0; font-size: var(--font-sm); }
+.key-name { color: var(--text-primary); font-weight: var(--weight-semibold); }
+.key-def { color: var(--text-muted); line-height: 1.4; }
+
+/* ---------- reports (charts) ----------
+   The SVG stretches to the plot's box and holds only lines and washes; every label is
+   HTML placed by percent, so text keeps its size at any width. Built is blue and
+   approved is green: that pair stays apart for colour-blind eyes, where green and the
+   Look lane's pink do not. */
+.report { display: flex; flex-direction: column; gap: var(--space-sm); }
+.report + .report { margin-top: var(--space-xl); padding-top: var(--space-lg); border-top: 1px solid var(--border-muted); }
+.report-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.report-head h2 { font-size: var(--font-lg); color: var(--text-primary); line-height: 1.3; display: flex; align-items: center; gap: var(--space-sm); }
+.report-head h2 .i { width: 20px; height: 20px; color: var(--accent-link); }
+.report-sub { color: var(--text-muted); font-size: var(--font-sm); }
+.chart-key { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-lg); font-size: var(--font-sm); }
+.chart-key li { display: flex; align-items: center; gap: 7px; }
+.chart-key b { color: var(--text-primary); font-size: var(--font-lg); font-weight: var(--weight-semibold); }
+.chart-sw { width: 16px; height: 4px; border-radius: 2px; }
+.s-total { --s: var(--text-muted); } .s-built { --s: var(--proj-1); } .s-approved { --s: var(--proj-3); }
+.s-done { --s: var(--proj-3); } .s-waiting { --s: var(--proj-1); } .s-doing { --s: var(--proj-2); } .s-upnext { --s: var(--proj-7); }
+.chart-sw, .chart-dot, .chart-sq, .chart-dot-key { background: var(--s); }
+.chart-sq { width: 12px; height: 12px; border-radius: 3px; }
+.chart-dot-key { width: 11px; height: 11px; border-radius: 50%; }
+.chart-band { fill: var(--s); stroke: none; opacity: 0.85; }
+.chart-gap { fill: none; stroke: var(--bg-surface); stroke-width: 2; }
+.chart-usual, .chart-usual-key { background: var(--text-primary); height: 3px; border-radius: 2px; }
+.chart-usual { position: absolute; width: 11%; transform: translate(-50%, -50%); }
+.chart-usual-key { width: 20px; }
+.chart-none { position: absolute; top: 46%; transform: translateX(-50%); font-size: var(--font-xs); color: var(--text-faint); white-space: nowrap; }
+.plot-sizes { height: 260px; }
+.plot { position: relative; height: 300px; margin: 28px 14px 30px 36px; }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plot svg * { vector-effect: non-scaling-stroke; }
+.chart-grid { stroke: var(--border-muted); stroke-width: 1; }
+.chart-rule { stroke: var(--border-default); stroke-width: 1; }
+.chart-line { fill: none; stroke: var(--s); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-wash { fill: var(--s); stroke: none; opacity: 0.14; }
+.chart-dot { position: absolute; left: 100%; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--bg-surface); transform: translate(-50%, -50%); }
+.chart-y, .chart-x, .chart-mark { position: absolute; font-size: var(--font-xs); color: var(--text-muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart-y { right: 100%; margin-right: var(--space-sm); transform: translateY(-50%); }
+.chart-x { top: 100%; margin-top: var(--space-xs); transform: translateX(-50%); }
+.chart-mark { bottom: 100%; margin-bottom: 2px; transform: translateX(-50%); color: var(--text-secondary); font-weight: var(--weight-semibold); }
+.chart-x.at-start, .chart-mark.at-start { transform: none; }
+.chart-x.at-end, .chart-mark.at-end { transform: translateX(-100%); }
+.bars { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 72px); justify-content: start;
+  height: 190px; margin-top: var(--space-sm); padding-top: 26px; }
+/* Each column is a 24px bar standing on the baseline, as tall as its share of the scale. */
+.bars li { position: relative; border-bottom: 1px solid var(--border-default); margin-bottom: 26px; }
+.bars .bar { position: absolute; left: 50%; bottom: 0; width: 24px; height: var(--h); margin-left: -12px;
+  background: var(--s); border-radius: 4px 4px 0 0; }
+.bars b { position: absolute; left: 0; right: 0; bottom: calc(var(--h) + 4px); text-align: center;
+  color: var(--text-primary); font-size: var(--font-sm); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.bars span { position: absolute; left: 0; right: 0; top: 100%; margin-top: var(--space-xs); text-align: center;
+  font-size: var(--font-xs); color: var(--text-muted); white-space: nowrap; }
+.chart-table summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-sm); }
+.chart-table table { border-collapse: collapse; margin-top: var(--space-sm); font-size: var(--font-sm); font-variant-numeric: tabular-nums; }
+.chart-table th, .chart-table td { padding: 4px var(--space-md) 4px 0; text-align: right; border-bottom: 1px solid var(--border-muted); }
+.chart-table th:first-child { text-align: left; }
+.chart-table thead th { color: var(--text-muted); font-weight: var(--weight-semibold); }
+
+/* ---------- phone ---------- */
+@media (max-width: 700px) {
+  :root { --container-pad: var(--space-sm); --header-pad-y: var(--space-sm); --header-pad-x: var(--space-md); }
+  .header { position: static; }   /* a two-row sticky header would eat a phone screen */
+  .header-title { font-size: var(--font-xl); }
+  .dk-nav { gap: 4px; }
+  .dk-nav a { padding: 6px 8px; }   /* six tabs take two rows on a phone, so none is hidden */
+  .panel-x, .card-modal { padding: var(--space-md); }
+}
+/* A small phone is 360px wide: dropping the tab icons fits four tabs, and the
+   waiting badge, on the first row. */
+@media (max-width: 440px) {
+  .dk-nav a .i { display: none; }
+  .dk-nav a { padding: 6px; }
+}
+</style>

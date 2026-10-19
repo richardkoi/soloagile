@@ -1,0 +1,27 @@
+{
+  "name": "soloagile",
+  "version": "1.0.0",
+  "description": "Agile for one person and Claude: every project gets a private page with a board, plan, reports, release notes, docs and links, kept current as the work happens.",
+  "author": {
+    "name": "richardkoi",
+    "url": "https://github.com/richardkoi"
+  },
+  "homepage": "https://github.com/richardkoi/soloagile",
+  "repository": "https://github.com/richardkoi/soloagile",
+  "license": "MIT",
+  "keywords": [
+    "agile",
+    "kanban",
+    "project-management",
+    "board",
+    "solo"
+  ],
+  "userConfig": {
+    "save_at_session_end": {
+      "type": "boolean",
+      "title": "Commit and push at session end",
+      "description": "When a session ends, commit and push the board and the handoff note (pm/*.md, NEXT_SESSION.md, QUESTIONS.md) if they changed. Nothing else is committed. Off unless you turn it on.",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,17 @@
+# Optional: one small web server for every project's page, at http://<this machine>:8080/<project>/.
+# soloagile needs no server; this is for reading the pages from another device, such as a phone.
+# It serves only each project's pm/index.html and the home page (see nginx.conf).
+#
+#   PROJECTS=/path/to/your/projects docker compose up -d
+#
+# PORT changes the port, and SOLOAGILE_DIR the folder that holds the home page.
+services:
+  pages:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${PROJECTS:?set PROJECTS to your projects folder}:/projects:ro
+      - ${SOLOAGILE_DIR:-${HOME}/.soloagile}:/soloagile:ro

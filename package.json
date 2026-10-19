@@ -1,0 +1,13 @@
+{
+  "name": "soloagile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A Claude Code plugin: a private page for every project you build with Claude, with a board, plan, reports, release notes, docs and links.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "soloagile": "bin/soloagile" },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": { "node": ">=22" }
+}

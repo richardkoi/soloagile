@@ -1,0 +1,17 @@
+<button class="btn btn-ghost help" type="button" popovertarget="guide" aria-label="What you can say">?</button>
+<!-- The command guide: one list, in the order of a session. It opens with the browser's
+     Popover API, as a card does, so it needs no script. -->
+<div class="card-modal guide" id="guide" popover role="dialog" aria-labelledby="guide-h">
+  <div class="guide-top"><h2 class="modal-title" id="guide-h">What you can say</h2><button class="modal-close" type="button" popovertarget="guide" popovertargetaction="hide" aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></svg></button></div>
+  <ul class="guide-list">
+    <li><span class="guide-row"><b class="guide-say">“catch me up”</b><span class="guide-typed">/soloagile:catchup</span></span><span class="guide-does">where things stand</span></li>
+    <li><span class="guide-row"><b class="guide-say">“what needs me”</b><span class="guide-typed">/soloagile:needs</span></span><span class="guide-does">answer what’s waiting</span></li>
+    <li><span class="guide-row"><b class="guide-say">“#7 yes”</b></span><span class="guide-does">approve a card, or say what to fix</span></li>
+    <li><span class="guide-row"><b class="guide-say">“commit”</b><span class="guide-typed">/soloagile:commit</span></span><span class="guide-does">check, commit and push</span></li>
+    <li><span class="guide-row"><b class="guide-say">“ship it”</b></span><span class="guide-does">put it online</span></li>
+    <li><span class="guide-row"><b class="guide-say">“retro”</b><span class="guide-typed">/soloagile:retro</span></span><span class="guide-does">look back at a milestone</span></li>
+    <li><span class="guide-row"><b class="guide-say">“done for today”</b><span class="guide-typed">/soloagile:save</span></span><span class="guide-does">save and end the session</span></li>
+    <li><span class="guide-row"><b class="guide-say">/clear</b></span><span class="guide-does">a fresh start for a new task</span></li>
+    <li><span class="guide-row"><b class="guide-say">Esc Esc</b></span><span class="guide-does">go back before a wrong turn</span></li>
+  </ul>
+</div>

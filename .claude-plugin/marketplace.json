@@ -1,0 +1,12 @@
+{
+  "name": "soloagile",
+  "description": "The soloagile plugin, installed from its own repo",
+  "owner": { "name": "richardkoi" },
+  "plugins": [
+    {
+      "name": "soloagile",
+      "source": "./",
+      "description": "Agile for one person and Claude: a private page for every project, with a board, plan, reports and release notes."
+    }
+  ]
+}
