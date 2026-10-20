@@ -20,12 +20,14 @@ const SERVED = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // Rebuilds the page of every project directly under `root`: each folder holding a
 // pm/board.md or pm/plan.md, as the hook counts them. After an update, this brings every
 // page onto the new version at once. The caller builds the home page after.
-export function buildAll(root) {
+// `only`, when given, picks which projects to build, such as those with an old page.
+export function buildAll(root, only = () => true) {
   const built = [];
   const problems = [];
   for (const folder of readdirSync(root).sort()) {
     const repo = join(root, folder);
     if (!SERVED.test(folder) || !['board.md', 'plan.md'].some((f) => existsSync(join(repo, 'pm', f)))) continue;
+    if (!only(repo)) continue;
     try {
       const r = buildProject(repo);
       built.push(r.out);

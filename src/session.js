@@ -8,7 +8,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isLater, parseBoard, parsePlan } from './board.js';
 import { buildProject } from './build.js';
-import { buildHome } from './home.js';
+import { buildAll, buildHome } from './home.js';
 import { isPmProject } from './hook.js';
 import { localDate } from './init.js';
 import { onHome, pageUrl, projectsFolderOf } from './settings.js';
@@ -66,14 +66,22 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
 }
 
 // A page built by an older soloagile is rebuilt when a session starts in its project, so
-// an update shows on the page without waiting for a card to move. Returns whether it built.
+// an update shows on the page without waiting for a card to move. An old page here means
+// the plugin was updated, so every other project's old page on the home page is rebuilt
+// too (#108). Returns whether it built.
+const isOld = (repo) => {
+  const by = builtBy(join(repo, 'pm', 'index.html'));
+  return !by || compareVersions(by, VERSION) < 0;
+};
 export function refreshOldPage(repo) {
   repo = resolve(repo);
-  if (!isPmProject(repo)) return false;
-  const by = builtBy(join(repo, 'pm', 'index.html'));
-  if (by && compareVersions(by, VERSION) >= 0) return false;
+  if (!isPmProject(repo) || !isOld(repo)) return false;
   buildProject(repo);
-  if (onHome(repo)) buildHome({ root: projectsFolderOf(repo) });
+  if (onHome(repo)) {
+    const root = projectsFolderOf(repo);
+    buildAll(root, (other) => resolve(other) !== repo && existsSync(join(other, 'pm', 'index.html')) && isOld(other));
+    buildHome({ root });
+  }
   return true;
 }
 

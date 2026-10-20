@@ -549,6 +549,7 @@ stay as they are; the stage says how far round a card is.
 | A milestone's last card is approved | `/soloagile:retro`: the user picks what worked, what to change and what's next. Then the milestone is set to done and its release note is written, listing the cards whose work shipped in it |
 | Claude creates anything with an address (site, port, artifact, doc, repo) | It goes in `links.md` straight away |
 | Any `pm/*.md` file is edited | A hook rebuilds `pm/index.html`. Open pages refresh themselves within a few seconds, once any open card is closed |
+| A session starts after a plugin update | Its project's page, built by the older version, is rebuilt, and so is every other project's old page on the home page, so all of them show the new look without a card moving |
 | A card changes lane, stage, points, milestone or title | The same rebuild adds a line to `history.md`, with the time |
 | `/soloagile:catchup` | Reads the board without its finished cards: the two "Needs your…" columns first, then Up next |
 | `/soloagile:save` | Tidies the board against the git log, runs `soloagile archive`, which also takes Done cards past their 48 hours off the board, and keeps NEXT_SESSION.md short |

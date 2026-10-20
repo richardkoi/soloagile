@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -95,4 +95,19 @@ test('build-all rebuilds every project in the projects folder, then the home pag
   for (const repo of [a, b]) assert.equal(builtBy(join(repo, 'pm', 'index.html')), VERSION);
   assert.ok(!existsSync(join(SERVED_FOLDER, 'not-a-project', 'pm')));
   assert.match(readFileSync(join(process.env.SOLOAGILE_DIR, 'home.html'), 'utf8'), /one/);
+});
+
+test("after an update, the first session start rebuilds every project's old page, not only its own (#108)", () => {
+  const here = pmProject(SERVED_FOLDER, 'upd-here');
+  const other = pmProject(SERVED_FOLDER, 'upd-other');
+  const current = pmProject(SERVED_FOLDER, 'upd-current');
+  const old = '<html><meta name="generator" content="soloagile 0.0.1"></html>';
+  writeFileSync(join(here, 'pm', 'index.html'), old);
+  writeFileSync(join(other, 'pm', 'index.html'), old);
+  buildProject(current);
+  const kept = statSync(join(current, 'pm', 'index.html')).mtimeMs;
+  assert.equal(refreshOldPage(here), true);
+  assert.equal(builtBy(join(here, 'pm', 'index.html')), VERSION);
+  assert.equal(builtBy(join(other, 'pm', 'index.html')), VERSION, "another project's old page shows the new look too");
+  assert.equal(statSync(join(current, 'pm', 'index.html')).mtimeMs, kept, 'a current page is left alone');
 });
