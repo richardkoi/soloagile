@@ -25,7 +25,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
 import { buildProject } from '../src/build.js';
-import { CARD_USAGE, Refused, runCard } from '../src/card.js';
+import { CARD_USAGE, MILESTONE_CARDS, Refused, milestoneCount, runCard } from '../src/card.js';
 import { addPicture } from '../src/design.js';
 import { isPmProject, runHook } from '../src/hook.js';
 import { buildAll, buildHome } from '../src/home.js';
@@ -34,7 +34,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
-import { HABITS, habitStates, setHabit } from '../src/habits.js';
+import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
@@ -238,6 +238,12 @@ if (cmd === 'card') {
     }
     writeFileSync(file, r.board);
     console.log(`soloagile: ${r.said}`);
+    // The milestone-size habit: say so when a new card takes its milestone past about 15.
+    const ms = argv[0] === 'add' && r.milestone;
+    if (ms && habitOn(here, 'milestone-size')) {
+      const n = milestoneCount(r.board, readArchive(here), ms);
+      if (n > MILESTONE_CARDS) console.log(`soloagile: warning: ${ms} now holds ${n} cards; a milestone holds about ${MILESTONE_CARDS} at most, so think about a new one for the rest`);
+    }
     // A finished card keeps one line on the board; its text goes to the archive at once.
     if (r.column === 'Done') sayArchived(archiveProject(here, localDate()));
     buildAndSay(here);

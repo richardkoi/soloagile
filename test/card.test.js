@@ -168,3 +168,11 @@ test('a card takes a guessed build time on add and set, written after its points
   refused(['set', '7', '--guess', 'soon'], /--guess takes a time/);
   refused(['add', 'Which way?', '--milestone', 'M2', '--lane', 'decision', '--option', 'a', '--option', 'b', '--guess', '20'], /a question has no size, so no guess/);
 });
+
+test('a milestone counts its cards on the board and finished, each once', async () => {
+  const { milestoneCount } = await import('../src/card.js');
+  const board = '# Board\n## Up next\n- #3 C · M2 · 1 pt\n- #4 D · M1 · 1 pt\n## Done\n- #1 A · M2 · 1 pt · 2026-10-01\n';
+  const archive = '# Finished cards\n- #1 A · M2 · 1 pt · 2026-10-01\n  done when: x\n- #2 B · M2 · 2 pts · 2026-10-01\n';
+  assert.equal(milestoneCount(board, archive, 'M2'), 3);
+  assert.equal(milestoneCount(board, '', 'M1'), 1);
+});

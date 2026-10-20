@@ -97,7 +97,7 @@ export function addCard(boardMd, planMd, { title, milestone, points = null, gues
   };
   const details = [...notes, ...options.map((o, i) => `${String.fromCharCode(97 + i)}) ${o}`), doneWhen?.trim() && `done when: ${doneWhen.trim()}`].filter(Boolean);
   put(lines, column, [cardLine(card), ...details.map((d) => `  ${d}`)]);
-  return { board: lines.join('\n'), id, said: `added #${id} to ${column}` };
+  return { board: lines.join('\n'), id, milestone, said: `added #${id} to ${column}` };
 }
 
 // soloagile card move <number> <lane> [stage] [--design] [--from <date>]
@@ -234,6 +234,22 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
 
 // Runs one command against the files' text. Returns { board, said, column } for a change,
 // or { print } for `show`.
+// How many cards a milestone holds, on the board and finished, each counted once.
+export function milestoneCount(boardMd, archiveMd, milestone) {
+  const ids = new Set();
+  for (const md of [boardMd, archiveMd ?? '']) {
+    for (const line of md.split('\n')) {
+      if (!/^- #\d+ /.test(line)) continue;
+      const c = parseCardLine(line.slice(2));
+      if (c.milestone === milestone) ids.add(c.id);
+    }
+  }
+  return ids.size;
+}
+
+// A milestone holds about this many cards at most (the milestone-size habit).
+export const MILESTONE_CARDS = 15;
+
 export function runCard(argv, { board, plan, archive, today }) {
   const { verb, args } = parseCardArgs(argv);
   const [first, second, third] = args.words;

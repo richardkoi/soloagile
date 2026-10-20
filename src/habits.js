@@ -12,21 +12,28 @@ import { ownDir, readSettings } from './settings.js';
 // with no rule isn't built yet: the tab shows it as coming, and Claude isn't told.
 export const HABITS = [
   { key: 'away-mode', name: 'Away mode', what: 'When you say you are away, Claude asks its questions first, then works through Up next.', card: 139 },
-  { key: 'busy-while-waiting', name: 'Start a card while something slow runs', what: 'During a long test or build, Claude starts a card that can’t disturb it.', card: 140 },
+  { key: 'busy-while-waiting', name: 'Start a card while something slow runs', what: 'During a long test or build, Claude starts a card that can’t disturb it.', card: 140,
+    rule: "While a long test, build, render or deploy runs in the background, start the next card that can't disturb it, without being asked. Never end a turn just to say you're waiting." },
   { key: 'picture-pages', name: 'A page of pictures per card', what: 'Every card waiting for your look has its own page of pictures.', card: 141 },
   { key: 'picture-scripts', name: 'Pictures from a kept script', what: 'A card’s pictures can be taken again from a script kept in the project.', card: 142 },
-  { key: 'feedback-cards', name: 'What you mention becomes a card', what: 'After you try something, each thing you mention gets a card.', card: 143 },
+  { key: 'feedback-cards', name: 'What you mention becomes a card', what: 'After you try something, each thing you mention gets a card.', card: 143,
+    rule: 'After the user tries something (a page, a build, a device), ask what they saw. Each thing they mention gets its own card in the same sitting, with points and a milestone, before other work.' },
   { key: 'retro-rules', name: 'Retro lessons become standing rules', what: 'A retro writes each agreed change as a numbered rule in the project’s CLAUDE.md.', card: 144 },
   { key: 'parallel-helpers', name: 'Helpers build cards in parallel', what: 'Several helpers build cards at once, each in its own copy of the code.', card: 145 },
   { key: 'weekly-cleanup', name: 'Weekly clean-up and day-end backup', what: 'Old copies and pictures are cleared weekly; “done for today” runs the backup.', card: 146 },
-  { key: 'milestone-size', name: 'About 15 cards per milestone', what: 'soloagile card add warns when a milestone passes 15 cards.', card: 147 },
-  { key: 'question-batches', name: 'Questions in batches', what: 'Waiting questions are asked together, up to four at a time.', card: 148 },
+  { key: 'milestone-size', name: 'About 15 cards per milestone', what: 'soloagile card add warns when a milestone passes 15 cards.', card: 147,
+    rule: 'A milestone holds about 15 cards at most. When one would pass that, propose a new milestone for the rest; soloagile card add warns when it happens.' },
+  { key: 'question-batches', name: 'Questions in batches', what: 'Waiting questions are asked together, up to four at a time.', card: 148,
+    rule: 'Ask waiting questions together in one round, up to four to a call, each multiple choice with the recommended option first and an open answer last. Gather the questions before starting work, not one at a time between steps.' },
 ];
 
 const projectFile = (repo) => join(resolve(repo), 'pm', 'settings.json');
 const readJson = (file) => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {});
 
 // Each habit with on (true or false) and from: 'default', 'all projects' or 'this project'.
+// Is one habit on for this project? For the code that acts on a habit, such as card add.
+export const habitOn = (repo, key) => habitStates(repo).find((h) => h.key === key)?.on ?? true;
+
 export function habitStates(repo, { habits = HABITS, settings = readSettings() } = {}) {
   const all = settings.habits ?? {};
   const mine = repo ? (readJson(projectFile(repo)).habits ?? {}) : {};

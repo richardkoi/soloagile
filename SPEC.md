@@ -65,7 +65,9 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   under `"habits"` in its `pm/settings.json`, which wins. The page's Settings tab shows each
   habit, on or off, where that comes from, and the command that flips it. It is read-only:
   the user tells Claude, or runs `soloagile set <habit> on|off [--all]`, which rebuilds the
-  page. A habit whose card isn't built yet shows as coming. The session start tells Claude
+  page. A habit whose card isn't built yet shows as coming. Built so far: start a card while
+  something slow runs, what the user mentions becomes a card, about 15 cards per milestone
+  (`card add` warns past it), and questions in batches. The session start tells Claude
   each built habit, on or off, so a change takes effect at the next session.
 - **A card's face has a head and a foot.** The head holds the waiting pill (Decide,
   Design, Look), the milestone, the picture count, and the card's number at the right.

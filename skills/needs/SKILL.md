@@ -15,7 +15,8 @@ If there is no board, say so in one line and stop. The format and rules are in
 `${CLAUDE_PLUGIN_ROOT}/SPEC.md`.
 
 **Ask.** One question per card with AskUserQuestion, four questions to a call:
-decisions first, then looks. If the user named cards, ask only those. Skip a look dated
+decisions first, then looks. Ask every waiting card in this one round, call after call,
+before any other work: the user answers them together, not one at a time between steps. If the user named cards, ask only those. Skip a look dated
 `from <a later day>`: it can't happen yet.
 - The question names the card (`#12 …`) and says in a few words what to decide or
   check, with the link or command from the card's "to look" line.

@@ -13,7 +13,7 @@ const GLOBAL = join(process.env.SOLOAGILE_DIR, 'settings.json');
 function project() {
   const repo = mkdtempSync(join(tmpdir(), 'soloagile-habits-'));
   mkdirSync(join(repo, 'pm'));
-  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n## Ideas\n## Up next\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 1 -->\n## Ideas\n## Up next\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
   writeFileSync(join(repo, 'pm', 'plan.md'), '# Alpha\n### M1 — First · in progress\nshort: First\n');
   return repo;
 }
@@ -67,4 +67,13 @@ test('soloagile set: flips a habit here, or for every project with --all, and li
   const all = run(key, 'on', '--all');
   assert.match(all.stdout, /is on for all projects/);
   assert.equal(JSON.parse(readFileSync(GLOBAL, 'utf8')).habits[key], true);
+});
+
+test('card add warns when a milestone passes about 15 cards, unless the habit is off', () => {
+  const repo = project();
+  const add = (n) => spawnSync(PM, ['card', 'add', `Card ${n}`, '--milestone', 'M1', '--points', '1', '--done-when', 'x'], { cwd: repo, encoding: 'utf8' });
+  for (let n = 1; n <= 15; n++) assert.doesNotMatch(add(n).stdout, /warning/);
+  assert.match(add(16).stdout, /warning: M1 now holds 16 cards; a milestone holds about 15 at most/);
+  spawnSync(PM, ['set', 'milestone-size', 'off'], { cwd: repo });
+  assert.doesNotMatch(add(17).stdout, /warning/);
 });
