@@ -279,6 +279,12 @@ body:has(#settings:target) .tab-settings { display: block; }
 .ms-strip a.ms-done { text-decoration: none; }
 /* The milestone filter above the lanes: chips that wrap on a phone. The picked one is
    full strength with a ring; the rest are faded until hovered. */
+/* The search box (#132): matches stay lit, the rest dim. */
+.card-find { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.card-find input { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-overlay); color: var(--text-primary); width: min(320px, 100%); }
+.card-find-note { color: var(--text-muted); font-size: var(--font-sm); }
+.card-x.find-dim { opacity: 0.25; }
+.card-x.find-hit { box-shadow: 0 0 0 2px var(--m, var(--text-muted)); }
 .ms-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
 .ms-filter-label { color: var(--text-muted); font-size: var(--font-sm); }
 .ms-chip { font-family: inherit; cursor: pointer; opacity: 0.6; }

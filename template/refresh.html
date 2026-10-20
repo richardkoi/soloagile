@@ -57,6 +57,37 @@
     show(ms);
   });
 })();
+/* The search box (#132). Words light the cards that hold them and dim the rest, across every
+   lane. A card's number ("#12" or "12") and Enter opens that card: the milestone filter goes
+   back to All first if it was hiding it, and a card with no pop-up is scrolled to instead. */
+(function () {
+  var box = document.querySelector('.card-find input');
+  if (!box) return;
+  var note = document.querySelector('.card-find-note');
+  var cards = document.querySelectorAll('li.card-x');
+  function light() {
+    var q = box.value.trim().toLowerCase();
+    var n = 0;
+    cards.forEach(function (li) {
+      var hit = q && li.textContent.toLowerCase().indexOf(q) >= 0;
+      li.classList.toggle('find-hit', !!hit);
+      li.classList.toggle('find-dim', !!q && !hit);
+      if (hit && !li.hidden) n++;
+    });
+    note.textContent = !q ? '' : /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
+  }
+  box.addEventListener('input', light);
+  box.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { box.value = ''; light(); return; }
+    var m = box.value.trim().match(/^#?(\d+)$/);
+    if (e.key !== 'Enter' || !m) return;
+    var li = document.querySelector('li.card-x[data-id="' + m[1] + '"]');
+    if (!li) { note.textContent = 'no card #' + m[1] + ' on this page'; return; }
+    if (li.hidden) { var all = document.querySelector('.ms-filter button[data-ms=""]'); if (all) all.click(); }
+    var modal = li.querySelector('.card-modal');
+    if (modal) modal.showPopover(); else li.scrollIntoView({ block: 'center' });
+  });
+})();
 /* Live refresh. Served over http: every 3 seconds, ask the server for this file's ETag and
    reload when it changes. Opened as a file, where no server can be asked: every 3 seconds,
    load the stamp the last build left, a one-line script saying when the page was built,

@@ -447,12 +447,21 @@ short: First page
   assert.deepEqual(chips, ['M1', 'M2']);
   assert.match(bar, /class="[^"]*ms-c1[^"]*"[^>]*data-ms="M1"[^>]*>[^]*?First page/);
   // Each card carries its milestone, so the page's script can hide the others.
-  assert.match(html, /<li class="card-x card-up-next" data-ms="M1">/);
-  assert.match(html, /<li class="card-x card-up-next" data-ms="">/);
-  assert.match(html, /<li class="card-x card-ideas" data-ms="M2">/);
+  assert.match(html, /<li class="card-x card-up-next" data-ms="M1" data-id="\d+">/);
+  assert.match(html, /<li class="card-x card-up-next" data-ms="" data-id="\d+">/);
+  assert.match(html, /<li class="card-x card-ideas" data-ms="M2" data-id="\d+">/);
 });
 
 test('with one milestone on the board, there is no chip row', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   assert.doesNotMatch(html, /class="ms-filter"/);
+});
+
+test('a search box finds a card by its words or number (#132)', () => {
+  const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  // The box sits above the lanes, even with no chip row; the page's script does the finding.
+  assert.match(html, /<div class="card-find"><input type="search"[^>]*aria-label="Find a card"[^>]*><span class="card-find-note" aria-live="polite"><\/span><\/div>/);
+  assert.match(html, /data-id="\d+"/);
+  assert.match(html, /\.card-x\.find-dim \{/);
+  assert.match(html, /card-find[^]*showPopover/, 'Enter on a number opens that card');
 });

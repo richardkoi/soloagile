@@ -163,8 +163,8 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   if (left === meta) meta = '';
   // Once built, a guessed card says how close the guess came, under its foot.
   const tookLine = c.guess != null && c.took != null ? `<p class="card-took">guessed ${duration(c.guess)}, took ${duration(c.took)}</p>` : '';
-  // data-ms and data-later are for the milestone filter (template/refresh.html).
-  const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${later ? ' data-later' : ''}>`;
+  // data-ms and data-later are for the milestone filter, data-id for the search box (template/refresh.html).
+  const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${c.id !== null ? ` data-id="${c.id}"` : ''}${later ? ' data-later' : ''}>`;
   if (!c.details.length) {
     return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${tookLine}${picturePage(c, pictures)}</li>`;
   }
@@ -191,6 +191,10 @@ function recentlyDone(builtAt) {
   const cutoff = doneCutoff(ymd(builtAt));
   return ({ card, column }) => column !== 'Done' || !card.date || card.date.value >= cutoff;
 }
+
+// The search box above the lanes (#132): words light the cards that match and dim the rest;
+// a card's number and Enter opens it. The finding is done by template/refresh.html.
+const FIND_BOX = '<div class="card-find"><input type="search" placeholder="Find a card: words, or #12 and Enter" aria-label="Find a card" autocomplete="off"><span class="card-find-note" aria-live="polite"></span></div>';
 
 // The milestone filter: an All chip, then one chip per milestone that has a card on the
 // board, in plan order. A click shows only that milestone's cards; the page's script does
@@ -224,7 +228,7 @@ function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took 
   const lanes = [...LANES, ...extra];
   return {
     html: lanes.map((lane) => renderLane(lane, cardsOf(lane.from), pictures, today, shorts)).join('\n'),
-    filter: renderFilter(lanes.flatMap((lane) => cardsOf(lane.from)), shorts),
+    filter: FIND_BOX + renderFilter(lanes.flatMap((lane) => cardsOf(lane.from)), shorts),
     waiting: cardsOf(LANES[0].from).filter((c) => !c.later).length,
   };
 }
