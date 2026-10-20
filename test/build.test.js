@@ -475,3 +475,11 @@ test('a search box finds a card by its words or number (#132)', () => {
   assert.match(html, /\.card-x\.find-dim \{/);
   assert.match(html, /card-find[^]*showPopover/, 'Enter on a number opens that card');
 });
+
+test("each lane's heading shows its total points, and a lane with none shows no total (#133)", () => {
+  const board = '# Board\n<!-- next-id: 9 -->\n## Ideas\n- #1 A · M1 · 2 pts\n- #2 B · M1 · 3 pts\n## Up next\n- #3 C · M1\n## Doing\n- #4 D · M1 · 1 pt · develop\n## Needs your look\n## Needs your decision\n## Done\n';
+  const { html } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
+  assert.match(html, /<span class="lane-name">Ideas<\/span><span class="lane-count">2<\/span><span class="lane-points">5 pts<\/span>/);
+  assert.match(html, /<span class="lane-name">Doing<\/span><span class="lane-count">1<\/span><span class="lane-points">1 pt<\/span>/);
+  assert.match(html, /<span class="lane-name">Up next<\/span><span class="lane-count">1<\/span>(?!<span class="lane-points">)/);
+});

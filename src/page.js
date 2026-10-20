@@ -183,8 +183,11 @@ function renderLane(lane, cards, pictures, today, shorts) {
   const body = cards.length
     ? `<ul class="lane-body">${cards.map(({ card, column, later }, i) => renderCard(card, column, lane.key, `card-${lane.key}-${i}`, later, pictures, today, shorts)).join('\n')}</ul>`
     : '<p class="lane-empty">&mdash;</p>';
+  // The lane's count and its total points (#133) leave out looks that can't happen yet.
+  const shown = cards.filter((c) => !c.later);
+  const points = shown.reduce((sum, { card }) => sum + (card.points ?? 0), 0);
   return `<section class="lane lane-${lane.key}" aria-label="${esc(lane.name)}">
-<div class="lane-head"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${cards.filter((c) => !c.later).length}</span>${lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : ''}</div>
+<div class="lane-head"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : ''}${lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : ''}</div>
 ${body}
 </section>`;
 }
