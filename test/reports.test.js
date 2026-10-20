@@ -200,12 +200,78 @@ test('the Reports tab draws the flow bands and a dot per built card', () => {
   const html = renderReports({ history, plan: { milestones: [] }, builtAt: new Date(2026, 9, 2, 12, 0) });
   assert.match(html, /<b>1<\/b> waiting on you/);
   assert.match(html, /<b>1<\/b> up next/);
-  assert.equal(html.match(/class="chart-band /g).length, 4);
-  assert.match(html, /class="chart-dot s-built" style="left:41\.67%;top:33\.33%" title="#1 · 40 min"/);
-  assert.match(html, /<th scope="row">3 pts<\/th><td>1<\/td><td>40 min<\/td><td>40 min<\/td>/);
+  assert.equal(html.match(/class="chart-band /g).length, 3);
+  assert.doesNotMatch(html, /chart-band s-done/);
+  assert.match(html, /class="chart-dot s-built" style="left:41\.67%;top:9\.9%" title="#1 · 40 min"/);
+  assert.match(html, /<th scope="row">3 pts<\/th><td>1<\/td><td>40 min<\/td><td>40 min to 40 min<\/td><td>40 min<\/td>/);
 });
 
 test('burn-up: a sized idea that became an answered question has no points', () => {
   const steps = burnup(log('09:00 · Up next · #1 Real work · M1 · 2 pts', '09:00 · Ideas · #2 An idea · 13 pts', '10:00 · Done · #2 Which way? · M1'));
   assert.deepEqual(numbers(steps), [['09:00', 2, 0, 0]]);
+});
+
+test('time to build counts only the time spent working, not time parked between spells', () => {
+  const events = parseHistory([
+    '- 2026-10-02 09:00 · Doing · #1 Parked · M1 · 3 pts · develop',
+    '- 2026-10-02 10:00 · Up next · #1 Parked · M1 · 3 pts',
+    '- 2026-10-03 09:00 · Doing · #1 Parked · M1 · 3 pts · develop',
+    '- 2026-10-03 09:30 · Needs your decision · #1 Parked · M1',
+    '- 2026-10-03 15:00 · Doing · #1 Parked · M1 · 3 pts · develop',
+    '- 2026-10-03 15:15 · Needs your look · #1 Parked · M1 · 3 pts',
+    '- 2026-10-03 16:00 · Doing · #1 Parked · M1 · 3 pts · develop',
+    '- 2026-10-03 18:00 · Needs your look · #1 Parked · M1 · 3 pts',
+  ].join('\n'));
+  assert.deepEqual(buildTimes(events), [{ id: 1, points: 3, minutes: 105 }]);
+});
+
+test('time to build leaves out cards that went through Doing in under 3 minutes, and says how many', () => {
+  const history = [
+    '- 2026-10-02 09:00 · Doing · #1 Real · M1 · 3 pts · develop',
+    '- 2026-10-02 09:40 · Needs your look · #1 Real · M1 · 3 pts',
+    '- 2026-10-02 10:00 · Doing · #2 Moved after · M1 · 1 pt · develop',
+    '- 2026-10-02 10:00 · Done · #2 Moved after · M1 · 1 pt',
+    '- 2026-10-02 10:00 · Doing · #3 Also after · M1 · 2 pts · develop',
+    '- 2026-10-02 10:02 · Needs your look · #3 Also after · M1 · 2 pts',
+  ].join('\n');
+  const html = renderReports({ history, plan: { milestones: [] }, builtAt: new Date(2026, 9, 2, 12, 0) });
+  assert.deepEqual(html.match(/title="#\d+ · [^"]+"/g), ['title="#1 · 40 min"']);
+  assert.match(html, /2 cards went through Doing in under 3 minutes, so were moved there after the work: they are left out\./);
+});
+
+test('time to build says in a line whether size predicts time', () => {
+  const card = (id, pts, start, mins) => {
+    const end = new Date(2026, 9, 2, 9, start + mins);
+    const at = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
+    return [`- 2026-10-02 09:${pad2(start)} · Doing · #${id} C · M1 · ${pts} pts · develop`, `- 2026-10-02 ${at} · Needs your look · #${id} C · M1 · ${pts} pts`];
+  };
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const html = (sets) => renderReports({ history: sets.flatMap((s, i) => card(i + 1, ...s)).join('\n'), plan: { milestones: [] }, builtAt: new Date(2026, 9, 2, 23, 0) });
+  const flat = [[3, 0, 40], [3, 1, 40], [3, 2, 40], [5, 3, 41], [5, 4, 41], [5, 5, 41]];
+  assert.match(html(flat), /<p class="report-verdict">Size isn’t predicting time here: the usual time is 40 min for 3 pts and 41 min for 5 pts\.<\/p>/);
+  const rising = [[1, 0, 10], [1, 1, 10], [1, 2, 10], [5, 3, 60], [5, 4, 60], [5, 5, 60]];
+  assert.match(html(rising), /<p class="report-verdict">Bigger cards take longer, so the sizes are guessed well: the usual time is 10 min for 1 pt and 60 min for 5 pts\.<\/p>/);
+  assert.match(html(flat.slice(0, 4)), /<p class="report-verdict">Too few cards yet to say whether size predicts time\.<\/p>/);
+});
+
+test('burn-up: many milestones in progress make a short header, and each milestone line is drawn once', () => {
+  const history = ['- 2026-10-02 09:00 · Up next · #1 A · M1 · 3 pts', '- 2026-10-02 10:00 · Done · #1 A · M1 · 3 pts', '- 2026-10-02 10:00 · Done · #2 B · M2 · 2 pts'].join('\n');
+  const ids = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'];
+  const plan = { milestones: ids.map((id, i) => ({ id, status: i < 2 ? 'done' : 'in progress' })) };
+  const html = renderReports({ history, plan, builtAt: new Date(2026, 9, 2, 12, 0) });
+  assert.match(html, /<span class="st st-open" title="M3, M4, M5 and M6 in progress">4 milestones in progress<\/span>/);
+  assert.equal(html.match(/class="chart-rule"/g).length, 1);
+  const few = renderReports({ history, plan: { milestones: [{ id: 'M1', status: 'in progress' }, { id: 'M2', status: 'in progress' }] }, builtAt: new Date(2026, 9, 2, 12, 0) });
+  assert.match(few, /<span class="st st-open">M1 and M2 in progress<\/span>/);
+});
+
+test('time to build spaces 1 min, 10 min, 1 h and 8 h evenly, and bands the middle half of each size', () => {
+  const lines = [[1, 10], [2, 60], [3, 60], [4, 480]].flatMap(([id, mins]) => {
+    const end = new Date(2026, 9, 2, 0, mins);
+    return [`- 2026-10-02 00:00 · Doing · #${id} C · M1 · 3 pts · develop`, `- 2026-10-02 ${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')} · Needs your look · #${id} C · M1 · 3 pts`];
+  });
+  const html = renderReports({ history: lines.join('\n'), plan: { milestones: [] }, builtAt: new Date(2026, 9, 2, 23, 0) });
+  assert.deepEqual([...html.matchAll(/class="chart-y" style="top:([\d.]+)%">(\w+)</g)].slice(-4).map((m) => [m[2], Math.round(m[1])]), [['1m', 100], ['10m', 63], ['1h', 34], ['8h', 0]]);
+  // The middle half of 10, 60, 60 and 480 minutes runs from 47.5 to 165 minutes.
+  assert.match(html, /<span class="chart-spread" style="left:41\.67%;top:17\.3%;height:20\.17%"><\/span>/);
 });

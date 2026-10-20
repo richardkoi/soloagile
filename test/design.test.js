@@ -42,17 +42,17 @@ const fakeShoot = async (url, file) => (writeFileSync(file, png(720, 400)), file
 
 test("an option's picture shows under that option, in the card's pop-up", () => {
   const md = { board: BOARD, plan: '', releases: '', overview: '', decisions: '', links: '' };
-  const pictures = { '12-a': { src: 'data:image/png;base64,QUJD', width: 360, height: 200 }, '99-b': { src: 'data:image/png;base64,WFla', width: 360, height: 200 } };
+  const pictures = { '12-a': { src: 'designs/12-a.png?v=5', width: 360, height: 200 }, '99-b': { src: 'designs/99-b.png?v=6', width: 360, height: 200 } };
   const { html } = renderPage({ name: 'demo', md, builtAt: new Date(2026, 9, 2), template: readTemplate('page.html'), pictures });
-  assert.match(html, /<li>a\) A bar of six blocks \(recommended\)<a class="pic-open" href="data:image\/png;base64,QUJD" target="_blank" title="Open full size in a new tab"><img class="option-pic" src="data:image\/png;base64,QUJD" width="360" height="200" alt="Option a, as a picture"><\/a><\/li>/);
-  assert.match(html, /closest\('a\.pic-open'\)[\s\S]*window\.open\(URL\.createObjectURL/, 'the click opens the picture in a new tab, which a data: link alone may not');
+  assert.match(html, /<li>a\) A bar of six blocks \(recommended\)<a class="pic-open" href="designs\/12-a\.png\?v=5" target="_blank" title="Open full size in a new tab"><img class="option-pic" src="designs\/12-a\.png\?v=5" width="360" height="200" alt="Option a, as a picture" loading="lazy"><\/a><\/li>/);
+  assert.doesNotMatch(html, /createObjectURL/, 'a plain link opens the picture');
   assert.match(html, /<li>b\) Six dots<\/li>/, 'an option with no picture is plain');
-  assert.doesNotMatch(html, /WFla/, "another card's picture is left out");
+  assert.doesNotMatch(html, /99-b/, "another card's picture is left out");
 });
 
 test('a card with pictures shows a photo icon and how many, on its face', () => {
   const md = { board: BOARD, plan: '', releases: '', overview: '', decisions: '', links: '' };
-  const pic = { src: 'data:image/png;base64,QUJD', width: 360, height: 200 };
+  const pic = { src: 'designs/x.png', width: 360, height: 200 };
   const face = (pictures) => renderPage({ name: 'demo', md, builtAt: new Date(2026, 9, 2), template: readTemplate('page.html'), pictures }).html.split('<div class="card-modal"')[0];
   assert.match(face({ '12-a': pic, '12-b': pic }), /<span class="tag tag-pics" title="2 pictures inside"><svg[^>]*>.*?<\/svg>2<\/span>/);
   assert.match(face({ '12-a': pic, '99-b': pic }), /title="1 picture inside"><svg[^>]*>.*?<\/svg>1<\/span>/, "another card's picture is not counted");
@@ -60,7 +60,7 @@ test('a card with pictures shows a photo icon and how many, on its face', () => 
   assert.doesNotMatch(face({}), /class="tag tag-pics"/, 'a card without pictures shows nothing');
 });
 
-test('soloagile design stores the picture, keeps it out of git and rebuilds the page with it inside', async () => {
+test('soloagile design stores the picture, keeps it out of git and rebuilds the page linking it', async () => {
   const repo = project();
   const asked = [];
   const { file } = await addPicture(repo, '12', 'b', join(repo, 'mock.html'), undefined, (url, to, width) => (asked.push([url, width]), fakeShoot(url, to)));
@@ -68,7 +68,8 @@ test('soloagile design stores the picture, keeps it out of git and rebuilds the 
   assert.deepEqual(asked, [[`file://${join(repo, 'mock.html')}`, 360]], 'a file becomes an address, at phone width');
   assert.deepEqual(readPictures(join(repo, 'pm'))['12-b'].width, 360, 'drawn at twice the size, shown at half the pixels');
   assert.match(readFileSync(join(repo, '.gitignore'), 'utf8'), /^pm\/designs\/$/m);
-  assert.match(readFileSync(join(repo, 'pm', 'index.html'), 'utf8'), /<li>b\) Six dots<a class="pic-open"[^>]*><img class="option-pic" src="data:image\/png;base64,[^"]+" width="360" height="200"/);
+  assert.match(readFileSync(join(repo, 'pm', 'index.html'), 'utf8'), /<li>b\) Six dots<a class="pic-open"[^>]*><img class="option-pic" src="designs\/12-b\.png\?v=\d+" width="360" height="200"/);
+  assert.doesNotMatch(readFileSync(join(repo, 'pm', 'index.html'), 'utf8'), /data:image\/png/, 'the page holds no picture itself');
   await addPicture(repo, '12', 'a', 'http://127.0.0.1:9/mock', 1000, (url, to, width) => (asked.push([url, width]), fakeShoot(url, to)));
   assert.deepEqual(asked[1], ['http://127.0.0.1:9/mock', 1000], 'an address is used as given');
 });

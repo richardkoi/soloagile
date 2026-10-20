@@ -101,7 +101,7 @@ function summaryOf(details) {
 const pictureOf = (card, line, pictures) => OPTION.test(line) && pictures[`${card.id}-${line[0]}`];
 function optionPicture(card, line, pictures) {
   const pic = pictureOf(card, line, pictures);
-  return pic ? `<a class="pic-open" href="${pic.src}" target="_blank" title="Open full size in a new tab"><img class="option-pic" src="${pic.src}" width="${pic.width}" height="${pic.height}" alt="Option ${line[0]}, as a picture"></a>` : '';
+  return pic ? `<a class="pic-open" href="${pic.src}" target="_blank" title="Open full size in a new tab"><img class="option-pic" src="${pic.src}" width="${pic.width}" height="${pic.height}" alt="Option ${line[0]}, as a picture" loading="lazy"></a>` : '';
 }
 
 // A photo icon in the card's top row, with how many pictures are inside, so the user knows

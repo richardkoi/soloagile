@@ -73,11 +73,22 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
     Needs your look; approved means Done. A finished card still counts after `/soloagile:save`
     clears it from the board.
   - A marker shows where each finished milestone's last card was approved.
-  - **Flow**: a band per lane over time, counting cards: Done at the bottom, then Waiting
-    on you, Doing and Up next. A band that keeps widening is where work piles up.
-  - **Time to build, by size**: a column per card size and a dot per card, set by how long
-    it took from work starting to reaching the user's look. A bar marks the usual time for a
-    size.
+  - Its header names the milestones in progress; past three, it gives how many, and the
+    names on hover.
+  - **Flow**: a band per lane over time, counting cards: Waiting on you at the bottom, then
+    Doing and Up next. A band that keeps widening is where work piles up. Done is left out
+    of the bands, since it only grows and would dwarf them; the burn-up shows it, and the
+    table keeps it.
+  - **Time to build, by size**: a column per card size and a dot per card, set by the time
+    the card spent in Doing (or as a design waiting on the user) before it first reached
+    the user's look. Time parked in Up next or waiting on a question doesn't count.
+    - A card that went through Doing in under 3 minutes was moved there after the work, so
+      it is left out, and a line under the chart says how many were.
+    - The scale spaces 1 min, 10 min, 1 h, 8 h and 1 day evenly, so short and long cards
+      both show. A band covers the middle half of each size's times, and a bar marks its
+      usual time.
+    - A sentence under the title reads the chart: whether bigger cards take longer, with
+      each size's usual time. A size needs 3 cards to count.
   - **Finished per week**: a bar for each of the last eight weeks, Monday to
     Sunday, with the points approved in it. The bars add up to the burn-up's approved line.
   - Built is blue and approved is green. That pair stays apart for colour-blind eyes;
@@ -258,7 +269,9 @@ The six columns, always in this order and always present, even when empty:
   - A mock-up is drawn 360 wide, a small phone, which fits the modal without shrinking. A
     fourth argument sets another width, up to 1400, for a layout that needs the room.
   - It shows the part being chosen, not a whole page, and is taken in the dark theme.
-  - The picture is held inside the page, so the page stays one file.
+  - The page links the picture as `designs/<card>-<letter>.png`, beside it, rather than
+    holding it, so a page with many pictures stays small. That works for a page opened as
+    a file; a page server serves `pm/designs/` too.
   - The card's face shows a photo icon in its top row, with how many pictures are inside,
     so the user knows to open it. A card with none shows nothing.
   - A click on a picture opens it full size in a new tab.

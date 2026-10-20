@@ -101,22 +101,30 @@ export function weekly(events, now) {
   return weeks;
 }
 
-// How long each card took to build: from work starting (its first time in Doing, or as a
-// design waiting on the user) to first reaching the user's look. [{ id, points, minutes }], for
-// cards with points; a card whose start the log never saw is left out.
+// How long each card took to build: the time it spent being worked on (in Doing, or as a
+// design waiting on the user) before it first reached the user's look. Time parked in Up
+// next or waiting on a question between spells is not counted. [{ id, points, minutes }],
+// for cards with points; a card whose start the log never saw is left out.
 export function buildTimes(events) {
   const cards = new Map();
   for (const e of events) {
-    const c = cards.get(e.id) ?? { id: e.id, points: null, start: null, end: null };
+    const c = cards.get(e.id) ?? { id: e.id, points: null, since: null, worked: 0, started: false, done: false };
     cards.set(e.id, c);
     if (e.points !== null) c.points = e.points;
+    if (c.done) continue;
     const working = e.lane === 'Doing' || (e.lane === 'Needs your decision' && e.stage === 'design');
-    if (working && !c.start) c.start = when(e.at);
-    if ((e.lane === 'Needs your look' || e.lane === 'Done') && c.start && !c.end) c.end = when(e.at);
+    if (c.since && !working) {
+      c.worked += when(e.at) - c.since;
+      c.since = null;
+    } else if (working && !c.since) {
+      c.since = when(e.at);
+      c.started = true;
+    }
+    if ((e.lane === 'Needs your look' || e.lane === 'Done') && c.started) c.done = true;
   }
   return [...cards.values()]
-    .filter((c) => c.end && c.points !== null)
-    .map((c) => ({ id: c.id, points: c.points, minutes: Math.max(1, Math.round((c.end - c.start) / 60000)) }));
+    .filter((c) => c.done && c.points !== null)
+    .map((c) => ({ id: c.id, points: c.points, minutes: Math.max(1, Math.round(c.worked / 60000)) }));
 }
 
 const FLOW = [
@@ -215,7 +223,7 @@ function burnupChart(steps, marks, builtAt) {
   return `<div class="plot" role="img" aria-label="${summary}">
 <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 ${ticks.map((v) => `<line x1="0" x2="100" y1="${y(v)}" y2="${y(v)}" class="chart-grid"/>`).join('')}
-${ends.map((m) => `<line x1="${m.x}" x2="${m.x}" y1="0" y2="100" class="chart-rule"/>`).join('')}
+${[...new Set(ends.map((m) => m.x))].map((mx) => `<line x1="${mx}" x2="${mx}" y1="0" y2="100" class="chart-rule"/>`).join('')}
 <path d="${line('built')}V100H0Z" class="chart-wash s-built"/><path d="${line('approved')}V100H0Z" class="chart-wash s-approved"/>
 ${SERIES.map(([k]) => `<path d="${line(k)}" class="chart-line s-${k}"/>`).join('')}
 </svg>
@@ -238,14 +246,16 @@ function burnupTable(steps) {
 <tbody>${rows.join('')}</tbody></table></details>`;
 }
 
-// The bands are stacked in flow order, Done at the bottom, with a thin gap in the
-// surface colour between them so neighbours never touch.
+// The bands are stacked in flow order, with a thin gap in the surface colour between
+// them so neighbours never touch. Done is left out of the bands: it only grows, and soon
+// dwarfs the lanes where work can pile up. The burn-up shows it, and the table keeps it.
 function flowReport(events, builtAt) {
   const steps = flow(events);
   if (!steps.length) return '';
   const t0 = when(steps[0].at);
   const t1 = new Date(Math.max(builtAt, when(steps.at(-1).at), t0.getTime() + 3600000));
-  const { top, ticks } = niceScale(Math.max(...steps.map((s) => FLOW.reduce((n, [k]) => n + s[k], 0))));
+  const STACKED = FLOW.filter(([k]) => k !== 'done');
+  const { top, ticks } = niceScale(Math.max(1, ...steps.map((s) => STACKED.reduce((n, [k]) => n + s[k], 0))));
   const x = (t) => round(((t - t0) / (t1 - t0)) * 100);
   const y = (v) => round(100 - (v / top) * 100);
   // A stepped outline: each value holds until the next moment, then the last holds to the edge.
@@ -253,20 +263,20 @@ function flowReport(events, builtAt) {
   const path = (pts) => pts.map(([px, v], i) => `${i ? 'L' : 'M'}${px} ${y(v)}`).join('');
   let base = steps.map(() => 0);
   let shapes = '';
-  for (const [k] of FLOW) {
+  for (const [k] of STACKED) {
     const upper = base.map((b, i) => b + steps[i][k]);
     shapes += `<path d="${path([...outline(upper), ...outline(base).reverse()])}Z" class="chart-band s-${k}"/><path d="${path(outline(upper))}" class="chart-gap"/>`;
     base = upper;
   }
   const now = steps.at(-1);
-  const key = [...FLOW].reverse().map(([k, label]) => `<li><i class="chart-sq s-${k}"></i><b>${now[k]}</b> ${label}</li>`).join('');
+  const key = [...STACKED].reverse().map(([k, label]) => `<li><i class="chart-sq s-${k}"></i><b>${now[k]}</b> ${label}</li>`).join('');
   const summary = `Cards in each lane: ${FLOW.map(([k, label]) => `${now[k]} ${label}`).join(', ')}`;
   const days = new Map();
   for (const s of steps) days.set(s.at.slice(0, 10), s);
   const rows = [...days].map(([day, s]) => `<tr><th scope="row">${dayLabel(when(`${day} 00:00`))}</th>${[...FLOW].reverse().map(([k]) => `<td>${s[k]}</td>`).join('')}</tr>`);
   return `<section class="report">
 <header class="report-head"><h2 class="h-icon">${icon('chart-area')}Flow</h2></header>
-<p class="report-sub">How many cards sat in each lane over time. A band that keeps widening is where work piles up.</p>
+<p class="report-sub">How many cards sat in each lane over time. A band that keeps widening is where work piles up. Finished cards are left out: ${now.done} so far.</p>
 <ul class="chart-key">${key}</ul>
 <div class="plot" role="img" aria-label="${summary}">
 <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -293,40 +303,87 @@ const median = (a) => {
 export const duration = (minutes) =>
   minutes < 120 ? `${Math.round(minutes)} min` : minutes < 2880 ? `${round(minutes / 60).toFixed(1).replace('.0', '')} h` : `${round(minutes / 1440).toFixed(1).replace('.0', '')} d`;
 
-// A column per card size, a dot per card, and a bar at the usual (middle) time for the
-// sizes with at least two cards.
+// A size counts toward the verdict once it has this many cards.
+const ENOUGH = 3;
+const ptsLabel = (size) => `${size} pt${size === 1 ? '' : 's'}`;
+const listed = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
+
+// One plain sentence reading the chart: do bigger cards take longer? They do when each
+// size's usual time is no shorter than the size below it, and the biggest takes at least
+// half as long again as the smallest.
+export function sizeVerdict(cards) {
+  const sizes = SIZES.map((size) => ({ size, times: cards.filter((c) => c.points === size).map((c) => c.minutes) }))
+    .filter((s) => s.times.length >= ENOUGH)
+    .map((s) => ({ size: s.size, usual: median(s.times) }));
+  if (sizes.length < 2) return 'Too few cards yet to say whether size predicts time.';
+  const rising = sizes.every((s, i) => !i || s.usual >= sizes[i - 1].usual) && sizes.at(-1).usual >= 1.5 * sizes[0].usual;
+  const times = `the usual time is ${listed(sizes.map((s) => `${duration(s.usual)} for ${ptsLabel(s.size)}`))}`;
+  return rising ? `Bigger cards take longer, so the sizes are guessed well: ${times}.` : `Size isn’t predicting time here: ${times}.`;
+}
+
+// A card that went through Doing in under this many minutes was moved there after the work
+// was done, so its time says nothing about the work.
+const MOVED_AFTER = 3;
+
+const quartile = (a, q) => {
+  const s = [...a].sort((p, r) => p - r);
+  const i = (s.length - 1) * q;
+  return s[Math.floor(i)] + (s[Math.ceil(i)] - s[Math.floor(i)]) * (i - Math.floor(i));
+};
+
+// The time scale. Most cards take under an hour and a few take a day, so a straight scale
+// up to the longest card puts nearly every dot on the floor. This one spaces 1 min, 10 min,
+// 1 h, 8 h and 1 d evenly, so short and long both show. Returns { y(minutes) -> %, ticks }.
+const LOG_TICKS = [1, 10, 60, 480, 1440, 4320, 10080];
+function sizeScale(minutes) {
+  const hi = LOG_TICKS.find((t) => t >= Math.max(...minutes)) ?? LOG_TICKS.at(-1);
+  const y = (m) => round(100 - (Math.log(Math.max(1, Math.min(m, hi))) / Math.log(hi)) * 100);
+  const ticks = LOG_TICKS.filter((t) => t <= hi).map((t) => ({ at: y(t), text: t < 60 ? `${t}m` : t < 1440 ? `${t / 60}h` : `${t / 1440}d` }));
+  return { y, ticks };
+}
+
+// A column per card size, a dot per card, a band over the middle half of each size's
+// times, and a bar at the usual (middle) time for the sizes with at least two cards.
 function buildTimeReport(events) {
-  const cards = buildTimes(events);
+  const all = buildTimes(events);
+  if (!all.length) return '';
+  const cards = all.filter((c) => c.minutes >= MOVED_AFTER);
+  const skipped = all.length - cards.length;
+  const leftOut = skipped
+    ? `<p class="report-note">${skipped} card${skipped === 1 ? '' : 's'} went through Doing in under ${MOVED_AFTER} minutes, so ${skipped === 1 ? 'was' : 'were'} moved there after the work: ${skipped === 1 ? 'it is' : 'they are'} left out.</p>`
+    : '';
   if (!cards.length) return '';
-  const longest = Math.max(...cards.map((c) => c.minutes));
-  const [per, unit] = longest < 120 ? [1, 'm'] : longest < 2880 ? [60, 'h'] : [1440, 'd'];
-  const { top, ticks } = niceScale(longest / per);
-  const y = (minutes) => round(100 - (minutes / per / top) * 100);
+  const { y, ticks } = sizeScale(cards.map((c) => c.minutes));
   const col = (size) => round(((SIZES.indexOf(size) + 0.5) / SIZES.length) * 100);
   const rows = [];
   const marks = SIZES.map((size) => {
     const mine = cards.filter((c) => c.points === size);
     if (!mine.length) return `<span class="chart-none" style="left:${col(size)}%">none yet</span>`;
-    const usual = median(mine.map((c) => c.minutes));
-    rows.push(`<tr><th scope="row">${size} pt${size === 1 ? '' : 's'}</th><td>${mine.length}</td><td>${duration(usual)}</td><td>${duration(Math.max(...mine.map((c) => c.minutes)))}</td></tr>`);
+    const times = mine.map((c) => c.minutes);
+    const usual = median(times);
+    const [low, high] = [quartile(times, 0.25), quartile(times, 0.75)];
+    rows.push(`<tr><th scope="row">${ptsLabel(size)}</th><td>${mine.length}</td><td>${duration(usual)}</td><td>${duration(low)} to ${duration(high)}</td><td>${duration(Math.max(...times))}</td></tr>`);
     const dots = mine.map((c, i) => `<span class="chart-dot s-built" style="left:${round(col(size) + NUDGE[i % NUDGE.length])}%;top:${y(c.minutes)}%" title="#${c.id} · ${duration(c.minutes)}"></span>`);
-    return (mine.length > 1 ? `<span class="chart-usual" style="left:${col(size)}%;top:${y(usual)}%"></span>` : '') + dots.join('');
+    const spread = mine.length >= ENOUGH ? `<span class="chart-spread" style="left:${col(size)}%;top:${y(high)}%;height:${round(y(low) - y(high))}%"></span>` : '';
+    return spread + dots.join('') + (mine.length > 1 ? `<span class="chart-usual" style="left:${col(size)}%;top:${y(usual)}%"></span>` : '');
   });
   return `<section class="report">
 <header class="report-head"><h2 class="h-icon">${icon('timer')}Time to build, by size</h2></header>
-<p class="report-sub">From work starting on a card to it reaching your look. If the sizes are guessed well, bigger cards sit higher.</p>
-<ul class="chart-key"><li><i class="chart-dot-key s-built"></i>one card</li><li><i class="chart-usual-key"></i>the usual time for that size</li></ul>
+<p class="report-sub">The time a card spent in Doing before it reached your look. If the sizes are guessed well, bigger cards sit higher.</p>
+<p class="report-verdict">${sizeVerdict(cards)}</p>
+<ul class="chart-key"><li><i class="chart-dot-key s-built"></i>one card</li><li><i class="chart-spread-key"></i>the middle half of that size</li><li><i class="chart-usual-key"></i>the usual time</li></ul>
 <div class="plot plot-sizes" role="img" aria-label="Time to build ${cards.length} card${cards.length === 1 ? '' : 's'}, grouped by story points">
 <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-${ticks.map((v) => `<line x1="0" x2="100" y1="${round(100 - (v / top) * 100)}" y2="${round(100 - (v / top) * 100)}" class="chart-grid"/>`).join('')}
+${ticks.map((t) => `<line x1="0" x2="100" y1="${t.at}" y2="${t.at}" class="chart-grid"/>`).join('')}
 </svg>
-${ticks.map((v) => `<span class="chart-y" style="top:${round(100 - (v / top) * 100)}%">${v}${v ? unit : ''}</span>`).join('')}
-${SIZES.map((size) => `<span class="chart-x" style="left:${col(size)}%">${size} pt${size === 1 ? '' : 's'}</span>`).join('')}
+${ticks.map((t) => `<span class="chart-y" style="top:${t.at}%">${t.text}</span>`).join('')}
+${SIZES.map((size) => `<span class="chart-x" style="left:${col(size)}%">${ptsLabel(size)}</span>`).join('')}
 ${marks.join('')}
 </div>
 <details class="chart-table"><summary>The numbers, by size</summary>
-<table><thead><tr><th scope="col">Size</th><th scope="col">Cards</th><th scope="col">Usual</th><th scope="col">Longest</th></tr></thead>
+<table><thead><tr><th scope="col">Size</th><th scope="col">Cards</th><th scope="col">Usual</th><th scope="col">Middle half</th><th scope="col">Longest</th></tr></thead>
 <tbody>${rows.join('')}</tbody></table></details>
+${leftOut}
 </section>`;
 }
 
@@ -353,7 +410,10 @@ function weeklyReport(events, builtAt) {
 function burnupReport(events, plan, builtAt) {
   const steps = burnup(events);
   const open = plan.milestones.filter((m) => m.status === 'in progress').map((m) => m.id);
-  const pill = open.length ? `<span class="st st-open">${open.join(', ')} in progress</span>` : '';
+  // Past three, the header gives the count, and the names on hover.
+  const pill = !open.length ? '' : open.length <= 3
+    ? `<span class="st st-open">${listed(open)} in progress</span>`
+    : `<span class="st st-open" title="${listed(open)} in progress">${open.length} milestones in progress</span>`;
   const head = `<header class="report-head"><h2 class="h-icon">${icon('chart-line')}Burn-up</h2>${pill}</header>`;
   if (!steps.length) {
     return `<section class="report">${head}<p class="empty">No points yet. The chart starts with the first card that has story points and a milestone.</p></section>`;

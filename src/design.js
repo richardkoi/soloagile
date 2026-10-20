@@ -2,7 +2,7 @@
 // `soloagile design <card> <letter> <mock-up>` photographs a mock-up into
 // pm/designs/<card>-<letter>.png, and the page shows it under that option in the card's
 // pop-up. The pictures are kept out of git: they matter only until the user has chosen.
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildProject } from './build.js';
@@ -11,9 +11,11 @@ import { takePicture } from './shots.js';
 
 const NAME = /^(\d+-[a-z])\.png$/;
 
-// Every picture in <repo>/pm/designs, keyed "<card>-<letter>", as a data: address the page
-// can hold inside itself, since the page server serves that one file. A picture is taken
-// at twice its size, so it is shown at half its pixels.
+// Every picture in <repo>/pm/designs, keyed "<card>-<letter>", as an address beside the
+// page: designs/12-a.png works for a page opened as a file, and on the page server, which
+// serves pm/designs/ too. The page links the pictures rather than holding them, so it
+// stays small. "?v=" changes when a picture is retaken, so the browser never shows an old
+// one. A picture is taken at twice its size, so it is shown at half its pixels.
 export function readPictures(dir) {
   const folder = join(dir, 'designs');
   const pictures = {};
@@ -21,9 +23,14 @@ export function readPictures(dir) {
   for (const f of readdirSync(folder)) {
     const key = f.match(NAME)?.[1];
     if (!key) continue;
-    const png = readFileSync(join(folder, f));
-    // PNG: the width and height are the two big-endian numbers after the IHDR tag.
-    pictures[key] = { src: `data:image/png;base64,${png.toString('base64')}`, width: Math.round(png.readUInt32BE(16) / 2), height: Math.round(png.readUInt32BE(20) / 2) };
+    // PNG: the width and height are the two big-endian numbers after the IHDR tag, in the
+    // first 24 bytes, so only those are read.
+    const head = Buffer.alloc(24);
+    const fd = openSync(join(folder, f), 'r');
+    readSync(fd, head, 0, 24, 0);
+    closeSync(fd);
+    const v = Math.round(statSync(join(folder, f)).mtimeMs / 1000);
+    pictures[key] = { src: `designs/${f}?v=${v}`, width: Math.round(head.readUInt32BE(16) / 2), height: Math.round(head.readUInt32BE(20) / 2) };
   }
   return pictures;
 }

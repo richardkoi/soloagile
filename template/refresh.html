@@ -10,17 +10,6 @@
     if (days >= 0) el.textContent = days ? 'waiting ' + days + (days === 1 ? ' day' : ' days') : 'since today';
   });
 })();
-/* A card's picture opens full size in a new tab. The picture is a data: address, which
-   browsers refuse to open from a link, so the click hands the new tab the same picture as
-   a blob. */
-document.addEventListener('click', function (e) {
-  var a = e.target.closest && e.target.closest('a.pic-open');
-  if (!a) return;
-  e.preventDefault();
-  var bin = atob(a.getAttribute('href').split(',')[1]), bytes = new Uint8Array(bin.length);
-  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  window.open(URL.createObjectURL(new Blob([bytes], { type: 'image/png' })), '_blank');
-});
 /* Live refresh. Served over http: every 3 seconds, ask the server for this file's ETag and
    reload when it changes. Opened as a file, where no server can be asked: every 3 seconds,
    load the stamp the last build left, a one-line script saying when the page was built,
