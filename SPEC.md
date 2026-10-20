@@ -184,6 +184,11 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   - `projectsFolder`: the folder the server serves. Only projects directly in it get
     those addresses and a row on the home page; any other project opens as a file
   - `homePage`: where the home page is written
+  - `usageUrl`, `usagePath`, `usagePaths`, `usageStop`: where `soloagile usage` reads how
+    much Claude usage is spent, for away mode. `usagePaths` names each window and its dotted
+    path in that JSON, such as `{"week": "windows.seven_day.used_pct", "5 hours":
+    "windows.five_hour.used_pct"}`, and is used instead of the single `usagePath`. Away mode
+    stops after the card in hand once any of them reaches `usageStop` (98 unless set)
   A server should serve only each project's `pm/index.html` and the home page, and
   nothing else from the project folders. `extras/page-server/` is a sample that does:
   nginx in Docker, with its own short README.
@@ -475,6 +480,9 @@ stay as they are; the stage says how far round a card is.
   Mac. Nothing else depends on it: with no browser, only `shots` and `design` are lost.
   The browser starts with its sandbox on. One that can't, such as Playwright's on Ubuntu,
   goes without it only for a page on this machine or its network, never one from the internet.
+- **`soloagile shots <url> --full` takes the whole page.** Each of the four pictures is the
+  page's full height instead of only the top, up to 16000px. A taller page is cut off
+  there, and shots says so. Use it to check colours or layout lower down a page.
 - **`soloagile shots` can click and type before the picture.** `--click "<words>"` clicks what
   says that, and `--type "<box>=<text>"` fills in a box or picks from a list. Any number
   of each run in the order written, on every one of the four pictures:
@@ -543,7 +551,7 @@ soloagile/
   src/pictures.js         soloagile pictures and retake: a card's page of pictures, and its kept script (tested)
   src/cleanup.js          soloagile cleanup and backup, and the weekly run at session start (tested)
   src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md (tested)
-  src/usage.js            soloagile usage: the week's usage from a usage address, for away mode (tested)
+  src/usage.js            soloagile usage: the week's and the 5 hours' usage from a usage address, for away mode (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end
