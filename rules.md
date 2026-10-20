@@ -74,7 +74,8 @@ Every card goes round six stages: **Plan → Design → Develop → Test → Rel
 ## The session
 - Plain words run the skills: "catch me up" → `/soloagile:catchup`, "commit" →
   `/soloagile:commit`, "what needs me" → `/soloagile:needs`, "done for today" →
-  `/soloagile:save`, "retro" → `/soloagile:retro`.
+  `/soloagile:save`, "retro" → `/soloagile:retro`, "I'm off to bed" or "work while I'm
+  away" → `/soloagile:away`, "build these in parallel" → `/soloagile:parallel`.
 - Read `NEXT_SESSION.md` when a session starts, if it exists, and update it before one ends.
 
 The format of every file, and each rule in full: `{{spec}}`.

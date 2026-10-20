@@ -7,7 +7,7 @@ import './isolate.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const run = (...args) => spawnSync(PM, args, { encoding: 'utf8' });
-const NAMES = ['build', 'init', 'home', 'build-all', 'card', 'archive', 'board', 'finished', 'set', 'pictures', 'retake', 'cleanup', 'backup', 'rule', 'sizes', 'link', 'shots', 'design'];
+const NAMES = ['build', 'init', 'home', 'build-all', 'card', 'archive', 'board', 'finished', 'set', 'pictures', 'retake', 'cleanup', 'backup', 'rule', 'usage', 'sizes', 'link', 'shots', 'design'];
 
 test('help, --help, -h and no command at all list every command, one to a line', () => {
   for (const args of [['help'], ['--help'], ['-h'], []]) {

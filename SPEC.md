@@ -531,14 +531,15 @@ The whole flow, for the user, is the home page's Session flow tab (`template/flo
 ```
 soloagile/
   .claude-plugin/         plugin.json and marketplace.json: what makes this repo a plugin and its own store
-  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `pictures`, `retake`, `cleanup`, `backup`, `rule`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
+  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `pictures`, `retake`, `cleanup`, `backup`, `rule`, `usage`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
   hooks/hooks.json        the three hooks: rebuild after an edit, session start, session end
   rules.md                the short rules the session-start hook gives Claude in a project with pm/
-  skills/                 the six skills: init, catchup, commit, needs, retro and save, typed `/soloagile:<name>`
+  skills/                 the eight skills: init, catchup, commit, needs, retro, save, away and parallel, typed `/soloagile:<name>`
   src/habits.js           habits: switches for ways of working, the Settings tab, soloagile set (tested)
   src/pictures.js         soloagile pictures and retake: a card's page of pictures, and its kept script (tested)
   src/cleanup.js          soloagile cleanup and backup, and the weekly run at session start (tested)
   src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md (tested)
+  src/usage.js            soloagile usage: the week's usage from a usage address, for away mode (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end

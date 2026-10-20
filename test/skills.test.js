@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 const SKILLS = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills');
 const read = (name) => readFileSync(join(SKILLS, name, 'SKILL.md'), 'utf8');
 
-test('the plugin has its six skills, each named after its folder', () => {
-  assert.deepEqual(readdirSync(SKILLS).sort(), ['catchup', 'commit', 'init', 'needs', 'retro', 'save']);
+test('the plugin has its eight skills, each named after its folder', () => {
+  assert.deepEqual(readdirSync(SKILLS).sort(), ['away', 'catchup', 'commit', 'init', 'needs', 'parallel', 'retro', 'save']);
   for (const name of readdirSync(SKILLS)) {
     const [, front] = read(name).match(/^---\n([\s\S]*?)\n---\n/) ?? [];
     assert.ok(front, `${name} has frontmatter`);

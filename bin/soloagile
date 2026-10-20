@@ -14,6 +14,7 @@
 //        soloagile cleanup [--dry-run] [--days 7]   clear what can be made again
 //        soloagile backup           run the backup command named in pm/settings.json
 //        soloagile rule "<rule>" [--from …]   a numbered standing rule in CLAUDE.md
+//        soloagile usage            the week's usage, for away mode (src/usage.js)
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
@@ -40,6 +41,7 @@ import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
 import { addRuleTo } from '../src/rules.js';
+import { readUsage } from '../src/usage.js';
 import { backupCommand, cleanupProject } from '../src/cleanup.js';
 import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
@@ -75,6 +77,7 @@ const COMMANDS = [
   ['cleanup [--dry-run] [--days 7]', 'clear merged helper worktrees, old shots folders, and old cards\' picture pages'],
   ['backup', "run the project's backup command, named in pm/settings.json"],
   ['rule "<the rule>" [--from "retro of M3, #12"]', "add a standing rule to the project's CLAUDE.md"],
+  ['usage', "the week's usage, from the address set as usageUrl; exits 3 at the stop"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
@@ -286,6 +289,12 @@ if (cmd === 'rule') {
     process.exit(2);
   }
   process.exit(0);
+}
+
+if (cmd === 'usage') {
+  const u = await readUsage();
+  console.log(`soloagile: ${u.said}`);
+  process.exit(u.stop ? 3 : 0);
 }
 
 if (cmd === 'sizes') {

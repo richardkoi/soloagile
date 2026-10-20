@@ -11,7 +11,8 @@ import { ownDir, readSettings } from './settings.js';
 // card: the card that builds the habit. rule: what Claude is told when it is on. A habit
 // with no rule isn't built yet: the tab shows it as coming, and Claude isn't told.
 export const HABITS = [
-  { key: 'away-mode', name: 'Away mode', what: 'When you say you are away, Claude asks its questions first, then works through Up next.', card: 139 },
+  { key: 'away-mode', name: 'Away mode', what: 'When you say you are away, Claude asks its questions first, then works through Up next.', card: 139,
+    rule: 'When the user says they are going away (bed, lunch, out), run /soloagile:away: every waiting question first, then build Up next until it is empty or the week reaches its stop.' },
   { key: 'busy-while-waiting', name: 'Start a card while something slow runs', what: 'During a long test or build, Claude starts a card that can’t disturb it.', card: 140,
     rule: "While a long test, build, render or deploy runs in the background, start the next card that can't disturb it, without being asked. Never end a turn just to say you're waiting." },
   { key: 'picture-pages', name: 'A page of pictures per card', what: 'Every card waiting for your look has its own page of pictures.', card: 141,
@@ -22,7 +23,8 @@ export const HABITS = [
     rule: 'After the user tries something (a page, a build, a device), ask what they saw. Each thing they mention gets its own card in the same sitting, with points and a milestone, before other work.' },
   { key: 'retro-rules', name: 'Retro lessons become standing rules', what: 'A retro writes each agreed change as a numbered rule in the project’s CLAUDE.md.', card: 144,
     rule: 'In a retro, each change the user picks also becomes a standing rule in the project\'s CLAUDE.md: soloagile rule "<the rule, said as what to do>" --from "retro of M3, #12".' },
-  { key: 'parallel-helpers', name: 'Helpers build cards in parallel', what: 'Several helpers build cards at once, each in its own copy of the code.', card: 145 },
+  { key: 'parallel-helpers', name: 'Helpers build cards in parallel', what: 'Several helpers build cards at once, each in its own copy of the code.', card: 145,
+    rule: 'For a run of Up next cards that touch different files, offer /soloagile:parallel: one helper per card, each in its own worktree, merged back by you.' },
   { key: 'weekly-cleanup', name: 'Weekly clean-up and day-end backup', what: 'Old copies and pictures are cleared weekly; “done for today” runs the backup.', card: 146,
     rule: "At 'done for today', run soloagile backup: it runs the project's backup command when pm/settings.json names one. A session start clears old copies and pictures once a week by itself; soloagile cleanup --dry-run shows what would go." },
   { key: 'milestone-size', name: 'About 15 cards per milestone', what: 'soloagile card add warns when a milestone passes 15 cards.', card: 147,

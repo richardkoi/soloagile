@@ -48,6 +48,10 @@ open it in a browser and leave it open. It refreshes itself as cards move.
 | "commit" | Claude reads the changes, runs the checks, then commits and pushes |
 | "done for today" | Claude tidies the board and writes a note for next time |
 | "retro" | At a milestone's end: what worked, what to change, what's next |
+| "I'm off to bed" | Claude asks every waiting question now, then builds Up next while you're away, and saves |
+| "build these in parallel" | Helpers build independent cards at once, each in its own copy of the code, then Claude merges them |
+
+Each habit, away mode among them, can be switched off on the page's Settings tab.
 
 Each one is also a command, such as `/soloagile:catchup`.
 
