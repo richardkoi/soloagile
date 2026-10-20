@@ -56,9 +56,10 @@ kept in `pm/`. Follow these rules while you work here.
 
 ## The wheel
 Every card goes round six stages: **Plan → Design → Develop → Test → Release → Feedback**.
-- **Plan**: a card with a title, points, a milestone and a "done when" line. When a plan
-  leans on a fact from docs, try it for real first. When a milestone can only be proven in
-  a special set-up, such as a clean machine, setting that up is its first card.
+- **Plan**: a card with a title, points, a milestone and a "done when" line. A "done when"
+  names only projects on this machine, so it can be checked. When a plan leans on a fact
+  from docs, try it for real first. When a milestone can only be proven in a special
+  set-up, such as a clean machine, setting that up is its first card.
 - **Design**: the approach, before any code. 1 or 2 points: say it in one line and carry
   on. 3 points or more: move the card to Needs your decision as a design card
   (`· 5 pts · design · asked <date>`, with the options under it), then ask the user. For
@@ -71,8 +72,8 @@ Every card goes round six stages: **Plan → Design → Develop → Test → Rel
   once, not at their look.
 - **Test**: the project's checks. For anything seen in a browser, then run
   `soloagile shots <url>` and read its four screenshots: desktop and phone width, dark and
-  light. The phone shots are taken before the card moves to Needs your look. A new chart is checked on a project with many milestones, such as 3dweather, as
-  well as this one. A new skill is run once for real, and its `tested:` line says what it
+  light. The phone shots are taken before the card moves to Needs your look. A new chart
+  is checked on another project here with many milestones, as well as this one. A new skill is run once for real, and its `tested:` line says what it
   did. Write a `tested:` line on the card saying what was checked. A card reaches the
   user already tested.
 - **Release**: commit the card's work, without waiting to be asked, before the card moves

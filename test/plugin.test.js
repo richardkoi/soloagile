@@ -42,5 +42,7 @@ test('the rules and the spec carry the lessons from the M9, M15 and M17 retros',
     const text = readFileSync(join(ROOT, file), 'utf8').replace(/\s+/g, ' ');
     assert.match(text, /after a milestone's work is done[^.]*new milestone/i, `${file}: late cards get a new milestone (#162)`);
     assert.match(text, /phone[^.]*before[^.]*Needs your look/i, `${file}: phone shots come before the look (#163)`);
+    assert.match(text, /only projects on this machine/i, `${file}: a done when names only projects here (#165)`);
+    assert.doesNotMatch(text, /3dweather/, `${file}: 3dweather isn't on this machine (#165)`);
   }
 });

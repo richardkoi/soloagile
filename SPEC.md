@@ -483,7 +483,8 @@ stay as they are; the stage says how far round a card is.
 - **A stage is never skipped, only made small.** A 1-point card's design is one line and
   its test may be one command, but both still happen.
 - **"Done when" is written at Plan** and checked at Test, so a card's finish line is set
-  before the work starts.
+  before the work starts. A card's or a milestone's "done when" names only projects on
+  this machine, since one that isn't here can't be checked.
 - **`soloagile shots <url> [dir]` takes the screenshots with nobody watching.** It writes
   `desktop-dark.png`, `desktop-light.png`, `phone-dark.png` and `phone-light.png`, and
   prints their paths for Claude to read. Desktop is 1400 by 900; phone is 360 by 780,
@@ -513,7 +514,7 @@ stay as they are; the stage says how far round a card is.
   - The page is scrolled to what was clicked, so a chart low on a page can be reached.
   - A real browser is only for what this can't do, such as dragging.
 - **New charts and new skills get one more check.** A new chart is checked on a project
-  with many milestones, such as 3dweather, as well as the project it was built in. A new
+  with many milestones on this machine, as well as the project it was built in. A new
   skill's card reaches Needs your look only after the skill has run once for real, with
   its `tested:` line saying what it did.
 - **The commit comes before the look.** A card's work is committed before the card moves
