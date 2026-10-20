@@ -7,6 +7,7 @@ export const COLUMNS = ['Ideas', 'Up next', 'Doing', 'Needs your look', 'Needs y
 const DATE = /^(?:([a-z]+) )?(\d{4}-\d{2}-\d{2})$/; // "2026-09-30" or "built 2026-09-30"
 const MILESTONE = /^M\d+$/;
 const POINTS = /^(\d+) pts?$/; // "3 pts" or "1 pt"
+const GUESS = /^~(\d+(?:\.\d+)?) (min|h)$/; // "~40 min" or "~2.5 h"
 // Story points: Claude's quick guess at a card's size. 13 means "too big, split it".
 export const SCALE = [1, 2, 3, 5, 8, 13];
 // The wheel every card goes round, in order (SPEC.md, "The wheel").
@@ -14,24 +15,33 @@ export const STAGES = ['plan', 'design', 'develop', 'test', 'release', 'feedback
 // The stages a card passes through while it sits in Doing.
 const DOING_STAGES = STAGES.slice(1, 5);
 
-// "#5 Board parser · M1 · 3 pts · test · built 2026-09-30" -> { id, title, milestone, points, stage, date, details }.
+// A guessed build time, in minutes, as a card writes it: "~40 min" under 2 hours, else
+// hours to the half: "~2.5 h".
+export const guessText = (minutes) => (minutes < 120 ? `~${Math.round(minutes)} min` : `~${Math.round(minutes / 30) / 2} h`);
+
+// "#5 Board parser · M1 · 3 pts · ~40 min · test · built 2026-09-30"
+//   -> { id, title, milestone, points, guess, stage, date, details }. guess is in minutes.
 // Meta segments are peeled off the right, so a title may itself contain " · ".
 export function parseCardLine(text) {
   const parts = text.split(' · ');
   let milestone = null;
   let points = null;
+  let guess = null;
   let stage = null;
   let date = null;
   while (parts.length > 1) {
     const last = parts.at(-1).trim();
     const d = last.match(DATE);
     const p = last.match(POINTS);
+    const g = last.match(GUESS);
     if (d && !date) {
       date = { label: d[1] ?? null, value: d[2] };
     } else if (MILESTONE.test(last) && !milestone) {
       milestone = last;
     } else if (p && points === null) {
       points = Number(p[1]);
+    } else if (g && guess === null) {
+      guess = Number(g[1]) * (g[2] === 'h' ? 60 : 1);
     } else if (STAGES.includes(last) && !stage) {
       stage = last;
     } else {
@@ -46,6 +56,7 @@ export function parseCardLine(text) {
     title: m ? m[2] : head,
     milestone,
     points,
+    guess,
     stage,
     date,
     details: [],

@@ -46,10 +46,17 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
 - **Browser tabs read `<project> - PM`, with their own icon**, so a project's page is
   easy to tell from the app itself. The icon is a small kanban board, inline in the
   page.
-- **Cards carry story points.** They are Claude's quick guess at a card's size, made
-  when the card is created and shown as a chip at the card's top right. The chip is
-  coloured by size, in six steps from green at 1 to red at 13; the number is always
-  there too, so the colour is never the only signal.
+- **Cards carry story points**, Claude's quick guess at a card's size, made when the
+  card is created. The chip is coloured by size, in six steps from green at 1 to red at
+  13; the number is always there too, so the colour is never the only signal.
+- **A card can carry a guessed build time** beside its points: how long Claude expects
+  it to spend in Doing. It is written after the points, `· 3 pts · ~40 min`, in minutes
+  under 2 hours and in hours to the half above (`~2.5 h`). `soloagile card add` and `set`
+  take `--guess 40` or `--guess 1.5h`. A question has none.
+- **A card's face has a head and a foot.** The head holds the waiting pill (Decide,
+  Design, Look), the milestone, the picture count, and the card's number at the right.
+  Then the title, its one-line note, and its date. The foot holds the stage on the left
+  and one size chip on the right, `5 pts | ~90 min`, so nothing wraps unpredictably.
 - **Cards show their stage.** A bar of six blocks sits at the card's foot, filled up to
   the card's stage on the wheel, with the stage's name beside it. Decision cards and Done
   cards have none; a design waiting on the user shows Design.
@@ -293,12 +300,12 @@ The six columns, always in this order and always present, even when empty:
 - #14 Dark-mode toggle on the phone view · M2 · 2 pts
 
 ## Up next
-- #9 Parse board.md into columns · M1 · 3 pts
+- #9 Parse board.md into columns · M1 · 3 pts · ~40 min
   six columns, always in order
   done when: node --test passes for all six columns
 
 ## Doing
-- #8 Write the page template · M1 · 5 pts · test
+- #8 Write the page template · M1 · 5 pts · ~90 min · test
 
 ## Needs your look
 - #7 Light/dark page on desktop · M1 · 3 pts · live 2026-10-01

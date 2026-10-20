@@ -130,3 +130,11 @@ test('soloagile build writes the log, and the page is still up to date after it'
   assert.deepEqual(lines(repo), ['- 2026-10-02 14:31 · Up next · #1 A card · M1 · 3 pts']);
   assert.equal(isStale(repo), false);
 });
+
+test('a guessed build time is kept in the history, and a new guess is a new line', () => {
+  const repo = project();
+  recordMoves(repo, board({ 'Up next': ['#1 A card · M1 · 3 pts · ~40 min'] }), at(9, 0));
+  assert.equal(recordMoves(repo, board({ 'Up next': ['#1 A card · M1 · 3 pts · ~2.5 h'] }), at(9, 30)), 1);
+  assert.deepEqual(lines(repo), ['- 2026-10-02 09:00 · Up next · #1 A card · M1 · 3 pts · ~40 min', '- 2026-10-02 09:30 · Up next · #1 A card · M1 · 3 pts · ~2.5 h']);
+  assert.equal(parseHistory(readFileSync(join(repo, 'pm', 'history.md'), 'utf8'))[1].guess, 150);
+});

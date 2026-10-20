@@ -3,7 +3,7 @@
 // is refused with the reason and nothing is written. Editing board.md by hand still works;
 // `soloagile build` checks it afterwards. Everything here is text in, text out.
 import { finishedCards, archivedDetails } from './archive.js';
-import { COLUMNS, SCALE, parseBoard, parseCardLine, parsePlan } from './board.js';
+import { COLUMNS, SCALE, guessText, parseBoard, parseCardLine, parsePlan } from './board.js';
 
 // A move that would leave the board wrong. Its message says what to do instead.
 export class Refused extends Error {}
@@ -20,7 +20,7 @@ const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '');
 
 // "- #12 Title · M1 · 3 pts · test · live 2026-10-02", as board.md writes a card.
 function cardLine(c) {
-  const meta = [c.milestone, c.points !== null && `${c.points} ${c.points === 1 ? 'pt' : 'pts'}`, c.stage, c.date && [c.date.label, c.date.value].filter(Boolean).join(' ')];
+  const meta = [c.milestone, c.points !== null && `${c.points} ${c.points === 1 ? 'pt' : 'pts'}`, c.guess != null && guessText(c.guess), c.stage, c.date && [c.date.label, c.date.value].filter(Boolean).join(' ')];
   return `- #${c.id} ${c.title}${meta.filter(Boolean).map((m) => ` · ${m}`).join('')}`;
 }
 
@@ -64,7 +64,7 @@ function gone(archiveMd, id) {
 
 // soloagile card add "<title>" --milestone M3 --points 3 [--lane next] [--done-when "…"]
 //   [--note "…"]… [--option "…"]… [--design]
-export function addCard(boardMd, planMd, { title, milestone, points = null, lane = 'next', doneWhen, notes = [], options = [], design = false, today }) {
+export function addCard(boardMd, planMd, { title, milestone, points = null, guess = null, lane = 'next', doneWhen, notes = [], options = [], design = false, today }) {
   const column = laneOf(lane);
   if (!title?.trim()) refuse('a card needs a title: soloagile card add "<title>" --milestone M3 --points 3');
   if (column === 'Needs your look' || column === 'Done') refuse(`a new card can't start in ${column}; add it to doing, then move it`);
@@ -72,6 +72,7 @@ export function addCard(boardMd, planMd, { title, milestone, points = null, lane
   const question = column === 'Needs your decision' && !design;
   if (question) {
     if (points !== null) refuse('a question has no size, so no points; a design card takes --design and keeps its points');
+    if (guess !== null) refuse('a question has no size, so no guess at its build time');
   } else {
     checkPoints(points);
   }
@@ -90,6 +91,7 @@ export function addCard(boardMd, planMd, { title, milestone, points = null, lane
     title: title.trim(),
     milestone,
     points,
+    guess,
     stage: column === 'Doing' ? 'develop' : design ? 'design' : null,
     date: column === 'Needs your decision' ? { label: 'asked', value: today } : null,
   };
@@ -157,9 +159,9 @@ export function noteCard(boardMd, archiveMd, { id, line, first = false }) {
   return { board: lines.join('\n'), column: found.lane, said: `noted on #${id}` };
 }
 
-// soloagile card set <number> [--milestone M3] [--points 5] [--title "…"]
-export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, title }) {
-  if (milestone === undefined && points === undefined && title === undefined) refuse('say what to set: --milestone M3, --points 5 or --title "…"');
+// soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
+export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, guess, title }) {
+  if (milestone === undefined && points === undefined && guess === undefined && title === undefined) refuse('say what to set: --milestone M3, --points 5, --guess 40 or --title "…"');
   const lines = boardMd.split('\n');
   const found = find(lines, id) ?? refuse(gone(archiveMd, id));
   const { card } = found;
@@ -171,6 +173,7 @@ export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, tit
     checkPoints(points);
     card.points = points;
   }
+  if (guess !== undefined) card.guess = guess;
   if (title !== undefined) card.title = title.trim() || refuse('a card needs a title');
   lines[found.at] = cardLine(card);
   return { board: lines.join('\n'), column: found.lane, said: `#${id} is now: ${lines[found.at].slice(2)}` };
@@ -188,7 +191,7 @@ export function showCard(boardMd, archiveMd, { id }) {
 
 // The command line after "soloagile card": a verb, then words and --flags in any order.
 // Returns { verb, args } with every flag by name; --note and --option may repeat.
-const FLAGS = { '--milestone': 'milestone', '-m': 'milestone', '--points': 'points', '-p': 'points', '--lane': 'lane', '--done-when': 'doneWhen', '--note': 'notes', '--option': 'options', '--from': 'from', '--title': 'title' };
+const FLAGS = { '--milestone': 'milestone', '-m': 'milestone', '--points': 'points', '-p': 'points', '--lane': 'lane', '--done-when': 'doneWhen', '--note': 'notes', '--option': 'options', '--from': 'from', '--title': 'title', '--guess': 'guess' };
 const SWITCHES = { '--design': 'design', '--first': 'first' };
 export function parseCardArgs(argv) {
   const [verb, ...rest] = argv;
@@ -204,12 +207,20 @@ export function parseCardArgs(argv) {
     else args.words.push(a);
   }
   if (args.points !== undefined) args.points = /^\d+$/.test(args.points) ? Number(args.points) : refuse(`--points takes a number: ${SCALE.join(', ')}`);
+  if (args.guess !== undefined) args.guess = minutesOf(args.guess) ?? refuse('--guess takes a time: 40, "40 min" or "1.5h"');
   return { verb, args };
+}
+
+// "40", "40m", "40 min", "1.5h", "2 h" -> minutes; anything else -> null.
+function minutesOf(text) {
+  const m = String(text).trim().match(/^(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hours)?$/);
+  return m && Number(m[1]) > 0 ? Number(m[1]) * (/^h/.test(m[2] ?? '') ? 60 : 1) : null;
 }
 
 export const CARD_USAGE = `soloagile card, run in the project's folder:
   soloagile card add "<title>" --milestone M3 --points 3 --done-when "…"   a new card, in Up next
       --lane ideas|next|doing|decision   another lane; an idea needs no --done-when
+      --guess 40                         a guessed build time in minutes, or "1.5h"
       --note "…"                         a detail line; any number
       --option "…" --option "…"          for --lane decision: its options, lettered for you
       --design                           for --lane decision: a design waiting for a yes
@@ -218,7 +229,7 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
       look --from 2026-10-20             a look that can't happen before that day
       decision --design                  a design waiting for a yes
   soloagile card note <number> "<line>" [--first]   add a detail line, such as "tested: …"
-  soloagile card set <number> [--milestone M3] [--points 5] [--title "…"]
+  soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
   soloagile card show <number>                      the card in full, finished or not`;
 
 // Runs one command against the files' text. Returns { board, said, column } for a change,

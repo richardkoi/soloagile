@@ -96,15 +96,17 @@ test('a decision card shows how many options it has; the options are in its moda
   assert.match(modal, /<li>a\) Yes \(recommended\)<\/li><li>b\) No<\/li><li>c\) Something else: tell Claude<\/li>/);
 });
 
-test('a card shows its story points, on its face and in its modal', () => {
+test('a card shows its number in its head and its story points in its foot, on its face and in its modal', () => {
   const board = withCards('- #7 Sized card · M1 · 3 pts\n  the short line\n- #8 Tiny card · M1 · 1 pt\n');
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
   const [face, modal] = html.match(/<li class="card-x card-doing">.*Sized card.*<\/li>/)[0].split('<div class="card-modal"');
-  assert.match(face, /<span class="card-id">#7<\/span><span class="tag pts pts-3">3 pts<\/span><\/div>/);
-  assert.match(modal, /<span class="card-id">#7<\/span><span class="tag pts pts-3">3 pts<\/span><button class="modal-close"/);
-  assert.match(html, /<span class="card-id">#8<\/span><span class="tag pts pts-1">1 pt<\/span>/);
+  assert.match(face, /<div class="card-top">.*<span class="card-id">#7<\/span><\/div>/);
+  assert.match(face, /<div class="card-foot"><p class="stage"[^]*?<\/p><span class="tag pts pts-3">3 pts<\/span><\/div>$/);
+  assert.match(modal, /<span class="card-id">#7<\/span><button class="modal-close"/);
+  assert.match(modal, /<div class="card-foot"><p class="stage"[^]*?<\/p><span class="tag pts pts-3">3 pts<\/span><\/div><ul class="modal-body">/);
+  assert.match(html, /<span class="tag pts pts-1">1 pt<\/span><\/div><\/li>/);
   for (const n of [1, 2, 3, 5, 8, 13]) assert.match(html, new RegExp(`\\.pts-${n} \\{ --at: \\d+%; \\}`), `${n} has its colour`);
-  assert.doesNotMatch(html, /<span class="card-id">#2<\/span><span class="tag/, 'a card without points shows none');
+  assert.doesNotMatch(html.match(/<li class="card-x[^"]*">(?:(?!<\/li>).)*#2<\/span>.*?<\/li>/)[0], /class="tag pts/, 'a card without points shows none');
 });
 
 test('a card shows its stage as a six-part bar, filled up to that stage', () => {
@@ -113,7 +115,7 @@ test('a card shows its stage as a six-part bar, filled up to that stage', () => 
   const bar = (on, name) => `<p class="stage" title="Stage ${on} of 6"><span class="stage-bar" aria-hidden="true">${'<i class="on"></i>'.repeat(on)}${'<i></i>'.repeat(6 - on)}</span>${name}</p>`;
   const card = (title) => html.match(new RegExp(`<li class="card-x card-[a-z-]+">(?:(?!</li>).)*${title}.*</li>`))[0];
   const [face, modal] = card('Being tested').split('<div class="card-modal"');
-  assert.ok(face.endsWith(bar(4, 'Test')), 'the bar is the last thing on the card');
+  assert.ok(face.endsWith(`<div class="card-foot">${bar(4, 'Test')}<span class="tag pts pts-3">3 pts</span></div>`), 'the bar opens the card\'s foot');
   assert.ok(modal.includes(bar(4, 'Test')), 'and it is in the modal');
   assert.doesNotMatch(face, /Being tested · test|>test</, 'the stage word is not part of the title');
   assert.ok(card('Being built').includes(bar(3, 'Develop')), 'Doing with no stage written is Develop');
@@ -132,7 +134,7 @@ test('a design waiting for a yes is a Design card in Waiting on you, with its ba
   assert.match(face, /<span class="st st-hold"><svg[^>]*>.*?<\/svg>Design<\/span>/);
   assert.doesNotMatch(face, />Decide</);
   assert.match(face, /<span class="tag pts pts-5">5 pts<\/span>/);
-  assert.match(face, /<p class="card-note">how a card shows its stage<\/p><p class="stage" title="Stage 2 of 6">.*Design<\/p>$/);
+  assert.match(face, /<p class="card-note">how a card shows its stage<\/p><p class="card-meta">.*<\/p><div class="card-foot"><p class="stage" title="Stage 2 of 6">.*Design<\/p><span class="tag pts pts-5">5 pts<\/span><\/div>$/);
   assert.match(html, /<span class="key-name">Design<\/span>/);
 });
 
@@ -353,7 +355,7 @@ test('milestone chips carry the short name the plan gives them, on the top row a
   assert.match(strip, /M1<span class="ms-short">First page<\/span>/);
   assert.match(strip, /<span aria-hidden="true"><svg[^>]*>.*?<\/svg>M2<\/span><\/a><\/li>/, 'no short name: just the number');
   assert.doesNotMatch(strip, /The rules/, 'done milestones stay off the top row');
-  assert.match(html, /<span class="tag tag-proj ms-c1"><svg[^>]*>.*?<\/svg>M1<span class="ms-short">First page<\/span><\/span>/, 'on a card');
+  assert.match(html, /<span class="tag tag-proj ms-c1" title="M1 First page"><svg[^>]*>.*?<\/svg>M1<span class="ms-short">First page<\/span><\/span>/, 'on a card');
   assert.doesNotMatch(html.match(/<section class="tab tab-plan"[^]*?<\/section>/)[0], /short:/, 'the short: line is not shown as text in the plan');
 });
 
@@ -380,4 +382,20 @@ test("a project's Markdown can't put HTML or a javascript: link on its page; sol
   assert.match(html, /<a href="#plan">tab<\/a>/);
   assert.equal(inline('#3 <b>bold</b>'), '#3 &lt;b&gt;bold&lt;/b&gt;');
   assert.match(trustedBlock('<ol class="wheel"><li>Plan</li></ol>'), /<ol class="wheel">/);
+});
+
+test("a card's guessed build time shares the size chip with its points", () => {
+  const board = withCards('- #7 Guessed · M1 · 3 pts · ~40 min\n- #8 Long guess · M1 · 8 pts · ~2.5 h\n');
+  const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
+  assert.match(html, /<span class="tag pts pts-3">3 pts<span class="guess" title="Guessed build time">~40 min<\/span><\/span>/);
+  assert.match(html, /<span class="tag pts pts-8">8 pts<span class="guess" title="Guessed build time">~2\.5 h<\/span><\/span>/);
+  assert.match(html, /\.card-foot \{/);
+});
+
+test('a card with no stage, such as a Done card, puts its date in the foot beside the size chip', () => {
+  const board = { ...md, board: md.board.replace('## Done\n', '## Done\n- #20 Shipped · M1 · 2 pts · 2026-09-30\n') };
+  const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
+  const card = html.match(/<li class="card-x card-done">(?:(?!<\/li>).)*Shipped.*?<\/li>/)[0];
+  assert.match(card, /<div class="card-foot"><p class="card-meta">.*30 Sep<\/p><span class="tag pts pts-2">2 pts<\/span><\/div><\/li>$/);
+  assert.equal(card.match(/class="card-meta"/g).length, 1, 'the date is shown once');
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COLUMNS, isLater, parseBoard, parseCardLine, parsePlan, stageOf } from '../src/board.js';
+import { COLUMNS, guessText, isLater, parseBoard, parseCardLine, parsePlan, stageOf } from '../src/board.js';
 
 const BOARD = `# Board
 <!-- next-id: 15 -->
@@ -41,6 +41,7 @@ test('reads id, title, milestone, dated state and detail lines', () => {
     title: 'Parse board.md',
     milestone: 'M1',
     points: 3,
+    guess: null,
     stage: null,
     date: null,
     details: ['done when: node --test passes', 'second detail line'],
@@ -171,4 +172,15 @@ test('an unreadable milestone heading is reported', () => {
   const { problems } = parsePlan('### M3 — Phone view · someday\n');
   assert.equal(problems.length, 1);
   assert.match(problems[0], /not understood/);
+});
+
+test('reads a guessed build time after the points, in minutes or hours', () => {
+  const c = parseCardLine('#9 Night mode · M1 · 3 pts · ~40 min · develop');
+  assert.equal(c.points, 3);
+  assert.equal(c.guess, 40);
+  assert.equal(c.stage, 'develop');
+  assert.equal(c.title, 'Night mode');
+  assert.equal(parseCardLine('#9 Big one · M1 · 8 pts · ~2.5 h').guess, 150);
+  assert.equal(parseCardLine('#9 No guess · M1 · 2 pts').guess, null);
+  assert.deepEqual([5, 40, 119, 120, 150, 200].map(guessText), ['~5 min', '~40 min', '~119 min', '~2 h', '~2.5 h', '~3.5 h']);
 });

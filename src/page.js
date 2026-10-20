@@ -2,7 +2,7 @@
 // so tests can render without touching disk).
 import { Marked, marked } from '../vendor/marked.esm.js';
 import { archivedDetails, doneCutoff } from './archive.js';
-import { COLUMNS, SCALE, SHORT_LINE, STAGES, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
+import { COLUMNS, SCALE, SHORT_LINE, STAGES, guessText, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
 import { icon } from './icons.js';
 import { renderReports } from './reports.js';
 import { VERSION } from './version.js';
@@ -73,11 +73,14 @@ const kindPill = (k) => `<span class="st ${k.pill}">${icon(k.icon)}${k.label}</s
 const withMs = (cls, id) => [cls, msClass(id)].filter(Boolean).join(' ');
 // With a short name from the plan ("M9 Public plugin"), the chip says what the milestone is.
 const shortName = (short) => (short ? `<span class="ms-short">${esc(short)}</span>` : '');
-const milestoneTag = (id, short) => `<span class="${withMs('tag tag-proj', id)}">${icon('flag')}${esc(id)}${shortName(short)}</span>`;
+// A long name may be cut short on a card's face, so the whole of it is also its hover tip.
+const milestoneTag = (id, short) => `<span class="${withMs('tag tag-proj', id)}"${short ? ` title="${esc(id)} ${esc(short)}"` : ''}>${icon('flag')}${esc(id)}${shortName(short)}</span>`;
 export const milestoneInk = (id) => `<b class="${withMs('ms-ink', id)}">${esc(id)}</b>`;
-// Story points sit at the right of the card's top row, after the #id that pushes them there.
-// The pts-<n> class colours the chip, from green at 1 to red at 13.
-const pointsTag = (n) => `<span class="tag pts pts-${n}">${n} ${n === 1 ? 'pt' : 'pts'}</span>`;
+// The size chip sits at the right of the card's foot: the story points, and the guessed
+// build time after a rule when the card has one. The pts-<n> class colours the chip, from
+// green at 1 to red at 13.
+const sizeTag = (n, guess) =>
+  `<span class="tag pts pts-${n}">${n} ${n === 1 ? 'pt' : 'pts'}${guess != null ? `<span class="guess" title="Guessed build time">${guessText(guess)}</span>` : ''}</span>`;
 
 // The wheel: six blocks, filled up to the card's stage, with the stage's name beside them.
 function stageBar(stage, name = `${stage[0].toUpperCase()}${stage.slice(1)}`) {
@@ -133,25 +136,31 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   const wheel = stage ? stageBar(stage) : '';
   const kind = later ? LATER : kindOf(c, column);
   const tone = kind ? (kind.tone ?? kind.label.toLowerCase()) : laneKey;
-  // The photo icon is on the card's face only: in the modal the pictures are in view.
+  // The head: what kind of wait, whose milestone, and the number at the right. The photo
+  // icon is on the card's face only: in the modal the pictures are in view.
   const topWith = (pics) => [
     kind ? kindPill(kind) : '',
     c.milestone ? milestoneTag(c.milestone, shorts[c.milestone]) : '',
-    c.id !== null ? `<span class="card-id">#${c.id}</span>` : '',
     pics,
-    c.points !== null ? pointsTag(c.points) : '',
+    c.id !== null ? `<span class="card-id">#${c.id}</span>` : '',
   ].join('');
   const top = topWith('');
   const title = inline(c.title);
-  const meta = c.date ? `<p class="card-meta">${icon('calendar')}${esc(shortDate(c.date))}${ageNote(c, column, today)}</p>` : '';
+  let meta = c.date ? `<p class="card-meta">${icon('calendar')}${esc(shortDate(c.date))}${ageNote(c, column, today)}</p>` : '';
+  // The foot: how far along on the left, how big on the right. A card with no stage, such
+  // as a Done card, puts its date there instead, so the chip doesn't take a row alone.
+  const size = c.points !== null ? sizeTag(c.points, c.guess) : '';
+  const left = wheel || (size ? meta : '');
+  const foot = left || size ? `<div class="card-foot">${left}${size}</div>` : '';
+  if (left === meta) meta = '';
   if (!c.details.length) {
-    return `<li class="card-x card-${tone}"><div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${wheel}</li>`;
+    return `<li class="card-x card-${tone}"><div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}</li>`;
   }
   const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
   const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(inline(d))}${optionPicture(c, d, pictures)}</li>`).join('');
-  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${wheel}<ul class="modal-body">${lines}</ul></div>`;
-  return `<li class="card-x card-${tone}"><div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p>${meta}<p class="card-note">${summaryOf(c.details)}</p>${wheel}${modal}</li>`;
+  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}<ul class="modal-body">${lines}</ul></div>`;
+  return `<li class="card-x card-${tone}"><div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
 }
 
 function renderLane(lane, cards, pictures, today, shorts) {

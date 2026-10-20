@@ -157,3 +157,14 @@ test('the command writes the board and the page, archives a finished card, and w
   assert.match(card('show', '7').stdout, /^Done\n- #7 .*\n  the short line\n  tested: 3 pass\n/);
   assert.match(card().stdout, /soloagile card add "<title>"/);
 });
+
+test('a card takes a guessed build time on add and set, written after its points', () => {
+  const r = run(['add', 'Night vision mode', '--milestone', 'M2', '--points', '3', '--guess', '40', '--done-when', 'seen at night']);
+  assert.ok(r.board.includes('- #9 Night vision mode · M2 · 3 pts · ~40 min\n'));
+  assert.equal(lane(r.board, 'Up next').at(-1).guess, 40);
+  const s = run(['set', '7', '--guess', '2.5h']);
+  assert.ok(s.board.includes('- #7 In hand · M2 · 3 pts · ~2.5 h · develop\n'));
+  assert.ok(run(['set', '7', '--guess', '90 min']).board.includes('- #7 In hand · M2 · 3 pts · ~90 min · develop\n'));
+  refused(['set', '7', '--guess', 'soon'], /--guess takes a time/);
+  refused(['add', 'Which way?', '--milestone', 'M2', '--lane', 'decision', '--option', 'a', '--option', 'b', '--guess', '20'], /a question has no size, so no guess/);
+});

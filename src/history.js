@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isDesign, parseBoard, parseCardLine, stageOf } from './board.js';
+import { guessText, isDesign, parseBoard, parseCardLine, stageOf } from './board.js';
 
 // The lane of a card that has left the board: removed from Done by /soloagile:save, or deleted.
 export const GONE = 'gone';
@@ -31,7 +31,7 @@ const minutesBetween = (a, b) => (new Date(b.replace(' ', 'T')) - new Date(a.rep
 const LINE = /^- (\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · ([^·]+?) · (#\d+ .*)$/;
 
 export function formatEvent(e) {
-  const meta = [e.milestone, e.points !== null && `${e.points} pt${e.points === 1 ? '' : 's'}`, e.stage].filter(Boolean);
+  const meta = [e.milestone, e.points !== null && `${e.points} pt${e.points === 1 ? '' : 's'}`, e.guess != null && guessText(e.guess), e.stage].filter(Boolean);
   return `- ${e.at} · ${e.lane} · #${e.id} ${e.title}${meta.map((m) => ` · ${m}`).join('')}`;
 }
 
@@ -41,8 +41,8 @@ export function parseHistory(md) {
   for (const line of md.split('\n')) {
     const m = line.match(LINE);
     if (!m) continue;
-    const { id, title, milestone, points, stage } = parseCardLine(m[3]);
-    events.push({ at: m[1], lane: m[2], id, title, milestone, points, stage });
+    const { id, title, milestone, points, guess, stage } = parseCardLine(m[3]);
+    events.push({ at: m[1], lane: m[2], id, title, milestone, points, guess, stage });
   }
   return events;
 }
@@ -62,13 +62,13 @@ function cardsOn(board) {
     for (const c of col.cards) {
       if (c.id === null) continue;
       const stage = col.name === 'Doing' || isDesign(c, col.name) ? stageOf(c, col.name) : null;
-      now.set(c.id, { lane: col.name, id: c.id, title: c.title, milestone: c.milestone, points: c.points, stage });
+      now.set(c.id, { lane: col.name, id: c.id, title: c.title, milestone: c.milestone, points: c.points, guess: c.guess, stage });
     }
   }
   return now;
 }
 
-const FIELDS = ['lane', 'title', 'milestone', 'points', 'stage'];
+const FIELDS = ['lane', 'title', 'milestone', 'points', 'guess', 'stage'];
 
 // The events that take `state` to the board as it is now, all timed `at`.
 export function movesBetween(state, board, at) {
