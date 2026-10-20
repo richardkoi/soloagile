@@ -2,7 +2,8 @@
 // stage: desktop and phone width, each in dark and light. Claude reads the pictures.
 //
 // Steps given with --click and --type run first, in order, on every one of the four, so a
-// pop-up can be opened or a box filled in before the picture.
+// pop-up can be opened or a box filled in before the picture. With --full each picture is the
+// whole height of the page, not only the top, up to FULL_MAX pixels.
 //
 // It drives a headless browser (findBrowser: Playwright's headless Chromium, or a Chrome,
 // Chromium, Edge or Brave already on the machine), over the DevTools protocol with Node's
@@ -20,11 +21,15 @@ export const THEMES = ['dark', 'light'];
 const TIMEOUT_MS = 20000;
 // How long a click or typed text is given to show on the page before the next step.
 const SETTLE_MS = 300;
+// The tallest a --full picture goes. A taller page is cut off there, and shots says so.
+export const FULL_MAX = 16000;
 
-// `soloagile shots <url> [dir] [--click <words>] [--type <box>=<text>] ...` -> { url, dir, steps }.
-// The steps keep the order they were written in.
+// `soloagile shots <url> [dir] [--click <words>] [--type <box>=<text>] ... [--full]` -> { url, dir, steps }.
+// The steps keep the order they were written in. --full comes back as one more step,
+// { do: 'full' }, at the end: it is the last thing done before each picture.
 export function parseShotArgs(args) {
-  const usage = new Error('usage: soloagile shots <url> [dir] [--click "<words on it>"] [--type "<box>=<text>"] ...');
+  const usage = new Error('usage: soloagile shots <url> [dir] [--click "<words on it>"] [--type "<box>=<text>"] ... [--full]');
+  let full = false;
   const plain = [];
   const steps = [];
   for (let i = 0; i < args.length; i++) {
@@ -38,6 +43,8 @@ export function parseShotArgs(args) {
         if (at < 1) throw usage;
         steps.push({ do: 'type', what: value.slice(0, at), text: value.slice(at + 1) });
       }
+    } else if (args[i] === '--full') {
+      full = true;
     } else if (args[i].startsWith('--')) {
       throw usage;
     } else {
@@ -45,6 +52,7 @@ export function parseShotArgs(args) {
     }
   }
   if (plain.length < 1 || plain.length > 2) throw usage;
+  if (full) steps.push({ do: 'full' });
   return { url: plain[0], dir: plain[1], steps };
 }
 
@@ -287,9 +295,12 @@ async function runStep(page, step) {
 // Writes <view>-<theme>.png for every view and theme into `dir`, and returns the paths.
 // Each theme is set both ways a page might follow it: the system's light or dark setting,
 // and the choice a pm page stores under "pm-theme". `steps`, from parseShotArgs, run on the
-// loaded page before each picture.
+// loaded page before each picture; a { do: 'full' } step takes the whole height of the page.
 export async function takeShots(url, dir = mkdtempSync(join(tmpdir(), 'pm-shots-')), steps = [], bin = findBrowser()) {
   if (!bin) throw new Error(NO_BROWSER);
+  const full = steps.some((s) => s.do === 'full');
+  steps = steps.filter((s) => s.do !== 'full');
+  const cut = [];
   mkdirSync(dir, { recursive: true });
   const profile = mkdtempSync(join(tmpdir(), 'pm-shots-profile-'));
   let child;
@@ -310,13 +321,25 @@ export async function takeShots(url, dir = mkdtempSync(join(tmpdir(), 'pm-shots-
         await open(page, url);
         await page.send('Page.removeScriptToEvaluateOnNewDocument', { identifier });
         for (const step of steps) await runStep(page, step);
-        const { data } = await page.send('Page.captureScreenshot', { format: 'png' });
         const file = join(dir, `${view.name}-${theme}.png`);
+        const shot = { format: 'png' };
+        if (full) {
+          // Back to the top (a click may have scrolled), then the whole page from there down.
+          const { result } = await page.send('Runtime.evaluate', {
+            expression: 'scrollTo(0, 0), Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0)',
+            returnByValue: true,
+          });
+          const height = Math.max(result.value, view.height);
+          if (height > FULL_MAX) cut.push(`${basename(file)} (${height}px)`);
+          Object.assign(shot, { captureBeyondViewport: true, clip: { x: 0, y: 0, width: view.width, height: Math.min(height, FULL_MAX), scale: 1 } });
+        }
+        const { data } = await page.send('Page.captureScreenshot', shot);
         writeFileSync(file, Buffer.from(data, 'base64'));
         files.push(file);
       }
     }
     page.close();
+    if (cut.length) process.stderr.write(`soloagile: the page is taller than ${FULL_MAX}px, so these stop there: ${cut.join(', ')}\n`);
     return files;
   } finally {
     if (child) await stop(child);
