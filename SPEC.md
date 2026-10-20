@@ -67,8 +67,15 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   the user tells Claude, or runs `soloagile set <habit> on|off [--all]`, which rebuilds the
   page. A habit whose card isn't built yet shows as coming. Built so far: start a card while
   something slow runs, what the user mentions becomes a card, about 15 cards per milestone
-  (`card add` warns past it), questions in batches, a page of pictures per card, and
-  pictures from a kept script.
+  (`card add` warns past it), questions in batches, a page of pictures per card,
+  pictures from a kept script, and the weekly clean-up with a day-end backup.
+- **`soloagile cleanup`** clears what can be made again: helper worktrees under
+  `.claude/worktrees` whose branch is merged and clean, `soloagile shots` folders untouched
+  for a week, and the picture pages of cards finished over a week ago (their script in
+  `pm/takes/` stays). `--dry-run` only says; `--days` changes the week. With the
+  weekly-cleanup habit on, a session start runs it once a week per project (stamps in
+  `~/.soloagile/cleanups.json`). **`soloagile backup`** runs the command named `"backup"` in
+  `pm/settings.json`, such as `"tools/backup.sh"`; the save skill runs it last.
 - **A card can have its own page of pictures**, for the user's look. `soloagile pictures
   <card> [files…] [--url <address>]… [--caption "…"]… [--by "<command>"]` copies the files,
   and soloagile shots' four pictures of each address, into `pm/designs/card-<n>/` with an
@@ -518,12 +525,13 @@ The whole flow, for the user, is the home page's Session flow tab (`template/flo
 ```
 soloagile/
   .claude-plugin/         plugin.json and marketplace.json: what makes this repo a plugin and its own store
-  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `pictures`, `retake`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
+  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `pictures`, `retake`, `cleanup`, `backup`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
   hooks/hooks.json        the three hooks: rebuild after an edit, session start, session end
   rules.md                the short rules the session-start hook gives Claude in a project with pm/
   skills/                 the six skills: init, catchup, commit, needs, retro and save, typed `/soloagile:<name>`
   src/habits.js           habits: switches for ways of working, the Settings tab, soloagile set (tested)
   src/pictures.js         soloagile pictures and retake: a card's page of pictures, and its kept script (tested)
+  src/cleanup.js          soloagile cleanup and backup, and the weekly run at session start (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end
