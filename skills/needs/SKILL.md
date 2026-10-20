@@ -41,8 +41,9 @@ edit that finished a card.
   `pm/decisions.md`: `## <today> · <the question>`, then `**Answer:**`, and `**Why:**`
   if they gave a reason.
 - A design they chose goes back to Doing, marked `· develop` and with no date. The
-  approach they chose replaces its options, as one detail line, and the answer goes in
-  `pm/decisions.md` like a decision's.
+  approach they chose replaces its options, as one detail line: `soloagile card choose
+  <number> <letter>` writes it, then `soloagile card move <number> doing`. The answer goes
+  in `pm/decisions.md` like a decision's.
 - "Needs a change", or an answer that says what is wrong: ask what, if they haven't
   said. The card goes back to Doing, with a new first line saying what to fix.
 - "Not looked yet" leaves the card where it is.

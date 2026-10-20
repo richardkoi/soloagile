@@ -124,6 +124,20 @@ test('note, set and show', () => {
   refused(['move', '7', 'doing', '--stage', 'test'], /there is no --stage here/);
 });
 
+test('choose: the options become one "chosen" line, and a wrong pick is refused', () => {
+  const q = run(['add', 'Which colour?', '-m', 'M2', '--lane', 'decision', '--note', 'for the header', '--option', 'Green (recommended)', '--option', 'Blue', '--option', 'Something else: tell Claude']).board;
+  const r = run(['choose', '9', 'b'], q);
+  assert.equal(r.said, '#9: chosen b) Blue');
+  assert.equal(r.column, 'Needs your decision', 'it stays in its lane');
+  assert.ok(r.board.includes('- #9 Which colour? · M2 · asked 2026-10-13\n  for the header\n  chosen 2026-10-13: b) Blue\n\n## Done'));
+  assert.ok(!r.board.includes('a) Green'));
+  assert.ok(run(['choose', '9', 'C)'], q).board.includes('  chosen 2026-10-13: c) Something else: tell Claude\n'));
+  refused(['choose', '9', 'd'], /"d" is not one of #9's options; it has a, b or c: soloagile card choose 9 a/, q);
+  refused(['choose', '9'], /say which option; it has a, b or c/, q);
+  refused(['choose', '7', 'a'], /#7 has no options to choose from/);
+  refused(['choose', '99', 'a'], /there is no card #99 on the board/);
+});
+
 test('the command writes the board and the page, archives a finished card, and writes nothing when it refuses', () => {
   const repo = mkdtempSync(join(tmpdir(), 'pm-card-'));
   mkdirSync(join(repo, 'pm'));
@@ -156,6 +170,7 @@ test('the command writes the board and the page, archives a finished card, and w
   assert.ok(readFileSync(join(repo, 'pm', 'finished-cards.md'), 'utf8').includes('  the short line\n  tested: 3 pass\n'));
   assert.match(card('show', '7').stdout, /^Done\n- #7 .*\n  the short line\n  tested: 3 pass\n/);
   assert.match(card().stdout, /soloagile card add "<title>"/);
+  assert.match(card().stdout, /soloagile card choose <number> <letter>/);
 });
 
 test('a card takes a guessed build time on add and set, written after its points', () => {
