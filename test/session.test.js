@@ -58,6 +58,7 @@ test('start: what waits on the user for them, and the board for Claude', () => {
   assert.match(context, /Doing:\n- #3 Current thing/);
   assert.match(context, /Up next:\n- #2 Next thing/);
   assert.doesNotMatch(context, /#1 Someday/, 'ideas stay out');
+  assert.match(context, /No finished cards yet, so guess each new card's build time/, 'the build times to guess from');
 });
 
 test("start: a look that can't happen yet isn't counted, and Claude is told why", () => {

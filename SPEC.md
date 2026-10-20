@@ -52,7 +52,11 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
 - **A card can carry a guessed build time** beside its points: how long Claude expects
   it to spend in Doing. It is written after the points, `· 3 pts · ~40 min`, in minutes
   under 2 hours and in hours to the half above (`~2.5 h`). `soloagile card add` and `set`
-  take `--guess 40` or `--guess 1.5h`. A question has none.
+  take `--guess 40` or `--guess 1.5h`. A question has none. Every new work card gets
+  one, made from the project's own past: the session start gives Claude a table, one line
+  per size, with its usual time in Doing and the two finished cards closest to it as
+  examples. `soloagile sizes` prints it again. Cards that went through Doing in under 3
+  minutes are left out, as in the time-to-build report.
 - **A card's face has a head and a foot.** The head holds the waiting pill (Decide,
   Design, Look), the milestone, the picture count, and the card's number at the right.
   Then the title, its one-line note, and its date. The foot holds the stage on the left
@@ -493,10 +497,11 @@ The whole flow, for the user, is the home page's Session flow tab (`template/flo
 ```
 soloagile/
   .claude-plugin/         plugin.json and marketplace.json: what makes this repo a plugin and its own store
-  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
+  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
   hooks/hooks.json        the three hooks: rebuild after an edit, session start, session end
   rules.md                the short rules the session-start hook gives Claude in a project with pm/
   skills/                 the six skills: init, catchup, commit, needs, retro and save, typed `/soloagile:<name>`
+  src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end
   src/board.js            reads board.md into columns (tested)

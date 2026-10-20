@@ -8,6 +8,7 @@
 //        soloagile archive [repo]   move finished cards' text to pm/finished-cards.md, then build
 //        soloagile board [repo]     print the board without its finished cards, for a session to read
 //        soloagile finished <milestone or card number>…   print finished cards in full
+//        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
 //          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box.
@@ -31,6 +32,7 @@ import { initProject, localDate } from '../src/init.js';
 import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js';
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
+import { readSizes } from '../src/sizes.js';
 import { newerInstall } from '../src/version.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
@@ -57,6 +59,7 @@ const COMMANDS = [
   ['archive [repo]', "move finished cards' text to pm/finished-cards.md, then build"],
   ['board [repo]', 'print the board without its finished cards'],
   ['finished <milestone or card number>…', 'print finished cards in full'],
+  ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
@@ -141,6 +144,12 @@ if (cmd === 'board') {
     console.error(`soloagile: no pm/board.md in ${resolve(repo)}`);
     process.exit(1);
   }
+  process.exit(0);
+}
+
+if (cmd === 'sizes') {
+  // What a new card's --guess is made from: this project's own finished cards.
+  console.log(readSizes(repo));
   process.exit(0);
 }
 

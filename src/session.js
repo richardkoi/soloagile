@@ -12,6 +12,7 @@ import { buildHome } from './home.js';
 import { isPmProject } from './hook.js';
 import { localDate } from './init.js';
 import { onHome, pageUrl, projectsFolderOf } from './settings.js';
+import { readSizes } from './sizes.js';
 import { VERSION, builtBy, compareVersions } from './version.js';
 
 // The short rules, which the start hook gives Claude in a project with a board. A plugin's
@@ -53,6 +54,9 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
     ...(later.length ? ["Looks that can't happen yet (not waiting on the user):", ...later.map((c) => `- ${line(c)}, from ${c.date.value}`)] : []),
     ...section('Doing', cardsIn(board, 'Doing')),
     ...section('Up next', cardsIn(board, 'Up next')),
+    '',
+    readSizes(repo),
+    '',
     'When the user greets you or asks where things stand ("catch me up", "what\'s next"), run the soloagile:catchup skill.',
   ].join('\n');
   return { message, context };

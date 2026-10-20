@@ -292,10 +292,10 @@ ${timeTicks(t0, t1).map((t) => `<span class="chart-x${edge(x(t.at))}" style="lef
 </section>`;
 }
 
-const SIZES = [1, 2, 3, 5, 8, 13];
+export const SIZES = [1, 2, 3, 5, 8, 13];
 // Dots in a column are nudged sideways in turn, so cards that took the same time don't hide each other.
 const NUDGE = [0, -2.2, 2.2, -1.1, 1.1, -3.3, 3.3];
-const median = (a) => {
+export const median = (a) => {
   const s = [...a].sort((p, q) => p - q);
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
@@ -323,7 +323,7 @@ export function sizeVerdict(cards) {
 
 // A card that went through Doing in under this many minutes was moved there after the work
 // was done, so its time says nothing about the work.
-const MOVED_AFTER = 3;
+export const MOVED_AFTER = 3;
 
 const quartile = (a, q) => {
   const s = [...a].sort((p, r) => p - r);

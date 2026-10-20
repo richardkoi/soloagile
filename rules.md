@@ -29,6 +29,9 @@ kept in `pm/`. Follow these rules while you work here.
   `test` or `release`. Change the word as the work moves on. Cards in other lanes have none.
 - Every new card gets story points, a quick size guess written `· 3 pts` on its line: 1, 2,
   3, 5, 8 or 13, where 13 means split it. Decision cards get none.
+- Every new work card gets a guessed build time too, `--guess 40`, shown as `· ~40 min`.
+  Make it from the build times the session start gives you (`soloagile sizes` prints them
+  again): the usual time for its size, moved up or down by how it compares with the examples.
 - Every new card gets a milestone, written `· M3` on its line, an idea too: the closest one
   in `pm/plan.md`. When none fits, add a milestone for it there, as `not started`.
 - Every milestone has a `short:` line under its heading: 2 to 4 words saying what it is,
