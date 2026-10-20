@@ -36,3 +36,10 @@ test('the rules and the spec carry the three lessons from the first retro', () =
     assert.match(text, /departs from the option the user picked[^.]*at once/i, `${file}: say at once when a build departs`);
   }
 });
+
+test('the rules and the spec carry the lessons from the M9, M15 and M17 retros', () => {
+  for (const file of ['rules.md', 'SPEC.md']) {
+    const text = readFileSync(join(ROOT, file), 'utf8').replace(/\s+/g, ' ');
+    assert.match(text, /after a milestone's work is done[^.]*new milestone/i, `${file}: late cards get a new milestone (#162)`);
+  }
+});

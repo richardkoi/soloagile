@@ -299,7 +299,8 @@ The six columns, always in this order and always present, even when empty:
   in `plan.md`, which keeps the board short.
 - **Every card has a milestone, an idea too.** A new card joins the closest milestone in
   `plan.md`. When none fits, Claude adds a milestone for it, as `not started`.
-  `soloagile build` reports a card with none.
+  `soloagile build` reports a card with none. A card that comes after a milestone's work
+  is done goes in a new milestone, not the open old one, so a milestone can close.
 - **One card per result the user would recognise**, such as "Links tab" or "Web
   server", not one per small step. That's roughly 3 to 8 cards per milestone.
   Small fixes fold into the card they belong to.

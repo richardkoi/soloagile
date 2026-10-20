@@ -43,7 +43,8 @@ kept in `pm/`. Follow these rules while you work here.
   on, and skip each one that is off. When the user asks to switch one, run
   `soloagile set <habit> on|off` in the project, with `--all` for every project.
 - Every new card gets a milestone, written `· M3` on its line, an idea too: the closest one
-  in `pm/plan.md`. When none fits, add a milestone for it there, as `not started`.
+  in `pm/plan.md`. When none fits, add a milestone for it there, as `not started`. A card
+  that comes after a milestone's work is done goes in a new milestone, not the open old one.
 - Every milestone has a `short:` line under its heading: 2 to 4 words saying what it is,
   such as `short: Public plugin`. Its chips on the page show them.
 - A milestone with cards names each by number on a `Cards:` line under its `short:` line,
