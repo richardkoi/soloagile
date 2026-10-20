@@ -14,6 +14,8 @@ kept in `pm/`. Follow these rules while you work here.
     `soloagile card move <number> doing test` changes a Doing card's stage
   - `soloagile card note <number> "tested: …"` adds a detail line; `card set <number>
     --milestone M3` changes its milestone, points or title; `card show <number>` prints it
+  - `soloagile card choose <number> b` records the user's pick on a question or design
+    card: its options become one `chosen <today>: b) …` line. It doesn't move the card
   `soloagile card` alone lists every form. Edit `pm/board.md` by hand only for what the
   command can't do, such as rewording a line.
 - Keep the board live. Move a card the moment its state changes:

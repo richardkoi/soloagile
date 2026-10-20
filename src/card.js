@@ -159,6 +159,23 @@ export function noteCard(boardMd, archiveMd, { id, line, first = false }) {
   return { board: lines.join('\n'), column: found.lane, said: `noted on #${id}` };
 }
 
+// soloagile card choose <number> <letter>: the user's pick on a question or design card.
+// Its a/b/c lines become one "chosen <today>: b) …" line, where the first option was.
+// It doesn't move the card; `card move` still does that.
+export function chooseCard(boardMd, archiveMd, { id, letter, today }) {
+  const lines = boardMd.split('\n');
+  const found = find(lines, id) ?? refuse(gone(archiveMd, id));
+  const options = found.details.map((d, i) => ({ at: found.at + 1 + i, text: d.trim() })).filter((o) => OPTION.test(o.text));
+  if (!options.length) refuse(`#${id} has no options to choose from`);
+  const letters = options.map((o) => o.text[0]);
+  const listed = letters.length > 1 ? `${letters.slice(0, -1).join(', ')} or ${letters.at(-1)}` : letters[0];
+  const pick = options.find((o) => o.text[0] === String(letter ?? '').toLowerCase().replace(/\)$/, ''));
+  if (!pick) refuse(`${letter ? `"${letter}" is not one of #${id}'s options` : 'say which option'}; it has ${listed}: soloagile card choose ${id} ${letters[0]}`);
+  for (const o of options.toReversed()) lines.splice(o.at, 1);
+  lines.splice(options[0].at, 0, `  chosen ${today}: ${pick.text}`);
+  return { board: lines.join('\n'), column: found.lane, said: `#${id}: chosen ${pick.text}` };
+}
+
 // soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
 export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, guess, title }) {
   if (milestone === undefined && points === undefined && guess === undefined && title === undefined) refuse('say what to set: --milestone M3, --points 5, --guess 40 or --title "…"');
@@ -229,6 +246,7 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
       look --from 2026-10-20             a look that can't happen before that day
       decision --design                  a design waiting for a yes
   soloagile card note <number> "<line>" [--first]   add a detail line, such as "tested: …"
+  soloagile card choose <number> <letter>           the user's pick: its options become one "chosen" line
   soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
   soloagile card show <number>                      the card in full, finished or not`;
 
@@ -256,6 +274,7 @@ export function runCard(argv, { board, plan, archive, today }) {
   if (verb === 'add') return addCard(board, plan, { ...args, title: first, today });
   if (verb === 'move') return moveCard(board, archive, { ...args, id: numberOf(first), lane: second ?? refuse('say which lane: soloagile card move 12 doing'), stage: third, today });
   if (verb === 'note') return noteCard(board, archive, { id: numberOf(first), line: second, first: args.first });
+  if (verb === 'choose') return chooseCard(board, archive, { id: numberOf(first), letter: second, today });
   if (verb === 'set') return setCard(board, plan, archive, { ...args, id: numberOf(first) });
   if (verb === 'show') return { print: showCard(board, archive, { id: numberOf(first) }) };
   return refuse(verb ? `there is no "card ${verb}"` : 'say what to do with a card');
