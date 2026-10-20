@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './isolate.js';
 import { parseBoard } from '../src/board.js';
-import { Refused, runCard } from '../src/card.js';
+import { Refused, addDecision, runCard } from '../src/card.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const PLAN = '# Demo\n## Milestones\n### M1 — Start · done 2026-10-01\n### M2 — Now · in progress\n';
@@ -206,4 +206,25 @@ test('reword and unnote change or remove one detail line, found by how it starts
   const two = run(['note', '8', 'done when: again'], BOARD).board;
   refused(['unnote', '8', 'done'], /2 of #8's lines start "done"; say more of it/, two);
   refused(['unnote', '99', 'x'], /there is no card #99 on the board/);
+});
+
+test('drop takes a card off the board, and its reason goes in the decisions', () => {
+  const r = run(['drop', '8', 'folded into #7'], BOARD);
+  assert.equal(r.said, '#8 is off the board: folded into #7');
+  assert.ok(!/#8 /.test(r.board));
+  assert.equal(r.decision, '## 2026-10-13 · #8 dropped: Queued\n**Why:** folded into #7\n**The card:** Queued · M2 · 2 pts\n  done when: it is done\n');
+  refused(['drop', '8'], /say why: soloagile card drop 8 "…"/);
+  refused(['drop', '99', 'x'], /there is no card #99 on the board/);
+  const md = '# Decisions\n\nNewest first.\n\n## 2026-10-01 · Old\n**Answer:** yes\n';
+  assert.equal(addDecision(md, '## new\n'), '# Decisions\n\nNewest first.\n\n## new\n\n## 2026-10-01 · Old\n**Answer:** yes\n');
+  assert.equal(addDecision('', '## new\n'), '# Decisions\n\n## new\n');
+});
+
+test('soloagile card drop writes the decision into pm/decisions.md', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'soloagile-drop-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), BOARD);
+  const r = spawnSync(PM, ['card', 'drop', '8', 'not needed'], { cwd: repo, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(readFileSync(join(repo, 'pm', 'decisions.md'), 'utf8'), /^## \d{4}-\d\d-\d\d · #8 dropped: Queued\n\*\*Why:\*\* not needed$/m);
 });

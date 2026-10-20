@@ -18,6 +18,8 @@ kept in `pm/`. Follow these rules while you work here.
     card: its options become one `chosen <today>: b) …` line. It doesn't move the card
   - `soloagile card reword <number> "done when" "done when: …"` changes one detail line,
     found by how it starts; `card unnote <number> "not before"` removes one
+  - `soloagile card drop <number> "folded into #12"` takes a card off the board, its reason
+    kept in `pm/decisions.md`
   `soloagile card` alone lists every form. Edit `pm/board.md` by hand only for what the
   command can't do.
 - Keep the board live. Move a card the moment its state changes:

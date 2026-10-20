@@ -203,6 +203,26 @@ export function unnoteCard(boardMd, archiveMd, { id, start }) {
   return { board: lines.join('\n'), column: found.lane, said: `#${id}: removed "${hit.text}"` };
 }
 
+// soloagile card drop <number> "<why>": the card leaves the board without being done, and
+// the reason is kept as a decision, with the card's text, for bin/soloagile to write.
+export function dropCard(boardMd, archiveMd, { id, why, today }) {
+  if (!why?.trim()) refuse(`say why: soloagile card drop ${id} "…"`);
+  const lines = boardMd.split('\n');
+  const found = find(lines, id) ?? refuse(gone(archiveMd, id));
+  const [head, ...details] = lines.slice(found.at, found.end);
+  lines.splice(found.at, found.end - found.at);
+  const decision = `## ${today} · #${id} dropped: ${found.card.title}\n**Why:** ${why.trim()}\n**The card:** ${head.replace(/^- #\d+ /, '')}\n${details.filter((d) => d.trim()).map((d) => `${d}\n`).join('')}`;
+  return { board: lines.join('\n'), column: found.lane, said: `#${id} is off the board: ${why.trim()}`, decision };
+}
+
+// decisions.md with an entry put at the top, below its heading and intro: newest first.
+export function addDecision(decisionsMd, entry) {
+  if (!decisionsMd.trim()) return `# Decisions\n\n${entry}`;
+  const at = decisionsMd.search(/^## /m);
+  if (at < 0) return `${decisionsMd.replace(/\n*$/, '')}\n\n${entry}`;
+  return `${decisionsMd.slice(0, at)}${entry}\n${decisionsMd.slice(at)}`;
+}
+
 // soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
 export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, guess, title }) {
   if (milestone === undefined && points === undefined && guess === undefined && title === undefined) refuse('say what to set: --milestone M3, --points 5, --guess 40 or --title "…"');
@@ -276,6 +296,7 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
   soloagile card choose <number> <letter>           the user's pick: its options become one "chosen" line
   soloagile card reword <number> "<start>" "<new line>"   change the detail line that starts so
   soloagile card unnote <number> "<start>"          remove the detail line that starts so
+  soloagile card drop <number> "<why>"              take it off the board; the reason goes in decisions.md
   soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
   soloagile card show <number>                      the card in full, finished or not`;
 
@@ -303,6 +324,7 @@ export function runCard(argv, { board, plan, archive, today }) {
   if (verb === 'add') return addCard(board, plan, { ...args, title: first, today });
   if (verb === 'move') return moveCard(board, archive, { ...args, id: numberOf(first), lane: second ?? refuse('say which lane: soloagile card move 12 doing'), stage: third, today });
   if (verb === 'note') return noteCard(board, archive, { id: numberOf(first), line: second, first: args.first });
+  if (verb === 'drop') return dropCard(board, archive, { id: numberOf(first), why: second, today });
   if (verb === 'reword') return rewordCard(board, archive, { id: numberOf(first), start: second, line: third });
   if (verb === 'unnote') return unnoteCard(board, archive, { id: numberOf(first), start: second });
   if (verb === 'choose') return chooseCard(board, archive, { id: numberOf(first), letter: second, today });

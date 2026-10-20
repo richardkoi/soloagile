@@ -31,7 +31,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
 import { buildProject } from '../src/build.js';
-import { CARD_USAGE, MILESTONE_CARDS, Refused, milestoneCount, runCard } from '../src/card.js';
+import { CARD_USAGE, MILESTONE_CARDS, Refused, addDecision, milestoneCount, runCard } from '../src/card.js';
 import { addPicture } from '../src/design.js';
 import { isPmProject, runHook } from '../src/hook.js';
 import { buildAll, buildHome } from '../src/home.js';
@@ -349,6 +349,8 @@ if (cmd === 'card') {
       process.exit(0);
     }
     writeFileSync(file, r.board);
+    // A dropped card's reason is kept at the top of the decisions.
+    if (r.decision) writeFileSync(resolve(here, 'pm', 'decisions.md'), addDecision(read('decisions.md'), r.decision));
     console.log(`soloagile: ${r.said}`);
     // The milestone-size habit: say so when a new card takes its milestone past about 15.
     const ms = argv[0] === 'add' && r.milestone;
