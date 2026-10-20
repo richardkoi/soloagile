@@ -37,7 +37,11 @@ function mergedWorktrees(repo) {
     if (!path || !branch || !path.includes(`${sep}.claude${sep}worktrees${sep}`)) continue;
     const clean = git(path, 'status', '--porcelain').stdout.trim() === '';
     const merged = git(repo, 'merge-base', '--is-ancestor', branch, 'HEAD').status === 0;
-    if (clean && merged) found.push(path);
+    // A helper that has only just started sits on one of main's own commits, which also counts
+    // as "merged". Finished work came in by a merge, so its tip is off main's first-parent line.
+    const tip = git(repo, 'rev-parse', branch).stdout.trim();
+    const onMainLine = git(repo, 'rev-list', '--first-parent', 'HEAD').stdout.split('\n').includes(tip);
+    if (clean && merged && !onMainLine) found.push(path);
   }
   return found;
 }

@@ -45,7 +45,7 @@ test("cleanup: old shots folders, and the picture pages of cards finished over a
   assert.deepEqual([1, 2, 3].map((id) => existsSync(join(repo, 'pm', 'designs', `card-${id}`))), [false, true, true], 'recent or unfinished cards keep theirs');
 });
 
-test('cleanup removes a helper worktree once its branch is merged, and keeps one with work left', () => {
+test('cleanup removes a helper worktree once its work is merged, and keeps a fresh one and one with work left', () => {
   const repo = project();
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, 'config', 'user.email', 't@example.com');
@@ -55,10 +55,16 @@ test('cleanup removes a helper worktree once its branch is merged, and keeps one
   const tree = (name) => join(repo, '.claude', 'worktrees', name);
   git(repo, 'worktree', 'add', '-q', '-b', 'merged', tree('merged'));
   git(repo, 'worktree', 'add', '-q', '-b', 'busy', tree('busy'));
+  git(repo, 'worktree', 'add', '-q', '-b', 'fresh', tree('fresh'));
   writeFileSync(join(tree('busy'), 'wip.txt'), 'not committed');
+  writeFileSync(join(tree('merged'), 'done.txt'), 'the helper work');
+  git(tree('merged'), 'add', '-A');
+  git(tree('merged'), '-c', 'user.email=t@example.com', '-c', 'user.name=T', 'commit', '-q', '-m', 'work');
+  git(repo, 'merge', '-q', '--no-ff', '-m', 'merge', 'merged');
   const said = cleanupProject(repo, { now: NOW, temp: join(repo, 'none') });
   assert.match(said.join('\n'), /removed a merged helper worktree: .*merged/);
-  assert.deepEqual([existsSync(tree('merged')), existsSync(tree('busy'))], [false, true]);
+  // A helper that has only just started has no commits of its own yet: it is not finished.
+  assert.deepEqual(['merged', 'busy', 'fresh'].map((t) => existsSync(tree(t))), [false, true, true]);
 });
 
 test('the weekly run happens once a week per project', () => {
