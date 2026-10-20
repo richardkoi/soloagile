@@ -3,12 +3,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './isolate.js';
-import { cleanupProject, weeklyCleanup } from '../src/cleanup.js';
+import { cleanupProject, markShots, weeklyCleanup } from '../src/cleanup.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const NOW = new Date('2026-10-20T12:00:00');
@@ -83,4 +83,27 @@ test('soloagile backup runs the command pm/settings.json names, or says there is
   assert.ok(existsSync(join(repo, 'backed-up')));
   writeFileSync(join(repo, 'pm', 'settings.json'), JSON.stringify({ backup: 'exit 3' }));
   assert.equal(run().status, 3);
+});
+
+test("a card's shots folders go from the temp folder when it moves to Needs your look (#155)", () => {
+  const repo = project();
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 9 -->\n## Ideas\n## Up next\n## Doing\n- #3 Chart · M1 · 1 pt · develop\n  tested: 3 tests\n- #4 Other · M1 · 1 pt · develop\n## Needs your look\n## Needs your decision\n## Done\n');
+  const shots = (name) => { const d = join(tmpdir(), `pm-shots-${name}`); mkdirSync(d); return d; };
+  // soloagile shots marks each folder with the project and the cards then in Doing.
+  const mine = shots('mine');
+  markShots(mine, repo, readFileSync(join(repo, 'pm', 'board.md'), 'utf8'));
+  assert.deepEqual(JSON.parse(readFileSync(join(mine, 'for.json'), 'utf8')), { repo, cards: [3, 4] });
+  const other = shots('other');
+  writeFileSync(join(other, 'for.json'), JSON.stringify({ repo: '/elsewhere', cards: [3] }));
+  const later = shots('later');
+  writeFileSync(join(later, 'for.json'), JSON.stringify({ repo, cards: [4] }));
+  const unmarked = shots('unmarked');
+
+  const r = spawnSync(PM, ['card', 'move', '3', 'look'], { cwd: repo, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /removed #3's shots folder: .*pm-shots-mine/);
+  assert.ok(!existsSync(mine), "#3's folder is gone");
+  assert.ok(existsSync(other), "another project's #3 is kept");
+  assert.ok(existsSync(later), "a folder made for #4 alone is kept");
+  assert.ok(existsSync(unmarked), 'an unmarked folder waits for the weekly cleanup');
 });

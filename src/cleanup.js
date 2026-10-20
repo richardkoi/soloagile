@@ -1,6 +1,7 @@
 // soloagile cleanup: clears what can be made again and is no longer needed (#146).
 //   - helper worktrees under .claude/worktrees whose branch is merged and nothing is left uncommitted
-//   - soloagile shots folders (pm-shots-*) in the temp folder, untouched for a week
+//   - soloagile shots folders (pm-shots-*) in the temp folder, untouched for a week; a card's
+//     own go sooner, when it moves to Needs your look (clearCardShots)
 //   - card picture pages (pm/designs/card-<n>/) of cards finished over a week ago; their
 //     kept script in pm/takes/ stays, so `soloagile retake` brings one back
 // A session start runs it once a week when the weekly-cleanup habit is on.
@@ -9,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
-import { parseCardLine } from './board.js';
+import { parseBoard, parseCardLine } from './board.js';
 import { readArchive } from './archive.js';
 import { ownDir } from './settings.js';
 
@@ -102,4 +103,30 @@ export function backupCommand(repo) {
   } catch {
     return null;
   }
+}
+
+// soloagile shots, run in a project, marks its folder with the project and the cards then
+// in Doing, so the folder can go as soon as its card is built (#155).
+export function markShots(dir, repo, boardMd) {
+  const doing = parseBoard(boardMd).columns.find((c) => c.name === 'Doing')?.cards ?? [];
+  writeFileSync(join(dir, 'for.json'), JSON.stringify({ repo: resolve(repo), cards: doing.map((c) => c.id) }));
+}
+
+// When a card moves to Needs your look, its pictures are taken and read: the shots folders
+// marked for it in this project go. Returns the folders removed.
+export function clearCardShots(repo, id, temp = tmpdir()) {
+  repo = resolve(repo);
+  const removed = [];
+  if (!existsSync(temp)) return removed;
+  for (const f of readdirSync(temp)) {
+    if (!f.startsWith('pm-shots-') || f.startsWith('pm-shots-profile-')) continue;
+    const mark = join(temp, f, 'for.json');
+    let made;
+    try { made = JSON.parse(readFileSync(mark, 'utf8')); } catch { continue; }
+    if (made.repo === repo && made.cards?.includes(id)) {
+      rmSync(join(temp, f), { recursive: true, force: true });
+      removed.push(join(temp, f));
+    }
+  }
+  return removed;
 }

@@ -493,6 +493,10 @@ stay as they are; the stage says how far round a card is.
   Mac. Nothing else depends on it: with no browser, only `shots` and `design` are lost.
   The browser starts with its sandbox on. One that can't, such as Playwright's on Ubuntu,
   goes without it only for a page on this machine or its network, never one from the internet.
+- **A card's shots folders go when it moves to Needs your look.** Run in a project without a
+  folder named, `soloagile shots` writes a `for.json` in its temp folder naming the project
+  and the cards in Doing; `soloagile card move <n> look` removes the folders marked for that
+  card. Unmarked ones wait for the weekly cleanup.
 - **`soloagile shots <url> --full` takes the whole page.** Each of the four pictures is the
   page's full height instead of only the top, up to 16000px. A taller page is cut off
   there, and shots says so. Use it to check colours or layout lower down a page.

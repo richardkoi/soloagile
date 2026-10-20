@@ -42,7 +42,7 @@ import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
 import { addRuleTo } from '../src/rules.js';
 import { readUsage } from '../src/usage.js';
-import { backupCommand, cleanupProject } from '../src/cleanup.js';
+import { backupCommand, cleanupProject, clearCardShots, markShots } from '../src/cleanup.js';
 import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
@@ -123,7 +123,12 @@ if (cmd === 'shots') {
     process.exit(2);
   }
   try {
-    for (const file of await takeShots(shot.url, shot.dir, shot.steps)) console.log(file);
+    const files = await takeShots(shot.url, shot.dir, shot.steps);
+    for (const file of files) console.log(file);
+    // Run in a project, a folder of its own making is marked with the Doing cards, so moving
+    // the card to Needs your look clears it (#155).
+    const board = resolve(process.cwd(), 'pm', 'board.md');
+    if (!shot.dir && files.length && existsSync(board)) markShots(dirname(files[0]), process.cwd(), readFileSync(board, 'utf8'));
   } catch (err) {
     console.error(`soloagile: ${err.message}`);
     process.exit(1);
@@ -360,6 +365,11 @@ if (cmd === 'card') {
     }
     // A finished card keeps one line on the board; its text goes to the archive at once.
     if (r.column === 'Done') sayArchived(archiveProject(here, localDate()));
+    // A card's pictures are read by now: its shots folders leave the temp folder.
+    if (argv[0] === 'move' && r.column === 'Needs your look') {
+      const id = Number(argv[1].replace('#', ''));
+      for (const path of clearCardShots(here, id)) console.log(`soloagile: removed #${id}'s shots folder: ${path}`);
+    }
     buildAndSay(here);
   } catch (err) {
     console.error(`soloagile: ${err instanceof Refused ? 'refused: ' : ''}${err.message}`);
