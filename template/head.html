@@ -107,7 +107,8 @@ body:has(#plan:target, .ms-fold:target) .dk-nav a[href="#plan"],
 body:has(#reports:target) .dk-nav a[href="#reports"],
 body:has(#releases:target) .dk-nav a[href="#releases"],
 body:has(#docs:target) .dk-nav a[href="#docs"],
-body:has(#links:target) .dk-nav a[href="#links"] { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
+body:has(#links:target) .dk-nav a[href="#links"],
+body:has(#settings:target) .dk-nav a[href="#settings"] { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
 .tab { display: none; }
 body:not(:has(.anchor:target, .ms-fold:target)) .tab-board,
 body:has(#board:target) .tab-board,
@@ -115,7 +116,20 @@ body:has(#plan:target, .ms-fold:target) .tab-plan,
 body:has(#reports:target) .tab-reports,
 body:has(#releases:target) .tab-releases,
 body:has(#docs:target) .tab-docs,
-body:has(#links:target) .tab-links { display: block; }
+body:has(#links:target) .tab-links,
+body:has(#settings:target) .tab-settings { display: block; }
+.settings-title { display: flex; align-items: center; gap: var(--space-sm); margin: 0 0 var(--space-sm); font-size: var(--font-lg); }
+.habit-intro { color: var(--text-secondary); margin: 0 0 var(--space-md); }
+.habits { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-sm); }
+.habit { background: var(--bg-inset); border: 1px solid var(--border-muted); border-radius: var(--radius-lg); padding: 12px 14px; }
+.habit-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm); }
+.habit-name { font-size: var(--font-md); margin: 0; }
+.habit-what { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--font-sm); }
+.habit-how { margin: 6px 0 0; color: var(--text-muted); font-size: var(--font-xs); }
+.habit-how code, .habit-intro code { font-family: var(--font-mono); font-size: 13px; background: var(--bg-overlay); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.habit-state { font-size: var(--font-xs); border-radius: var(--radius-pill); padding: 2px 10px; border: 1px solid var(--border-default); color: var(--text-muted); white-space: nowrap; }
+.habit-state.on { border-color: var(--accent-green); color: var(--accent-green); background: var(--accent-green-bg); }
+.habit-state.soon { border-style: dashed; }
 
 /* ---------- buttons ---------- */
 .btn { display: inline-flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md);

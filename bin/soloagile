@@ -8,6 +8,7 @@
 //        soloagile archive [repo]   move finished cards' text to pm/finished-cards.md, then build
 //        soloagile board [repo]     print the board without its finished cards, for a session to read
 //        soloagile finished <milestone or card number>…   print finished cards in full
+//        soloagile set [habit on|off] [--all]   switch a habit (src/habits.js); alone, list them
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
@@ -33,6 +34,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
+import { HABITS, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
@@ -59,6 +61,7 @@ const COMMANDS = [
   ['archive [repo]', "move finished cards' text to pm/finished-cards.md, then build"],
   ['board [repo]', 'print the board without its finished cards'],
   ['finished <milestone or card number>…', 'print finished cards in full'],
+  ['set [habit on|off] [--all]', 'switch a habit for this project, or every project; alone, list them'],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
@@ -143,6 +146,41 @@ if (cmd === 'board') {
   } catch {
     console.error(`soloagile: no pm/board.md in ${resolve(repo)}`);
     process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'set') {
+  // Run in the project's folder. With no habit named, list them all with their state.
+  const args = process.argv.slice(3);
+  const all = args.includes('--all');
+  const [key, value] = args.filter((a) => a !== '--all');
+  const here = process.cwd();
+  if (!key) {
+    const states = habitStates(isPmProject(here) ? here : null);
+    const width = Math.max(...states.map((h) => h.key.length));
+    for (const h of states) console.log(`  ${h.key.padEnd(width)}  ${(h.on ? 'on' : 'off').padEnd(3)}  ${h.from}${h.rule ? '' : `  (coming with #${h.card})`}`);
+    process.exit(0);
+  }
+  if (!['on', 'off'].includes(value)) {
+    console.error(`usage: soloagile set <habit> on|off [--all]   such as: soloagile set ${HABITS[0].key} off`);
+    process.exit(2);
+  }
+  if (!all && !isPmProject(here)) {
+    console.error('soloagile: no pm/ here; run it in a project, or add --all for every project');
+    process.exit(1);
+  }
+  try {
+    const habit = setHabit(all ? null : here, key, value === 'on');
+    console.log(`soloagile: ${habit.name} is ${value} for ${all ? 'all projects' : 'this project'}, from the next session`);
+    if (all) {
+      const own = habitStates(isPmProject(here) ? here : null).find((h) => h.key === key);
+      if (own.from === 'this project') console.log(`soloagile: this project keeps its own switch: ${own.on ? 'on' : 'off'}`);
+      buildAll(projectsFolderOf(here));
+    } else buildAndSay(here);
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(2);
   }
   process.exit(0);
 }

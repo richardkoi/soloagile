@@ -32,6 +32,9 @@ kept in `pm/`. Follow these rules while you work here.
 - Every new work card gets a guessed build time too, `--guess 40`, shown as `· ~40 min`.
   Make it from the build times the session start gives you (`soloagile sizes` prints them
   again): the usual time for its size, moved up or down by how it compares with the examples.
+- Habits the session start lists come from soloagile's settings: follow each one that is
+  on, and skip each one that is off. When the user asks to switch one, run
+  `soloagile set <habit> on|off` in the project, with `--all` for every project.
 - Every new card gets a milestone, written `· M3` on its line, an idea too: the closest one
   in `pm/plan.md`. When none fits, add a milestone for it there, as `not started`.
 - Every milestone has a `short:` line under its heading: 2 to 4 words saying what it is,

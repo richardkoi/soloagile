@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readArchive } from './archive.js';
 import { readPictures } from './design.js';
+import { habitStates } from './habits.js';
 import { recordMoves } from './history.js';
 import { renderPage } from './page.js';
 import { stampOf, writeStamp } from './settings.js';
@@ -47,7 +48,7 @@ export function buildProject(repoPath, builtAt = new Date()) {
   md.history = existsSync(history) ? readFileSync(history, 'utf8') : '';
   md.finished = readArchive(repo);
   const out = join(dir, 'index.html');
-  const page = renderPage({ name, md, builtAt, template, pictures: readPictures(dir), stampUrl: stampOf(out).url });
+  const page = renderPage({ name, md, builtAt, template, pictures: readPictures(dir), stampUrl: stampOf(out).url, habits: habitStates(repo) });
   writeFileSync(out, page.html);
   writeStamp(out, builtAt);
   return { out, problems: [...problems, ...page.problems] };

@@ -5,6 +5,7 @@ import { archivedDetails, doneCutoff } from './archive.js';
 import { COLUMNS, SCALE, SHORT_LINE, STAGES, guessText, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
 import { icon } from './icons.js';
 import { parseHistory } from './history.js';
+import { renderSettings } from './habits.js';
 import { buildTimes, duration, renderReports } from './reports.js';
 import { VERSION } from './version.js';
 
@@ -251,6 +252,7 @@ const TABS = [
   ['releases', 'Releases', 'rocket'],
   ['docs', 'Docs', 'book-open'],
   ['links', 'Links', 'link'],
+  ['settings', 'Settings', 'sliders-horizontal'],
 ];
 
 function renderNav(waiting) {
@@ -396,7 +398,8 @@ function renderLinks(md) {
 // md: { board, plan, releases, overview, decisions, links, history, finished } — missing files are ''.
 // pictures: design cards' option pictures, keyed "<card>-<letter>" (src/design.js).
 // stampUrl: where the build leaves the page's stamp, for a page opened as a file (src/settings.js).
-export function renderPage({ name, md, builtAt, template, pictures = {}, stampUrl = '' }) {
+// habits: the project's habit states (src/habits.js), for the Settings tab.
+export function renderPage({ name, md, builtAt, template, pictures = {}, stampUrl = '', habits = [] }) {
   const board = parseBoard(md.board);
   const plan = parsePlan(md.plan);
   const { pills, now } = renderMilestones(plan, board);
@@ -424,6 +427,7 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
         ? `<h2 class="md-sec h-icon">${icon('scale')}Decisions</h2>${datedHeadings(block(md.decisions), 'circle-check')}`
         : ''),
     links: md.links.trim() ? renderLinks(md.links) : empty('links'),
+    settings: renderSettings(habits),
   };
   // One pass, so a "{{…}}" inside the project's own Markdown is never expanded.
   const html = template.replace(/\{\{(\w+)\}\}/g, (_, key) => parts[key] ?? '');

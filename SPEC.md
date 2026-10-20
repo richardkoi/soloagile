@@ -60,6 +60,13 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   face says under the foot how close it came, `guessed 40 min, took 52 min`, and the
   time-to-build report says how many guessed cards took between half and double their
   guess, with up to four weeks of it and whether that is getting better.
+- **Habits are switches for ways of working**, listed in `src/habits.js`. Each is on until
+  switched off: for every project under `"habits"` in `~/.soloagile/settings.json`, or for one
+  under `"habits"` in its `pm/settings.json`, which wins. The page's Settings tab shows each
+  habit, on or off, where that comes from, and the command that flips it. It is read-only:
+  the user tells Claude, or runs `soloagile set <habit> on|off [--all]`, which rebuilds the
+  page. A habit whose card isn't built yet shows as coming. The session start tells Claude
+  each built habit, on or off, so a change takes effect at the next session.
 - **A card's face has a head and a foot.** The head holds the waiting pill (Decide,
   Design, Look), the milestone, the picture count, and the card's number at the right.
   Then the title, its one-line note, and its date. The foot holds the stage on the left
@@ -500,10 +507,11 @@ The whole flow, for the user, is the home page's Session flow tab (`template/flo
 ```
 soloagile/
   .claude-plugin/         plugin.json and marketplace.json: what makes this repo a plugin and its own store
-  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
+  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
   hooks/hooks.json        the three hooks: rebuild after an edit, session start, session end
   rules.md                the short rules the session-start hook gives Claude in a project with pm/
   skills/                 the six skills: init, catchup, commit, needs, retro and save, typed `/soloagile:<name>`
+  src/habits.js           habits: switches for ways of working, the Settings tab, soloagile set (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end
