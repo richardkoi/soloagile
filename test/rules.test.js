@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,4 +33,16 @@ test('soloagile rule writes CLAUDE.md, unless the retro-rules habit is off', () 
   spawnSync(PM, ['set', 'retro-rules', 'off'], { cwd: repo });
   assert.match(run('Another.').stdout, /retro-rules habit is off/);
   assert.doesNotMatch(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), /Another/);
+});
+
+test('a project that keeps its CLAUDE.md in .claude/ gets its rules there', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'soloagile-rules-'));
+  mkdirSync(join(repo, 'pm'));
+  mkdirSync(join(repo, '.claude'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n');
+  writeFileSync(join(repo, '.claude', 'CLAUDE.md'), '# Notes\n');
+  const r = spawnSync(PM, ['rule', 'Ask before a deploy.'], { cwd: repo, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(readFileSync(join(repo, '.claude', 'CLAUDE.md'), 'utf8'), /^1\. Ask before a deploy\.$/m);
+  assert.ok(!existsSync(join(repo, 'CLAUDE.md')), 'no second CLAUDE.md at the root');
 });

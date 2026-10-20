@@ -34,7 +34,10 @@ export function addRule(md, text, from) {
 }
 
 export function addRuleTo(repo, text, from) {
-  const file = join(resolve(repo), 'CLAUDE.md');
+  // Claude Code also loads .claude/CLAUDE.md. A project that keeps its file there (such as a
+  // plugin, which may not have one at its root) gets its rules there.
+  const inDotClaude = join(resolve(repo), '.claude', 'CLAUDE.md');
+  const file = !existsSync(join(resolve(repo), 'CLAUDE.md')) && existsSync(inDotClaude) ? inDotClaude : join(resolve(repo), 'CLAUDE.md');
   const { md, number } = addRule(existsSync(file) ? readFileSync(file, 'utf8') : '', text, from);
   writeFileSync(file, md);
   return { file, number };
