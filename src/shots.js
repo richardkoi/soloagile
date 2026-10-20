@@ -1,8 +1,8 @@
 // `soloagile shots <url>`: four screenshots of a page with nobody watching, for the wheel's Test
 // stage: desktop and phone width, each in dark and light. Claude reads the pictures.
 //
-// Steps given with --click and --type run first, in order, on every one of the four, so a
-// pop-up can be opened or a box filled in before the picture. With --full each picture is the
+// Steps given with --click, --type and --press run first, in order, on every one of the four,
+// so a pop-up can be opened or a box filled in and Enter pressed before the picture. With --full each picture is the
 // whole height of the page, not only the top, up to FULL_MAX pixels.
 //
 // It drives a headless browser (findBrowser: Playwright's headless Chromium, or a Chrome,
@@ -21,22 +21,44 @@ export const THEMES = ['dark', 'light'];
 const TIMEOUT_MS = 20000;
 // How long a click or typed text is given to show on the page before the next step.
 const SETTLE_MS = 300;
+// The keys --press knows by name, as the DevTools protocol wants them. Any one character
+// works too. Enter carries "\r" as its text so a form is sent, as a real key would.
+const KEYS = {
+  Enter: { code: 'Enter', keyCode: 13, text: '\r' },
+  Escape: { code: 'Escape', keyCode: 27 },
+  Tab: { code: 'Tab', keyCode: 9 },
+  Backspace: { code: 'Backspace', keyCode: 8 },
+  Delete: { code: 'Delete', keyCode: 46 },
+  Space: { key: ' ', code: 'Space', keyCode: 32, text: ' ' },
+  ArrowUp: { code: 'ArrowUp', keyCode: 38 },
+  ArrowDown: { code: 'ArrowDown', keyCode: 40 },
+  ArrowLeft: { code: 'ArrowLeft', keyCode: 37 },
+  ArrowRight: { code: 'ArrowRight', keyCode: 39 },
+  Home: { code: 'Home', keyCode: 36 },
+  End: { code: 'End', keyCode: 35 },
+};
+const keyFor = (name) => KEYS[name] ? { key: name, ...KEYS[name] }
+  : { key: name, text: name, keyCode: name.toUpperCase().charCodeAt(0) };
+
 // The tallest a --full picture goes. A taller page is cut off there, and shots says so.
 export const FULL_MAX = 16000;
 
-// `soloagile shots <url> [dir] [--click <words>] [--type <box>=<text>] ... [--full]` -> { url, dir, steps }.
+// `soloagile shots <url> [dir] [--click <words>] [--type <box>=<text>] [--press <key>] ... [--full]` -> { url, dir, steps }.
 // The steps keep the order they were written in. --full comes back as one more step,
 // { do: 'full' }, at the end: it is the last thing done before each picture.
 export function parseShotArgs(args) {
-  const usage = new Error('usage: soloagile shots <url> [dir] [--click "<words on it>"] [--type "<box>=<text>"] ... [--full]');
+  const usage = new Error('usage: soloagile shots <url> [dir] [--click "<words on it>"] [--type "<box>=<text>"] [--press <key>] ... [--full]');
   let full = false;
   const plain = [];
   const steps = [];
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--click' || args[i] === '--type') {
+    if (args[i] === '--click' || args[i] === '--type' || args[i] === '--press') {
       const value = args[++i];
       if (!value) throw usage;
-      if (args[i - 1] === '--click') {
+      if (args[i - 1] === '--press') {
+        if (!KEYS[value] && [...value].length !== 1) throw new Error(`${usage.message}\n--press takes one character or a key: ${Object.keys(KEYS).join(', ')}`);
+        steps.push({ do: 'press', what: value });
+      } else if (args[i - 1] === '--click') {
         steps.push({ do: 'click', what: value });
       } else {
         const at = value.indexOf('=');
@@ -265,8 +287,16 @@ function locate({ kind, what, text }) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Does one step with a real mouse click or real typing, then gives the page a moment.
+// Does one step with a real mouse click, real typing or a real key press, then gives the page
+// a moment. A key goes to whatever has focus, such as the box just typed in.
 async function runStep(page, step) {
+  if (step.do === 'press') {
+    const { text, keyCode, ...key } = keyFor(step.what);
+    const both = { ...key, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode };
+    await page.send('Input.dispatchKeyEvent', { ...both, type: text ? 'keyDown' : 'rawKeyDown', text });
+    await page.send('Input.dispatchKeyEvent', { ...both, type: 'keyUp' });
+    return settle(page, step);
+  }
   const { result, exceptionDetails } = await page.send('Runtime.evaluate', {
     expression: `(${locate})(${JSON.stringify({ kind: step.do, what: step.what, text: step.text })})`,
     returnByValue: true,
@@ -282,6 +312,10 @@ async function runStep(page, step) {
   } else if (!found.typed) {
     await page.send('Input.insertText', { text: step.text });
   }
+  return settle(page, step);
+}
+
+async function settle(page, step) {
   await sleep(SETTLE_MS);
   // A click may have opened another page: wait until whichever page is showing has loaded.
   for (let tries = 0; tries < 50; tries++) {

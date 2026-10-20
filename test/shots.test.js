@@ -88,7 +88,10 @@ test('reads the clicks and typing to do before the picture, in the order written
     dir: undefined,
     steps: [{ do: 'click', what: 'Plan' }, { do: 'full' }],
   }, '--full can go anywhere, and is done last');
-  for (const bad of [[], ['--full'], ['--click', 'Go'], ['http://x/', '--click'], ['http://x/', '--type', 'no box'], ['http://x/', '--tap', 'Go'], ['a', 'b', 'c']]) {
+  assert.deepEqual(parseShotArgs(['http://x/', '--type', 'Find=12', '--press', 'Enter', '--press', 'x']).steps, [
+    { do: 'type', what: 'Find', text: '12' }, { do: 'press', what: 'Enter' }, { do: 'press', what: 'x' },
+  ], 'a named key or one character');
+  for (const bad of [[], ['--full'], ['--click', 'Go'], ['http://x/', '--click'], ['http://x/', '--type', 'no box'], ['http://x/', '--tap', 'Go'], ['a', 'b', 'c'], ['http://x/', '--press'], ['http://x/', '--press', 'Enterr']]) {
     assert.throws(() => parseShotArgs(bad), /usage: soloagile shots/, bad.join(' '));
   }
 });
@@ -127,6 +130,27 @@ test('clicks and types before each picture', { skip: !findBrowser() && 'no headl
     await assert.rejects(takeShots(url, tmp(), [{ do: 'click', what: 'Nope' }]), /nothing to click named "Nope"\. The page has: open the menu, search, go, far down the page/);
     await assert.rejects(takeShots(url, tmp(), [{ do: 'type', what: 'Room', text: 'Attic' }]), /"Room" has no choice "Attic"/);
     await assert.rejects(takeShots(url, tmp(), [{ do: 'click', what: 'Open the menu' }, { do: 'click', what: 'Go' }]), /"Go" can't be clicked: something else covers it/);
+  } finally {
+    server.close();
+  }
+});
+
+// A box that sends what it holds when Enter is pressed in it, and only then.
+const KEYS = `<!doctype html><body><label>Find <input onkeydown="if (event.key === 'Enter') fetch('/enter?q=' + this.value)"></label>`;
+
+test('presses a key on what has focus', { skip: !findBrowser() && 'no headless Chromium here' }, async () => {
+  const asked = [];
+  const server = createServer((req, res) => {
+    if (req.url !== '/' && req.url !== '/favicon.ico') asked.push(req.url);
+    res.end(req.url === '/' ? KEYS : '');
+  }).listen(0, '127.0.0.1');
+  await new Promise((r) => server.once('listening', r));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/`;
+    await takeShots(url, tmp(), [{ do: 'type', what: 'Find', text: '12' }]);
+    assert.deepEqual(asked, [], 'typing alone sends nothing');
+    await takeShots(url, tmp(), [{ do: 'type', what: 'Find', text: '12' }, { do: 'press', what: 'Enter' }]);
+    assert.deepEqual(asked, Array(4).fill('/enter?q=12'), 'Enter was pressed in the box, in all four pictures');
   } finally {
     server.close();
   }

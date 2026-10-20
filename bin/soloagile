@@ -18,7 +18,8 @@
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
-//          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box.
+//          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box;
+//                                --press <key> presses a key, such as Enter or Escape.
 //                                Any number of each, done in the order written
 //        soloagile design <card> <letter> <mock-up> [width]
 //                            a picture of a mock-up, shown under that option of a design card
@@ -80,7 +81,7 @@ const COMMANDS = [
   ['usage', "the week's and the 5 hours' usage, from the address set as usageUrl; exits 3 when either reaches the stop"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
-  ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
+  ['shots <url> [dir] [--click …] [--type …] [--press …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
 ].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
 
