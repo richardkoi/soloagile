@@ -458,6 +458,14 @@ body:has(#settings:target) .tab-settings { display: block; }
   .dk-nav { gap: 4px; }
   .dk-nav a { padding: 6px 8px; }   /* six tabs take two rows on a phone, so none is hidden */
   .panel-x, .card-modal { padding: var(--space-md); }
+  /* With many milestones, wrapped chips push the board off the first screen. On a phone
+     each row of chips stays on one line and scrolls sideways. The padding keeps the
+     picked chip's ring from being cut off. */
+  .ms-strip, .ms-filter { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
+    padding: 3px; margin-inline: -3px; }
+  .ms-strip > *, .ms-filter > * { flex: none; white-space: nowrap; }
+  .header-right { min-width: 0; max-width: 100%; }
+  .ms-strip { flex: 1 0 100%; min-width: 0; }   /* a row of its own, as wide as the screen */
 }
 /* A small phone is 360px wide: dropping the tab icons fits four tabs, and the
    waiting badge, on the first row. */
