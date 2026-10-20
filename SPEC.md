@@ -282,6 +282,8 @@ The six columns, always in this order and always present, even when empty:
     design card. Its a/b/c lines become one line, where the first option was:
     `chosen <today>: c) words light the matching cards`. It refuses a letter the card
     doesn't have and a card with no options. It doesn't move the card; `card move` does.
+    The picked option's picture stays under its `chosen` line, so a design card shows
+    what was picked until the user's yes on its look.
   - `soloagile card reword <number> "<start>" "<new line>"` changes the one detail line that
     starts with those words, and `soloagile card unnote <number> "<start>"` removes it. Case
     doesn't matter. Both refuse when no line starts so, or more than one does.
@@ -379,7 +381,9 @@ The six columns, always in this order and always present, even when empty:
 The `# Heading` is the project's name as the page shows it. A milestone's status
 is one of: `not started`, `in progress`, `done YYYY-MM-DD`. The `short:` line under a
 milestone's heading is 2 to 4 words saying what it is: its chips on the page show them,
-after its number. The Plan tab hides the line, since it shows the full title.
+after its number. The Plan tab hides the line, since it shows the full title. A
+milestone with cards names each by number on a `Cards:` line under its `short:` line, and
+Claude adds a card's number when it joins the milestone.
 
 ```markdown
 # My Project
@@ -393,6 +397,7 @@ short: The format
 Done when: the user agrees the format reads right.
 ### M1 — The page · in progress
 short: First page
+Cards: #6, #7, #8
 Done when: tests pass and the user has seen it in light and dark.
 ```
 
@@ -501,6 +506,10 @@ stay as they are; the stage says how far round a card is.
     what the page does offer.
   - The page is scrolled to what was clicked, so a chart low on a page can be reached.
   - A real browser is only for what this can't do, such as dragging.
+- **New charts and new skills get one more check.** A new chart is checked on a project
+  with many milestones, such as 3dweather, as well as the project it was built in. A new
+  skill's card reaches Needs your look only after the skill has run once for real, with
+  its `tested:` line saying what it did.
 - **The commit comes before the look.** A card's work is committed before the card moves
   to Needs your look, so the page and the repo never disagree about what is built.
 - **A card reaches Needs your look with a `tested:` detail line** saying what was
@@ -515,6 +524,9 @@ stay as they are; the stage says how far round a card is.
   change they pick becomes an Ideas card; their "what's next" picks become the next
   milestone in `plan.md`, as `not started`. Then the milestone is set to done and its
   release note written.
+- **Time passing doesn't hold a card open.** A "done when" that needs days to pass, or a
+  look that waits on an outside event, is approved on what was built. The rest becomes a
+  follow-up card with a `not before <date>` line.
 
 ## How it stays up to date
 

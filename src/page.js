@@ -103,10 +103,14 @@ function summaryOf(details) {
 
 // An option's picture, taken by `soloagile design`, goes under that option in the card's modal.
 // It is a link to itself: a click opens it full size in a new tab (template/refresh.html).
-const pictureOf = (card, line, pictures) => OPTION.test(line) && pictures[`${card.id}-${line[0]}`];
+// A "chosen <date>: b) …" line, left by `soloagile card choose`, keeps option b's picture,
+// so the card shows what was picked until the user's yes on its look (#106).
+const CHOSEN = /^chosen [\d-]+: ([a-z])\) /;
+const letterOf = (line) => (OPTION.test(line) ? line[0] : line.match(CHOSEN)?.[1]);
+const pictureOf = (card, line, pictures) => { const l = letterOf(line); return l && pictures[`${card.id}-${l}`]; };
 function optionPicture(card, line, pictures) {
   const pic = pictureOf(card, line, pictures);
-  return pic ? `<a class="pic-open" href="${pic.src}" target="_blank" title="Open full size in a new tab"><img class="option-pic" src="${pic.src}" width="${pic.width}" height="${pic.height}" alt="Option ${line[0]}, as a picture" loading="lazy"></a>` : '';
+  return pic ? `<a class="pic-open" href="${pic.src}" target="_blank" title="Open full size in a new tab"><img class="option-pic" src="${pic.src}" width="${pic.width}" height="${pic.height}" alt="Option ${letterOf(line)}, as a picture" loading="lazy"></a>` : '';
 }
 
 // A photo icon in the card's top row, with how many pictures are inside, so the user knows

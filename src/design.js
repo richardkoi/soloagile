@@ -1,7 +1,7 @@
 // Pictures for a design card's options, so the user chooses from what each would look like.
 // `soloagile design <card> <letter> <mock-up>` photographs a mock-up into
 // pm/designs/<card>-<letter>.png, and the page shows it under that option in the card's
-// pop-up. The pictures are kept out of git: they matter only until the user has chosen.
+// pop-up. The pictures are kept out of git: they matter only until the card is done.
 import { closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';

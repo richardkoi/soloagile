@@ -23,7 +23,8 @@ kept in `pm/`. Follow these rules while you work here.
   `soloagile card` alone lists every form. Edit `pm/board.md` by hand only for what the
   command can't do.
 - Keep the board live. Move a card the moment its state changes:
-  - starting it → Doing
+  - starting it → Doing, only when its own build starts, one card at a time, so its build
+    time means something
   - live (deployed, or running where the user uses it) → Needs your look
   - blocked on the user → Needs your decision
   - only the user's yes moves a card to Done. A finished card keeps one line on the board,
@@ -45,6 +46,8 @@ kept in `pm/`. Follow these rules while you work here.
   in `pm/plan.md`. When none fits, add a milestone for it there, as `not started`.
 - Every milestone has a `short:` line under its heading: 2 to 4 words saying what it is,
   such as `short: Public plugin`. Its chips on the page show them.
+- A milestone with cards names each by number on a `Cards:` line under its `short:` line,
+  such as `Cards: #12, #14`. Add a card's number when it joins the milestone.
 - Every address you create (site, port, artifact, doc, repo) goes in `pm/links.md` straight
   away. Never a `file://` address.
 - `pm/index.html` is built from the Markdown: never edit it. A hook rebuilds it after an
@@ -60,17 +63,23 @@ Every card goes round six stages: **Plan → Design → Develop → Test → Rel
   (`· 5 pts · design · asked <date>`, with the options under it), then ask the user. For
   anything visual, give each option a real picture: write a small HTML mock-up of each and
   run `soloagile design <card number> <option letter> <mock-up.html>`. The user's yes moves
-  the card to Doing as `· develop`.
+  the card to Doing as `· develop`. A design card keeps its option pictures until the
+  user's yes on its look: `soloagile card choose` leaves the picked option's picture on its
+  `chosen` line.
 - **Develop**: build it. If the build departs from the option the user picked, say so at
   once, not at their look.
 - **Test**: the project's checks. For anything seen in a browser, then run
   `soloagile shots <url>` and read its four screenshots: desktop and phone width, dark and
-  light. Write a `tested:` line on the card saying what was checked. A card reaches the
+  light. A new chart is checked on a project with many milestones, such as 3dweather, as
+  well as this one. A new skill is run once for real, and its `tested:` line says what it
+  did. Write a `tested:` line on the card saying what was checked. A card reaches the
   user already tested.
 - **Release**: commit the card's work, without waiting to be asked, before the card moves
   to Needs your look. Deploy where the project has a server, and write the release note.
 - **Feedback**: the user's look on the card. When a milestone's last card is approved, run
-  `/soloagile:retro`.
+  `/soloagile:retro`. A "done when" that needs days to pass, or a look that waits on an
+  outside event, doesn't hold the card open: it is approved on what was built, and the
+  rest becomes a follow-up card with a `not before <date>` line.
 
 ## Questions
 - Ask the user as multiple choice, with an open option.

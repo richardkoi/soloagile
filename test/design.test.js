@@ -90,3 +90,12 @@ test('the picture is the whole mock-up and nothing more', { skip: !findBrowser()
   assert.deepEqual(readPictures(join(repo, 'pm'))['12-a'].width, 360);
   assert.deepEqual(readPictures(join(repo, 'pm'))['12-a'].height, 150, 'as tall as its content, not the window');
 });
+
+test("a card keeps its picked option's picture after soloagile card choose, until it is done (#106)", () => {
+  const board = '# Board\n\n## Needs your look\n- #12 Pick a progress bar · M1 · 3 pts\n  chosen 2026-10-20: b) Six dots\n';
+  const md = { board, plan: '', releases: '', overview: '', decisions: '', links: '' };
+  const pic = { src: 'designs/12-b.png?v=5', width: 360, height: 200 };
+  const { html } = renderPage({ name: 'demo', md, builtAt: new Date(2026, 9, 20), template: readTemplate('page.html'), pictures: { '12-b': pic } });
+  assert.match(html, /<li>chosen 2026-10-20: b\) Six dots<a class="pic-open" href="designs\/12-b\.png\?v=5"[^>]*><img class="option-pic"[^>]*alt="Option b, as a picture"/);
+  assert.match(html.split('<div class="card-modal"')[0], /title="1 picture inside"/);
+});
