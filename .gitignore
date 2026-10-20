@@ -9,3 +9,6 @@ pm/designs/
 # pm/ keeps its own private git history (pm/.git).
 pm/
 NEXT_SESSION.md
+
+# Helpers' copies of the code (Claude Code worktrees)
+.claude/worktrees/
