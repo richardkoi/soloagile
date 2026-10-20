@@ -282,6 +282,9 @@ The six columns, always in this order and always present, even when empty:
     design card. Its a/b/c lines become one line, where the first option was:
     `chosen <today>: c) words light the matching cards`. It refuses a letter the card
     doesn't have and a card with no options. It doesn't move the card; `card move` does.
+  - `soloagile card reword <number> "<start>" "<new line>"` changes the one detail line that
+    starts with those words, and `soloagile card unnote <number> "<start>"` removes it. Case
+    doesn't matter. Both refuse when no line starts so, or more than one does.
   - Editing `board.md` by hand still works, for what the command can't do. `soloagile build`
     checks it afterwards, as before. In twelve days of use Claude changed boards about
     1,770 times with one-off scripts, and the checker sent 89 of them back.
@@ -556,7 +559,7 @@ soloagile/
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end
   src/board.js            reads board.md into columns (tested)
-  src/card.js             soloagile card: add, move, note, choose, set and show, each checked before it is written (tested)
+  src/card.js             soloagile card: add, move, note, choose, reword, unnote, set and show, each checked before it is written (tested)
   src/archive.js          finished-cards.md: finished cards' text, kept off the board (tested)
   src/history.js          writes history.md: every card move, with its time (tested)
   src/reports.js          the Reports tab: charts worked out from history.md (tested)

@@ -16,8 +16,10 @@ kept in `pm/`. Follow these rules while you work here.
     --milestone M3` changes its milestone, points or title; `card show <number>` prints it
   - `soloagile card choose <number> b` records the user's pick on a question or design
     card: its options become one `chosen <today>: b) …` line. It doesn't move the card
+  - `soloagile card reword <number> "done when" "done when: …"` changes one detail line,
+    found by how it starts; `card unnote <number> "not before"` removes one
   `soloagile card` alone lists every form. Edit `pm/board.md` by hand only for what the
-  command can't do, such as rewording a line.
+  command can't do.
 - Keep the board live. Move a card the moment its state changes:
   - starting it → Doing
   - live (deployed, or running where the user uses it) → Needs your look

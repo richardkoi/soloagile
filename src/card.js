@@ -176,6 +176,33 @@ export function chooseCard(boardMd, archiveMd, { id, letter, today }) {
   return { board: lines.join('\n'), column: found.lane, said: `#${id}: chosen ${pick.text}` };
 }
 
+// soloagile card reword <number> "<start>" "<new line>", and unnote <number> "<start>": change
+// or remove the one detail line that starts with those words (any case).
+function oneLine(lines, archiveMd, id, start) {
+  if (!start?.trim()) refuse(`say how the line starts: soloagile card unnote ${id} "done when"`);
+  const found = find(lines, id) ?? refuse(gone(archiveMd, id));
+  const want = start.trim().toLowerCase();
+  const hits = found.details.map((d, i) => ({ at: found.at + 1 + i, text: d.trim() })).filter((d) => d.text.toLowerCase().startsWith(want));
+  if (!hits.length) refuse(`#${id} has no detail line starting "${start.trim()}"; its lines start: ${found.details.map((d) => d.trim().slice(0, 30)).join(' | ') || 'none'}`);
+  if (hits.length > 1) refuse(`${hits.length} of #${id}'s lines start "${start.trim()}"; say more of it`);
+  return { found, hit: hits[0] };
+}
+
+export function rewordCard(boardMd, archiveMd, { id, start, line }) {
+  const lines = boardMd.split('\n');
+  if (!line?.trim()) refuse(`say the new line: soloagile card reword ${id} "done when" "done when: …"`);
+  const { found, hit } = oneLine(lines, archiveMd, id, start);
+  lines[hit.at] = `  ${line.trim()}`;
+  return { board: lines.join('\n'), column: found.lane, said: `#${id}: reworded "${line.trim()}"` };
+}
+
+export function unnoteCard(boardMd, archiveMd, { id, start }) {
+  const lines = boardMd.split('\n');
+  const { found, hit } = oneLine(lines, archiveMd, id, start);
+  lines.splice(hit.at, 1);
+  return { board: lines.join('\n'), column: found.lane, said: `#${id}: removed "${hit.text}"` };
+}
+
 // soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
 export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, guess, title }) {
   if (milestone === undefined && points === undefined && guess === undefined && title === undefined) refuse('say what to set: --milestone M3, --points 5, --guess 40 or --title "…"');
@@ -247,6 +274,8 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
       decision --design                  a design waiting for a yes
   soloagile card note <number> "<line>" [--first]   add a detail line, such as "tested: …"
   soloagile card choose <number> <letter>           the user's pick: its options become one "chosen" line
+  soloagile card reword <number> "<start>" "<new line>"   change the detail line that starts so
+  soloagile card unnote <number> "<start>"          remove the detail line that starts so
   soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
   soloagile card show <number>                      the card in full, finished or not`;
 
@@ -274,6 +303,8 @@ export function runCard(argv, { board, plan, archive, today }) {
   if (verb === 'add') return addCard(board, plan, { ...args, title: first, today });
   if (verb === 'move') return moveCard(board, archive, { ...args, id: numberOf(first), lane: second ?? refuse('say which lane: soloagile card move 12 doing'), stage: third, today });
   if (verb === 'note') return noteCard(board, archive, { id: numberOf(first), line: second, first: args.first });
+  if (verb === 'reword') return rewordCard(board, archive, { id: numberOf(first), start: second, line: third });
+  if (verb === 'unnote') return unnoteCard(board, archive, { id: numberOf(first), start: second });
   if (verb === 'choose') return chooseCard(board, archive, { id: numberOf(first), letter: second, today });
   if (verb === 'set') return setCard(board, plan, archive, { ...args, id: numberOf(first) });
   if (verb === 'show') return { print: showCard(board, archive, { id: numberOf(first) }) };

@@ -191,3 +191,19 @@ test('a milestone counts its cards on the board and finished, each once', async 
   assert.equal(milestoneCount(board, archive, 'M2'), 3);
   assert.equal(milestoneCount(board, '', 'M1'), 1);
 });
+
+test('reword and unnote change or remove one detail line, found by how it starts', () => {
+  const b = run(['note', '8', 'not before 2026-10-27'], BOARD).board;
+  const r = run(['reword', '8', 'done when', 'done when: it is done, and tested'], b);
+  assert.equal(r.said, '#8: reworded "done when: it is done, and tested"');
+  assert.ok(r.board.includes('- #8 Queued · M2 · 2 pts\n  done when: it is done, and tested\n  not before 2026-10-27\n'));
+  const u = run(['unnote', '8', 'NOT before'], b);
+  assert.equal(u.said, '#8: removed "not before 2026-10-27"');
+  assert.ok(u.board.includes('- #8 Queued · M2 · 2 pts\n  done when: it is done\n\n'));
+  refused(['reword', '8', 'tested', 'tested: x'], /#8 has no detail line starting "tested"; its lines start: done when: it is done/);
+  refused(['reword', '8', 'done when'], /say the new line/);
+  refused(['unnote', '8'], /say how the line starts/);
+  const two = run(['note', '8', 'done when: again'], BOARD).board;
+  refused(['unnote', '8', 'done'], /2 of #8's lines start "done"; say more of it/, two);
+  refused(['unnote', '99', 'x'], /there is no card #99 on the board/);
+});
