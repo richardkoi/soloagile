@@ -173,6 +173,26 @@ body:has(#settings:target) .tab-settings { display: block; }
   .lane { order: 6; }
   .lane-ideas { order: 1; } .lane-up-next { order: 2; } .lane-doing { order: 3; } .lane-waiting { order: 4; } .lane-done { order: 5; }
 }
+/* Ideas and Done fold (#134): the button sits at the heading's end. A folded lane keeps only
+   its heading; five in a row, it becomes a thin strip at the board's edge, read sideways. */
+.lane-fold { margin-left: auto; align-self: center; display: inline-flex; padding: 2px; background: none;
+  border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer; }
+.lane-fold:hover { color: var(--accent-link); border-color: var(--border-default); }
+.lane-fold .i { width: 18px; height: 18px; }
+.lane.folded .lane-fold .i { transform: rotate(180deg); }
+.lane-hint + .lane-fold { margin-left: 0; }
+.lane.folded > :not(.lane-head) { display: none; }
+.lane.folded { min-height: 0; }
+@media (min-width: 1101px) {
+  .lanes:has(.lane-ideas.folded) { grid-template-columns: 52px repeat(4, minmax(0, 1fr)); }
+  .lanes:has(.lane-done.folded) { grid-template-columns: repeat(4, minmax(0, 1fr)) 52px; }
+  .lanes:has(.lane-ideas.folded):has(.lane-done.folded) { grid-template-columns: 52px repeat(3, minmax(0, 1fr)) 52px; }
+  .lane.folded .lane-head { writing-mode: vertical-rl; flex-wrap: nowrap; align-items: center; border-bottom: 0;
+    padding: var(--space-md) 0; gap: var(--space-sm); }
+  .lane.folded .lane-hint, .lane.folded .lane-points { display: none; }
+  .lane.folded .lane-fold { margin: 0; order: -1; }
+  .lane.folded .lane-icon { order: -1; }
+}
 @media (max-width: 1100px) { .lanes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px)  { .lanes { grid-template-columns: 1fr; } }
 

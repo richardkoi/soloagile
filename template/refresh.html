@@ -57,6 +57,30 @@
     show(ms);
   });
 })();
+/* Ideas and Done fold to a thin strip and back (#134). Which are folded is remembered
+   for this page, so a reload keeps them. */
+(function () {
+  var key = 'soloagile-fold:' + location.pathname;
+  var folded = [];
+  try { folded = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+  document.querySelectorAll('.lane-fold').forEach(function (b) {
+    var lane = b.closest('.lane');
+    var name = lane.getAttribute('aria-label');
+    function set(on) {
+      lane.classList.toggle('folded', on);
+      b.setAttribute('aria-expanded', String(!on));
+      b.setAttribute('aria-label', (on ? 'Unfold ' : 'Fold ') + name + (on ? '' : ' to a strip'));
+    }
+    set(folded.indexOf(name) >= 0);
+    b.addEventListener('click', function () {
+      var on = !lane.classList.contains('folded');
+      set(on);
+      folded = folded.filter(function (n) { return n !== name; });
+      if (on) folded.push(name);
+      try { localStorage.setItem(key, JSON.stringify(folded)); } catch (e) {}
+    });
+  });
+})();
 /* The search box (#132). Words light the cards that hold them and dim the rest, across every
    lane. A card's number ("#12" or "12") and Enter opens that card: the milestone filter goes
    back to All first if it was hiding it, and a card with no pop-up is scrolled to instead. */

@@ -483,3 +483,14 @@ test("each lane's heading shows its total points, and a lane with none shows no 
   assert.match(html, /<span class="lane-name">Doing<\/span><span class="lane-count">1<\/span><span class="lane-points">1 pt<\/span>/);
   assert.match(html, /<span class="lane-name">Up next<\/span><span class="lane-count">1<\/span>(?!<span class="lane-points">)/);
 });
+
+test('Ideas and Done have a fold button, and the page remembers which are folded (#134)', () => {
+  const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  for (const [key, name] of [['ideas', 'Ideas'], ['done', 'Done']]) {
+    assert.match(html, new RegExp(`<section class="lane lane-${key}"[^>]*>\\n<div class="lane-head">.*<button type="button" class="lane-fold" aria-expanded="true" aria-label="Fold ${name} to a strip"`));
+  }
+  for (const key of ['waiting', 'doing', 'up-next']) {
+    assert.doesNotMatch(html.split(`lane-${key}"`)[1].split('</section>')[0], /lane-fold/);
+  }
+  assert.match(html, /'soloagile-fold:' \+ location\.pathname/);
+});

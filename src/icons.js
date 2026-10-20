@@ -1,6 +1,8 @@
 // Icon shapes from Lucide (lucide-static 1.49.0, ISC licence: vendor/lucide.LICENSE).
 // Generated once from the package's SVGs; add a name here to use another icon.
 export const ICONS = {
+  "chevron-left": "<path d=\"m15 18-6-6 6-6\" />",
+  "chevron-right": "<path d=\"m9 18 6-6-6-6\" />",
   "square-kanban": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /> <path d=\"M8 7v7\" /> <path d=\"M12 7v4\" /> <path d=\"M16 7v9\" />",
   "chart-line": "<path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /> <path d=\"m19 9-5 5-4-4-3 3\" />",
   "chart-column": "<path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /> <path d=\"M18 17V9\" /> <path d=\"M13 17V5\" /> <path d=\"M8 17v-3\" />",

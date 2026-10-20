@@ -179,6 +179,8 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${tookLine}${modal}</li>`;
 }
 
+// Lanes that fold, and the way their arrow points: towards the board's edge.
+const FOLDS = { ideas: 'chevron-left', done: 'chevron-right' };
 function renderLane(lane, cards, pictures, today, shorts) {
   const body = cards.length
     ? `<ul class="lane-body">${cards.map(({ card, column, later }, i) => renderCard(card, column, lane.key, `card-${lane.key}-${i}`, later, pictures, today, shorts)).join('\n')}</ul>`
@@ -186,8 +188,10 @@ function renderLane(lane, cards, pictures, today, shorts) {
   // The lane's count and its total points (#133) leave out looks that can't happen yet.
   const shown = cards.filter((c) => !c.later);
   const points = shown.reduce((sum, { card }) => sum + (card.points ?? 0), 0);
+  // Ideas and Done can fold to a thin strip (#134); template/refresh.html remembers it.
+  const fold = FOLDS[lane.key] ? `<button type="button" class="lane-fold" aria-expanded="true" aria-label="Fold ${esc(lane.name)} to a strip" title="Fold or unfold">${icon(FOLDS[lane.key])}</button>` : '';
   return `<section class="lane lane-${lane.key}" aria-label="${esc(lane.name)}">
-<div class="lane-head"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : ''}${lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : ''}</div>
+<div class="lane-head"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : ''}${lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : ''}${fold}</div>
 ${body}
 </section>`;
 }
