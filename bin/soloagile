@@ -13,6 +13,7 @@
 //        soloagile retake <card>    take them again from pm/takes/card-<n>.sh
 //        soloagile cleanup [--dry-run] [--days 7]   clear what can be made again
 //        soloagile backup           run the backup command named in pm/settings.json
+//        soloagile rule "<rule>" [--from …]   a numbered standing rule in CLAUDE.md
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
@@ -38,6 +39,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
+import { addRuleTo } from '../src/rules.js';
 import { backupCommand, cleanupProject } from '../src/cleanup.js';
 import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
@@ -72,6 +74,7 @@ const COMMANDS = [
   ['retake <card>', "take a card's pictures again, from its kept script"],
   ['cleanup [--dry-run] [--days 7]', 'clear merged helper worktrees, old shots folders, and old cards\' picture pages'],
   ['backup', "run the project's backup command, named in pm/settings.json"],
+  ['rule "<the rule>" [--from "retro of M3, #12"]', "add a standing rule to the project's CLAUDE.md"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
@@ -262,6 +265,27 @@ if (cmd === 'backup') {
   const run = spawnSync('sh', ['-c', command], { cwd: here, stdio: 'inherit' });
   if (run.status !== 0) console.error(`soloagile: the backup failed: ${command}`);
   process.exit(run.status ?? 1);
+}
+
+if (cmd === 'rule') {
+  // Run in the project's folder, by the retro skill for each change the user picked.
+  const args = process.argv.slice(3);
+  const at = args.indexOf('--from');
+  const from = at >= 0 ? args[at + 1] : null;
+  const text = args.filter((_, i) => at < 0 || (i !== at && i !== at + 1)).join(' ');
+  const here = process.cwd();
+  if (!habitOn(here, 'retro-rules')) {
+    console.log('soloagile: the retro-rules habit is off, so no rule was written');
+    process.exit(0);
+  }
+  try {
+    const { file, number } = addRuleTo(here, text, from);
+    console.log(number ? `soloagile: standing rule ${number} in ${file}` : `soloagile: that rule is already in ${file}`);
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(2);
+  }
+  process.exit(0);
 }
 
 if (cmd === 'sizes') {

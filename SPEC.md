@@ -68,7 +68,13 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   page. A habit whose card isn't built yet shows as coming. Built so far: start a card while
   something slow runs, what the user mentions becomes a card, about 15 cards per milestone
   (`card add` warns past it), questions in batches, a page of pictures per card,
-  pictures from a kept script, and the weekly clean-up with a day-end backup.
+  pictures from a kept script, the weekly clean-up with a day-end backup, and retro
+  lessons as standing rules.
+- **Standing rules**: in a retro, each change the user picks also becomes a numbered rule
+  in a `## Standing rules` section of the project's `CLAUDE.md`, said as what to do and
+  tagged with its retro and card: `soloagile rule "<the rule>" --from "retro of M3, #12"`.
+  The command makes the section when missing, numbers on from the last rule, never adds the
+  same rule twice, and writes nothing when the retro-rules habit is off.
 - **`soloagile cleanup`** clears what can be made again: helper worktrees under
   `.claude/worktrees` whose branch is merged and clean, `soloagile shots` folders untouched
   for a week, and the picture pages of cards finished over a week ago (their script in
@@ -525,13 +531,14 @@ The whole flow, for the user, is the home page's Session flow tab (`template/flo
 ```
 soloagile/
   .claude-plugin/         plugin.json and marketplace.json: what makes this repo a plugin and its own store
-  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `pictures`, `retake`, `cleanup`, `backup`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
+  bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `pictures`, `retake`, `cleanup`, `backup`, `rule`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
   hooks/hooks.json        the three hooks: rebuild after an edit, session start, session end
   rules.md                the short rules the session-start hook gives Claude in a project with pm/
   skills/                 the six skills: init, catchup, commit, needs, retro and save, typed `/soloagile:<name>`
   src/habits.js           habits: switches for ways of working, the Settings tab, soloagile set (tested)
   src/pictures.js         soloagile pictures and retake: a card's page of pictures, and its kept script (tested)
   src/cleanup.js          soloagile cleanup and backup, and the weekly run at session start (tested)
+  src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end

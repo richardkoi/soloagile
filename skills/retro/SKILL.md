@@ -2,7 +2,7 @@
 name: retro
 description: End-of-milestone retro, the wheel's Feedback stage — Claude drafts what worked, what to change and what's next from the milestone's cards, decisions and commits, and the user picks. Use when a milestone's last card is approved, or the user says "retro", "run the retro" or "look back at the milestone".
 argument-hint: "[optional: the milestone, e.g. \"M7\"]"
-allowed-tools: Read, Edit, AskUserQuestion, Bash(soloagile board:*), Bash(soloagile finished:*), Bash(soloagile card:*), Bash(cat pm/plan.md:*), Bash(git log:*), Bash(soloagile build:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
+allowed-tools: Read, Edit, AskUserQuestion, Bash(soloagile board:*), Bash(soloagile finished:*), Bash(soloagile card:*), Bash(soloagile rule:*), Bash(cat pm/plan.md:*), Bash(git log:*), Bash(soloagile build:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
 
 The user wants a milestone's retro. The milestone they named, if any: **$ARGUMENTS**
@@ -52,6 +52,10 @@ fewer, and comes from something that happened, not a general truth:
   --milestone … --points …`), with points and the closest milestone.
   When none fits, add a milestone for it in `pm/plan.md`, as `not started`, with its
   `short:` line.
+- Each change they picked also becomes a standing rule in the project's `CLAUDE.md`, said
+  as what to do, tagged with this retro and the card that showed the need: `soloagile rule
+  "<the rule>" --from "retro of M3, #12"`. It numbers the rule, and writes nothing when the
+  retro-rules habit is off.
 - Their "what's next" picks become the next milestone in `pm/plan.md`, as `not started`:
   a name, a line on why, a numbered list of the cards-to-be with points, and a "Done
   when". No cards yet: they are made when the milestone starts. If they picked nothing,
