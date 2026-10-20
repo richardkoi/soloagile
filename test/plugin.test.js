@@ -41,5 +41,6 @@ test('the rules and the spec carry the lessons from the M9, M15 and M17 retros',
   for (const file of ['rules.md', 'SPEC.md']) {
     const text = readFileSync(join(ROOT, file), 'utf8').replace(/\s+/g, ' ');
     assert.match(text, /after a milestone's work is done[^.]*new milestone/i, `${file}: late cards get a new milestone (#162)`);
+    assert.match(text, /phone[^.]*before[^.]*Needs your look/i, `${file}: phone shots come before the look (#163)`);
   }
 });

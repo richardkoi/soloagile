@@ -71,7 +71,7 @@ Every card goes round six stages: **Plan → Design → Develop → Test → Rel
   once, not at their look.
 - **Test**: the project's checks. For anything seen in a browser, then run
   `soloagile shots <url>` and read its four screenshots: desktop and phone width, dark and
-  light. A new chart is checked on a project with many milestones, such as 3dweather, as
+  light. The phone shots are taken before the card moves to Needs your look. A new chart is checked on a project with many milestones, such as 3dweather, as
   well as this one. A new skill is run once for real, and its `tested:` line says what it
   did. Write a `tested:` line on the card saying what was checked. A card reaches the
   user already tested.
