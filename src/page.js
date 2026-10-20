@@ -4,7 +4,8 @@ import { Marked, marked } from '../vendor/marked.esm.js';
 import { archivedDetails, doneCutoff } from './archive.js';
 import { COLUMNS, SCALE, SHORT_LINE, STAGES, guessText, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
 import { icon } from './icons.js';
-import { renderReports } from './reports.js';
+import { parseHistory } from './history.js';
+import { buildTimes, duration, renderReports } from './reports.js';
 import { VERSION } from './version.js';
 
 export const esc = (s) =>
@@ -153,16 +154,18 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   const left = wheel || (size ? meta : '');
   const foot = left || size ? `<div class="card-foot">${left}${size}</div>` : '';
   if (left === meta) meta = '';
+  // Once built, a guessed card says how close the guess came, under its foot.
+  const tookLine = c.guess != null && c.took != null ? `<p class="card-took">guessed ${duration(c.guess)}, took ${duration(c.took)}</p>` : '';
   // data-ms and data-later are for the milestone filter (template/refresh.html).
   const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${later ? ' data-later' : ''}>`;
   if (!c.details.length) {
-    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}</li>`;
+    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${tookLine}</li>`;
   }
   const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
   const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(inline(d))}${optionPicture(c, d, pictures)}</li>`).join('');
-  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}<ul class="modal-body">${lines}</ul></div>`;
-  return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
+  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${tookLine}<ul class="modal-body">${lines}</ul></div>`;
+  return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${tookLine}${modal}</li>`;
 }
 
 function renderLane(lane, cards, pictures, today, shorts) {
@@ -196,10 +199,12 @@ function renderFilter(cards, shorts) {
 
 // A Done card is one line on the board. Its detail lines are in the archive, so it still
 // opens in full. `finished` is that archive's text.
-function renderBoard(board, builtAt, pictures, finished = '', shorts = {}) {
+// took: card number -> minutes it spent being built, from the history (buildTimes).
+function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took = new Map()) {
   const today = ymd(builtAt);
   const kept = finished ? archivedDetails(finished) : new Map();
-  const inFull = (card, column) => (column === 'Done' && !card.details.length && kept.has(card.id) ? { ...card, details: kept.get(card.id) } : card);
+  const full = (card, column) => (column === 'Done' && !card.details.length && kept.has(card.id) ? { ...card, details: kept.get(card.id) } : card);
+  const inFull = (card, column) => ({ ...full(card, column), took: took.get(card.id) ?? null });
   const cardsOf = (names) =>
     names
       .flatMap((column) => (board.columns.find((c) => c.name === column)?.cards ?? []).map((card) => ({ card: inFull(card, column), column, later: isLater(card, column, today) })))
@@ -395,7 +400,8 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
   const board = parseBoard(md.board);
   const plan = parsePlan(md.plan);
   const { pills, now } = renderMilestones(plan, board);
-  const { html: boardHtml, filter, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])));
+  const took = new Map(buildTimes(parseHistory(md.history ?? '')).map((c) => [c.id, c.minutes]));
+  const { html: boardHtml, filter, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])), took);
   const empty = (what) => `<p class="empty">No ${what} yet.</p>`;
   const parts = {
     name: esc(plan.title ?? name),

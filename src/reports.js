@@ -127,6 +127,47 @@ export function buildTimes(events) {
     .map((c) => ({ id: c.id, points: c.points, minutes: Math.max(1, Math.round(c.worked / 60000)) }));
 }
 
+// How each guessed card came out: its guess, the time it took, and whether that was close,
+// meaning between half and double the guess. `at` is when it first reached the user's look.
+// Cards moved through Doing in under MOVED_AFTER minutes are left out, as in the report.
+export function guessResults(events) {
+  const seen = new Map();
+  for (const e of events) {
+    const s = seen.get(e.id) ?? { guess: null, at: null };
+    seen.set(e.id, s);
+    if (s.at) continue;
+    if (e.guess != null) s.guess = e.guess;
+    if (e.lane === 'Needs your look' || e.lane === 'Done') s.at = e.at;
+  }
+  return buildTimes(events)
+    .filter((c) => c.minutes >= MOVED_AFTER && seen.get(c.id).guess != null)
+    .map((c) => {
+      const { guess, at } = seen.get(c.id);
+      return { id: c.id, guess, minutes: c.minutes, at, close: c.minutes >= guess / 2 && c.minutes <= guess * 2 };
+    });
+}
+
+// One sentence: how many came close, then up to four weeks of it and which way it is going.
+export function guessVerdict(results) {
+  if (!results.length) return '';
+  const close = (rs) => rs.filter((r) => r.close).length;
+  let text = `${close(results)} of ${results.length} guessed card${results.length === 1 ? '' : 's'} took between half and double their guess.`;
+  const weeks = new Map();
+  for (const r of results) {
+    const monday = dayLabel(mondayOf(when(r.at)));
+    weeks.set(monday, [...(weeks.get(monday) ?? []), r]);
+  }
+  const shown = [...weeks].slice(-4);
+  if (shown.length > 1) {
+    const share = ([, rs]) => close(rs) / rs.length;
+    const before = shown.slice(0, -1).reduce((sum, w) => sum + share(w), 0) / (shown.length - 1);
+    const now = share(shown.at(-1));
+    const trend = now > before + 0.1 ? 'getting better' : now < before - 0.1 ? 'getting worse' : 'about the same';
+    text += ` By week: ${shown.map(([w, rs]) => `${w} ${close(rs)} of ${rs.length}`).join(', ')}, so ${trend}.`;
+  }
+  return text;
+}
+
 const FLOW = [
   ['done', 'done', ['Done']],
   ['waiting', 'waiting on you', ['Needs your look', 'Needs your decision']],
@@ -342,6 +383,11 @@ function sizeScale(minutes) {
   return { y, ticks };
 }
 
+const guessLine = (events) => {
+  const said = guessVerdict(guessResults(events));
+  return said ? `\n<p class="report-verdict">${said}</p>` : '';
+};
+
 // A column per card size, a dot per card, a band over the middle half of each size's
 // times, and a bar at the usual (middle) time for the sizes with at least two cards.
 function buildTimeReport(events) {
@@ -370,7 +416,7 @@ function buildTimeReport(events) {
   return `<section class="report">
 <header class="report-head"><h2 class="h-icon">${icon('timer')}Time to build, by size</h2></header>
 <p class="report-sub">The time a card spent in Doing before it reached your look. If the sizes are guessed well, bigger cards sit higher.</p>
-<p class="report-verdict">${sizeVerdict(cards)}</p>
+<p class="report-verdict">${sizeVerdict(cards)}</p>${guessLine(events)}
 <ul class="chart-key"><li><i class="chart-dot-key s-built"></i>one card</li><li><i class="chart-spread-key"></i>the middle half of that size</li><li><i class="chart-usual-key"></i>the usual time</li></ul>
 <div class="plot plot-sizes" role="img" aria-label="Time to build ${cards.length} card${cards.length === 1 ? '' : 's'}, grouped by story points">
 <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">

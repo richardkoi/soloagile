@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHistory } from '../src/history.js';
-import { buildTimes, burnup, duration, flow, milestoneEnds, niceScale, renderReports, timeTicks, weekly } from '../src/reports.js';
+import { buildTimes, burnup, guessResults, guessVerdict, duration, flow, milestoneEnds, niceScale, renderReports, timeTicks, weekly } from '../src/reports.js';
 
 const log = (...lines) => parseHistory(lines.map((l) => `- 2026-10-02 ${l}`).join('\n'));
 const numbers = (steps) => steps.map((s) => [s.at.slice(11), s.total, s.built, s.approved]);
@@ -163,6 +163,31 @@ test('time to build runs from work starting to the card reaching your look', () 
     { id: 1, points: 3, minutes: 45 },
     { id: 2, points: 5, minutes: 240 },
   ]);
+});
+
+test('guesses: how many built cards took half to double their guess, week by week', () => {
+  const card = (id, day, guess, took) => {
+    const start = `2026-10-${day} 09:00`;
+    const end = new Date(Date.UTC(2026, 9, Number(day), 9, took)).toISOString().slice(11, 16);
+    return [`- ${start} · Doing · #${id} C${id} · M1 · 3 pts · ~${guess} min · develop`, `- 2026-10-${day} ${end} · Needs your look · #${id} C${id} · M1 · 3 pts · ~${guess} min`];
+  };
+  const events = parseHistory(
+    [
+      card(1, '06', 40, 100), // too long
+      card(2, '07', 40, 50), // close
+      card(3, '13', 30, 35),
+      card(4, '14', 30, 25),
+      card(5, '14', 60, 20), // too short
+      '- 2026-10-14 09:00 · Doing · #6 No guess · M1 · 3 pts · develop',
+      '- 2026-10-14 10:00 · Needs your look · #6 No guess · M1 · 3 pts',
+    ].flat().join('\n'),
+  );
+  assert.deepEqual(
+    guessResults(events).map((r) => [r.id, r.guess, r.minutes, r.close]),
+    [[1, 40, 100, false], [2, 40, 50, true], [3, 30, 35, true], [4, 30, 25, true], [5, 60, 20, false]],
+  );
+  assert.equal(guessVerdict(guessResults(events)), '3 of 5 guessed cards took between half and double their guess. By week: 5 Oct 1 of 2, 12 Oct 2 of 3, so getting better.');
+  assert.equal(guessVerdict([]), '');
 });
 
 test('durations read in minutes, hours or days', () => {

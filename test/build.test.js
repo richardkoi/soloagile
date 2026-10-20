@@ -392,6 +392,15 @@ test("a card's guessed build time shares the size chip with its points", () => {
   assert.match(html, /\.card-foot \{/);
 });
 
+test('a built card with a guess says under its foot how long it took', () => {
+  const board = { ...md, board: md.board.replace('## Done\n', '## Done\n- #20 Shipped · M1 · 2 pts · ~40 min · 2026-09-30\n- #21 Not logged · M1 · 2 pts · ~40 min · 2026-09-30\n') };
+  const history = '- 2026-09-30 09:00 · Doing · #20 Shipped · M1 · 2 pts · ~40 min · develop\n- 2026-09-30 09:52 · Needs your look · #20 Shipped · M1 · 2 pts · ~40 min\n';
+  const { html } = renderPage({ name: 'demo', md: { ...board, history }, builtAt, template });
+  const card = (t) => html.match(new RegExp(`<li class="card-x card-done"[^>]*>(?:(?!<\\/li>).)*${t}.*?<\\/li>`))[0];
+  assert.match(card('Shipped'), /<\/div><p class="card-took">guessed 40 min, took 52 min<\/p><\/li>$/);
+  assert.doesNotMatch(card('Not logged'), /card-took/, 'no build time in the log, no line');
+});
+
 test('a card with no stage, such as a Done card, puts its date in the foot beside the size chip', () => {
   const board = { ...md, board: md.board.replace('## Done\n', '## Done\n- #20 Shipped · M1 · 2 pts · 2026-09-30\n') };
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });

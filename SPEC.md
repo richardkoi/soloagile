@@ -56,7 +56,10 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   one, made from the project's own past: the session start gives Claude a table, one line
   per size, with its usual time in Doing and the two finished cards closest to it as
   examples. `soloagile sizes` prints it again. Cards that went through Doing in under 3
-  minutes are left out, as in the time-to-build report.
+  minutes are left out, as in the time-to-build report. Once a guessed card is built, its
+  face says under the foot how close it came, `guessed 40 min, took 52 min`, and the
+  time-to-build report says how many guessed cards took between half and double their
+  guess, with up to four weeks of it and whether that is getting better.
 - **A card's face has a head and a foot.** The head holds the waiting pill (Decide,
   Design, Look), the milestone, the picture count, and the card's number at the right.
   Then the title, its one-line note, and its date. The foot holds the stage on the left
