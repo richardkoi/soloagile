@@ -241,6 +241,36 @@ const SERIES = [
 // A label near an edge is pinned to that edge, so it never hangs off the plot.
 const edge = (x) => (x < 8 ? ' at-start' : x > 92 ? ' at-end' : '');
 
+// Where each milestone's label goes above the burn-up, for a plot about `plotPx` wide.
+// Milestones that ended at the same moment share one label. Newest first, each takes the
+// lower row if it fits there, else the upper one; one that fits in neither is left out,
+// though its line stays on the chart (#123). A label is guessed at 8.5px a character.
+export function placeMarks(ends, plotPx) {
+  const groups = [];
+  for (const m of ends) {
+    const g = groups.at(-1);
+    if (g && Math.abs(m.x - g.x) < 0.5) g.ids.push(m.id);
+    else groups.push({ x: m.x, ids: [m.id] });
+  }
+  const rows = [[], []];
+  const placed = [];
+  for (const g of groups.reverse()) {
+    const text = g.ids.join(' ');
+    const w = ((text.length * 8.5 + 8) / plotPx) * 100;
+    const span = g.x < 8 ? [g.x, g.x + w] : g.x > 92 ? [g.x - w, g.x] : [g.x - w / 2, g.x + w / 2];
+    const row = rows.findIndex((r) => r.every(([a, b]) => span[1] <= a || span[0] >= b));
+    if (row < 0) continue;
+    rows[row].push(span);
+    placed.push({ ...g, text, row });
+  }
+  return placed.reverse();
+}
+
+// The plot's width, roughly, on a desktop and on a phone. The phone's labels show below
+// 700px, where the page's phone styles start.
+const PLOT_WIDE = 700;
+const PLOT_NARROW = 260;
+
 function burnupChart(steps, marks, builtAt) {
   const t0 = when(steps[0].at);
   // Never narrower than an hour, so a project with one moment of history still draws.
@@ -251,14 +281,10 @@ function burnupChart(steps, marks, builtAt) {
   const line = (k) => `${steps.reduce((d, s, i) => (i ? `${d}H${x(when(s.at))}V${y(s[k])}` : `M0 ${y(s[k])}`), '')}H100`;
   const now = steps.at(-1);
 
-  // A marker where each milestone ended. Those that ended close together share one label.
+  // A marker where each milestone ended, and labels placed so none overlap: one set for a
+  // desktop, one for a phone.
   const ends = marks.map((m) => ({ id: m.id, x: x(when(m.at)) })).filter((m) => m.x >= 0 && m.x <= 100);
-  const labels = [];
-  for (const m of ends) {
-    const near = labels.at(-1);
-    if (near && m.x - near.x < 9) near.ids.push(m.id);
-    else labels.push({ x: m.x, ids: [m.id] });
-  }
+  const label = (fit, m) => `<span class="chart-mark ${fit}${edge(m.x)}${m.row ? ' row-1' : ''}" style="left:${m.x}%">${m.ids.map((id) => `<b class="ms-ink ${msClass(id)}">${id}</b>`).join(' ')}</span>`;
 
   const summary = `Burn-up: ${now.total} points in total, ${now.built} built, ${now.approved} approved`;
   return `<div class="plot" role="img" aria-label="${summary}">
@@ -271,7 +297,8 @@ ${SERIES.map(([k]) => `<path d="${line(k)}" class="chart-line s-${k}"/>`).join('
 ${SERIES.map(([k]) => `<span class="chart-dot s-${k}" style="top:${y(now[k])}%"></span>`).join('')}
 ${ticks.map((v) => `<span class="chart-y" style="top:${y(v)}%">${v}</span>`).join('')}
 ${timeTicks(t0, t1).map((t) => `<span class="chart-x${edge(x(t.at))}" style="left:${x(t.at)}%">${t.text}</span>`).join('')}
-${labels.map((m) => `<span class="chart-mark${edge(m.x)}" style="left:${m.x}%">${m.ids.map((id) => `<b class="ms-ink ${msClass(id)}">${id}</b>`).join(' ')}</span>`).join('')}
+${placeMarks(ends, PLOT_WIDE).map((m) => label('mark-wide', m)).join('')}
+${placeMarks(ends, PLOT_NARROW).map((m) => label('mark-narrow', m)).join('')}
 </div>`;
 }
 

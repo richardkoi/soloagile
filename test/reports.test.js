@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHistory } from '../src/history.js';
-import { buildTimes, burnup, guessResults, guessVerdict, duration, flow, milestoneEnds, niceScale, renderReports, timeTicks, weekly } from '../src/reports.js';
+import { buildTimes, burnup, placeMarks, guessResults, guessVerdict, duration, flow, milestoneEnds, niceScale, renderReports, timeTicks, weekly } from '../src/reports.js';
 
 const log = (...lines) => parseHistory(lines.map((l) => `- 2026-10-02 ${l}`).join('\n'));
 const numbers = (steps) => steps.map((s) => [s.at.slice(11), s.total, s.built, s.approved]);
@@ -299,4 +299,26 @@ test('time to build spaces 1 min, 10 min, 1 h and 8 h evenly, and bands the midd
   assert.deepEqual([...html.matchAll(/class="chart-y" style="top:([\d.]+)%">(\w+)</g)].slice(-4).map((m) => [m[2], Math.round(m[1])]), [['1m', 100], ['10m', 63], ['1h', 34], ['8h', 0]]);
   // The middle half of 10, 60, 60 and 480 minutes runs from 47.5 to 165 minutes.
   assert.match(html, /<span class="chart-spread" style="left:41\.67%;top:17\.3%;height:20\.17%"><\/span>/);
+});
+
+test("burn-up milestone labels never overlap: two rows, the newest first, and what can't fit is left out (#123)", () => {
+  // 35 milestones, some ending together, like weatherglider's.
+  const ends = Array.from({ length: 35 }, (_, i) => ({ id: `M${i + 1}`, x: Math.min(100, Math.round(i * 2.9)) }));
+  ends.push({ id: 'M36', x: ends.at(-1).x });
+  const span = (m, px) => {
+    const w = ((m.text.length * 8.5 + 8) / px) * 100;
+    return m.x < 8 ? [m.x, m.x + w] : m.x > 92 ? [m.x - w, m.x] : [m.x - w / 2, m.x + w / 2];
+  };
+  for (const px of [700, 260]) {
+    const placed = placeMarks(ends, px);
+    for (const row of [0, 1]) {
+      const r = placed.filter((m) => m.row === row).map((m) => span(m, px)).sort((a, b) => a[0] - b[0]);
+      for (let i = 1; i < r.length; i++) assert.ok(r[i][0] >= r[i - 1][1], `labels overlap at ${px}px in row ${row}`);
+    }
+    assert.ok(placed.some((m) => m.ids.includes('M36') && m.ids.includes('M35')), 'the newest, ending together, share one label');
+  }
+  assert.ok(placeMarks(ends, 260).length < placeMarks(ends, 700).length, 'a phone shows fewer');
+  const html = renderReports({ history: '- 2026-10-02 09:00 · Done · #1 A · M1 · 3 pts', plan: { milestones: [{ id: 'M1', status: 'done' }] }, builtAt: new Date(2026, 9, 2, 12, 0) });
+  assert.match(html, /class="chart-mark mark-wide[^"]*"/);
+  assert.match(html, /class="chart-mark mark-narrow[^"]*"/);
 });
