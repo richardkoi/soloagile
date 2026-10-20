@@ -153,14 +153,16 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   const left = wheel || (size ? meta : '');
   const foot = left || size ? `<div class="card-foot">${left}${size}</div>` : '';
   if (left === meta) meta = '';
+  // data-ms and data-later are for the milestone filter (template/refresh.html).
+  const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${later ? ' data-later' : ''}>`;
   if (!c.details.length) {
-    return `<li class="card-x card-${tone}"><div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}</li>`;
+    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}</li>`;
   }
   const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
   const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(inline(d))}${optionPicture(c, d, pictures)}</li>`).join('');
   const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}<ul class="modal-body">${lines}</ul></div>`;
-  return `<li class="card-x card-${tone}"><div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
+  return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
 }
 
 function renderLane(lane, cards, pictures, today, shorts) {
@@ -178,6 +180,18 @@ ${body}
 function recentlyDone(builtAt) {
   const cutoff = doneCutoff(ymd(builtAt));
   return ({ card, column }) => column !== 'Done' || !card.date || card.date.value >= cutoff;
+}
+
+// The milestone filter: an All chip, then one chip per milestone that has a card on the
+// board, in plan order. A click shows only that milestone's cards; the page's script does
+// it and remembers the pick (template/refresh.html). One milestone or none needs no filter.
+function renderFilter(cards, shorts) {
+  const present = new Set(cards.map(({ card }) => card.milestone).filter(Boolean));
+  const order = [...Object.keys(shorts), ...[...present].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))];
+  const ids = [...new Set(order)].filter((id) => present.has(id));
+  if (ids.length < 2) return '';
+  const chip = (id) => `<button type="button" class="${withMs('ms-chip tag tag-proj', id)}" data-ms="${esc(id)}" aria-pressed="false">${icon('flag')}${esc(id)}${shortName(shorts[id])}</button>`;
+  return `<div class="ms-filter" role="group" aria-label="Show one milestone's cards"><span class="ms-filter-label">Show</span><button type="button" class="ms-chip ms-all tag" data-ms="" aria-pressed="true">All</button>${ids.map(chip).join('')}</div>`;
 }
 
 // A Done card is one line on the board. Its detail lines are in the archive, so it still
@@ -198,6 +212,7 @@ function renderBoard(board, builtAt, pictures, finished = '', shorts = {}) {
   const lanes = [...LANES, ...extra];
   return {
     html: lanes.map((lane) => renderLane(lane, cardsOf(lane.from), pictures, today, shorts)).join('\n'),
+    filter: renderFilter(lanes.flatMap((lane) => cardsOf(lane.from)), shorts),
     waiting: cardsOf(LANES[0].from).filter((c) => !c.later).length,
   };
 }
@@ -380,7 +395,7 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
   const board = parseBoard(md.board);
   const plan = parsePlan(md.plan);
   const { pills, now } = renderMilestones(plan, board);
-  const { html: boardHtml, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])));
+  const { html: boardHtml, filter, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])));
   const empty = (what) => `<p class="empty">No ${what} yet.</p>`;
   const parts = {
     name: esc(plan.title ?? name),
@@ -392,6 +407,7 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
     stampUrl,
     version: VERSION,
     board: boardHtml,
+    filter,
     key: KEY,
     plan: md.plan.trim() ? renderPlanTab(md.plan, plan, board) : empty('plan'),
     reports: renderReports({ history: md.history ?? '', plan, builtAt }),

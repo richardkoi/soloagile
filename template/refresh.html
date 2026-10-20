@@ -10,6 +10,53 @@
     if (days >= 0) el.textContent = days ? 'waiting ' + days + (days === 1 ? ' day' : ' days') : 'since today';
   });
 })();
+/* The milestone filter: a chip shows only that milestone's cards, and each lane's count
+   follows (a later look isn't counted, as on the build). The pick is remembered for this
+   page, so it survives the live reload below; a milestone no longer on the board falls
+   back to All. */
+(function () {
+  var bar = document.querySelector('.ms-filter');
+  if (!bar) return;
+  var key = 'soloagile-ms:' + location.pathname;
+  var chips = bar.querySelectorAll('button');
+  function show(ms) {
+    var known = false;
+    chips.forEach(function (b) { if (b.getAttribute('data-ms') === ms) known = true; });
+    if (!known) ms = '';
+    chips.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-ms') === ms)); });
+    document.querySelectorAll('.lane').forEach(function (lane) {
+      var body = lane.querySelector('.lane-body');
+      if (!body) return;
+      var count = 0, shown = 0;
+      body.querySelectorAll(':scope > .card-x').forEach(function (li) {
+        var on = !ms || li.getAttribute('data-ms') === ms;
+        li.hidden = !on;
+        if (on) { shown++; if (!li.hasAttribute('data-later')) count++; }
+      });
+      var n = lane.querySelector('.lane-count');
+      if (n) n.textContent = count;
+      var none = lane.querySelector('.ms-none');
+      if (!shown && !none) {
+        none = document.createElement('p');
+        none.className = 'lane-empty ms-none';
+        none.innerHTML = '&mdash;';
+        body.after(none);
+      }
+      if (none) none.hidden = shown > 0;
+      body.hidden = !shown;
+    });
+  }
+  var saved = '';
+  try { saved = localStorage.getItem(key) || ''; } catch (e) {}
+  show(saved);
+  bar.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var ms = b.getAttribute('data-ms');
+    try { localStorage.setItem(key, ms); } catch (e2) {}
+    show(ms);
+  });
+})();
 /* Live refresh. Served over http: every 3 seconds, ask the server for this file's ETag and
    reload when it changes. Opened as a file, where no server can be asked: every 3 seconds,
    load the stamp the last build left, a one-line script saying when the page was built,

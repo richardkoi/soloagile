@@ -260,6 +260,17 @@ body:has(#links:target) .tab-links { display: block; }
    number still leads. The done chip at the end of the header's strip is a link to the plan. */
 .ms-short { margin-left: 0.4em; font-weight: var(--weight-regular); }
 .ms-strip a.ms-done { text-decoration: none; }
+/* The milestone filter above the lanes: chips that wrap on a phone. The picked one is
+   full strength with a ring; the rest are faded until hovered. */
+.ms-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.ms-filter-label { color: var(--text-muted); font-size: var(--font-sm); }
+.ms-chip { font-family: inherit; cursor: pointer; opacity: 0.6; }
+.ms-chip.ms-all { background: var(--bg-overlay); color: var(--text-muted); border: 1px solid var(--border-default); }
+.ms-chip:hover, .ms-chip[aria-pressed="true"] { opacity: 1; }
+.ms-chip[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--m, var(--text-muted)); }
+.ms-chip.ms-all[aria-pressed="true"] { color: var(--text-primary); }
+.ms-chip:focus-visible { outline: 2px solid var(--m, var(--text-muted)); outline-offset: 2px; }
+.card-x[hidden], .lane-body[hidden], .ms-none[hidden] { display: none; }
 .ms-strip a.ms-link { color: inherit; text-decoration: none; }
 .ms-fold { scroll-margin-top: var(--space-md); }
 /* The photo icon: a card with pictures inside, and how many. */

@@ -65,9 +65,9 @@ test('decisions come before looks in Waiting on you', () => {
 
 test('each card is shaded by its lane', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
-  assert.match(html, /<li class="card-x card-decide">.*Push to GitHub\?/);
-  assert.match(html, /<li class="card-x card-look">.*Check the page/);
-  assert.match(html, /<li class="card-x card-up-next">.*soloagile build/);
+  assert.match(html, /<li class="card-x card-decide"[^>]*>.*Push to GitHub\?/);
+  assert.match(html, /<li class="card-x card-look"[^>]*>.*Check the page/);
+  assert.match(html, /<li class="card-x card-up-next"[^>]*>.*soloagile build/);
 });
 
 const withCards = (lines) => ({ ...md, board: md.board.replace('## Doing\n', `## Doing\n${lines}`) });
@@ -75,7 +75,7 @@ const withCards = (lines) => ({ ...md, board: md.board.replace('## Doing\n', `##
 test('a card shows one short line, and its full description in a modal', () => {
   const board = withCards('- #7 Long card · M1\n  the short line\n  a much longer second line\n  see https://example.com/x\n');
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
-  const card = html.match(/<li class="card-x card-doing">.*Long card.*<\/li>/)[0];
+  const card = html.match(/<li class="card-x card-doing"[^>]*>.*Long card.*<\/li>/)[0];
   const [face, modal] = card.split('<div class="card-modal"');
   assert.match(face, /<button class="card-open" type="button" popovertarget="card-doing-0">Long card<\/button>/);
   assert.match(face, /<p class="card-note">the short line<\/p>/);
@@ -90,7 +90,7 @@ test('a card shows one short line, and its full description in a modal', () => {
 test('a decision card shows how many options it has; the options are in its modal', () => {
   const asked = md.board.replace(/(- #3 .*\n)/, '$1  a) Yes (recommended)\n  b) No\n  c) Something else: tell Claude\n');
   const { html } = renderPage({ name: 'demo', md: { ...md, board: asked }, builtAt, template });
-  const [face, modal] = html.match(/<li class="card-x card-decide">.*<\/li>/)[0].split('<div class="card-modal"');
+  const [face, modal] = html.match(/<li class="card-x card-decide"[^>]*>.*<\/li>/)[0].split('<div class="card-modal"');
   assert.match(face, /<p class="card-note">3 options<\/p>/);
   assert.doesNotMatch(face, /recommended/);
   assert.match(modal, /<li>a\) Yes \(recommended\)<\/li><li>b\) No<\/li><li>c\) Something else: tell Claude<\/li>/);
@@ -99,21 +99,21 @@ test('a decision card shows how many options it has; the options are in its moda
 test('a card shows its number in its head and its story points in its foot, on its face and in its modal', () => {
   const board = withCards('- #7 Sized card · M1 · 3 pts\n  the short line\n- #8 Tiny card · M1 · 1 pt\n');
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
-  const [face, modal] = html.match(/<li class="card-x card-doing">.*Sized card.*<\/li>/)[0].split('<div class="card-modal"');
+  const [face, modal] = html.match(/<li class="card-x card-doing"[^>]*>.*Sized card.*<\/li>/)[0].split('<div class="card-modal"');
   assert.match(face, /<div class="card-top">.*<span class="card-id">#7<\/span><\/div>/);
   assert.match(face, /<div class="card-foot"><p class="stage"[^]*?<\/p><span class="tag pts pts-3">3 pts<\/span><\/div>$/);
   assert.match(modal, /<span class="card-id">#7<\/span><button class="modal-close"/);
   assert.match(modal, /<div class="card-foot"><p class="stage"[^]*?<\/p><span class="tag pts pts-3">3 pts<\/span><\/div><ul class="modal-body">/);
   assert.match(html, /<span class="tag pts pts-1">1 pt<\/span><\/div><\/li>/);
   for (const n of [1, 2, 3, 5, 8, 13]) assert.match(html, new RegExp(`\\.pts-${n} \\{ --at: \\d+%; \\}`), `${n} has its colour`);
-  assert.doesNotMatch(html.match(/<li class="card-x[^"]*">(?:(?!<\/li>).)*#2<\/span>.*?<\/li>/)[0], /class="tag pts/, 'a card without points shows none');
+  assert.doesNotMatch(html.match(/<li class="card-x[^"]*"[^>]*>(?:(?!<\/li>).)*#2<\/span>.*?<\/li>/)[0], /class="tag pts/, 'a card without points shows none');
 });
 
 test('a card shows its stage as a six-part bar, filled up to that stage', () => {
   const board = withCards('- #7 Being tested · M1 · 3 pts · test\n  the short line\n- #8 Being built · M1\n');
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
   const bar = (on, name) => `<p class="stage" title="Stage ${on} of 6"><span class="stage-bar" aria-hidden="true">${'<i class="on"></i>'.repeat(on)}${'<i></i>'.repeat(6 - on)}</span>${name}</p>`;
-  const card = (title) => html.match(new RegExp(`<li class="card-x card-[a-z-]+">(?:(?!</li>).)*${title}.*</li>`))[0];
+  const card = (title) => html.match(new RegExp(`<li class="card-x card-[a-z-]+"[^>]*>(?:(?!</li>).)*${title}.*</li>`))[0];
   const [face, modal] = card('Being tested').split('<div class="card-modal"');
   assert.ok(face.endsWith(`<div class="card-foot">${bar(4, 'Test')}<span class="tag pts pts-3">3 pts</span></div>`), 'the bar opens the card\'s foot');
   assert.ok(modal.includes(bar(4, 'Test')), 'and it is in the modal');
@@ -130,7 +130,7 @@ test('a design waiting for a yes is a Design card in Waiting on you, with its ba
   const board = md.board.replace(/- #3 .*\n/, design);
   const { html, problems } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
   assert.deepEqual(problems, []);
-  const [face] = html.match(/<li class="card-x card-decide">.*Stage strip.*<\/li>/)[0].split('<div class="card-modal"');
+  const [face] = html.match(/<li class="card-x card-decide"[^>]*>.*Stage strip.*<\/li>/)[0].split('<div class="card-modal"');
   assert.match(face, /<span class="st st-hold"><svg[^>]*>.*?<\/svg>Design<\/span>/);
   assert.doesNotMatch(face, />Decide</);
   assert.match(face, /<span class="tag pts pts-5">5 pts<\/span>/);
@@ -151,8 +151,8 @@ test("a look that can't happen yet is marked Later, sits last and isn't counted 
   const looks = '- #2 Check the page · M1 · from 2026-10-01\n- #5 Check the phone · M1 · from 2026-09-30\n';
   const board = md.board.replace(/- #2 .*\n/, looks);
   const { html } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
-  assert.match(html, /<li class="card-x card-later">.*<span class="st st-quiet"><svg[^]*?<\/svg>Later<\/span>.*Check the page.*From 1 Oct/);
-  assert.match(html, /<li class="card-x card-look">.*Check the phone/, 'its day has come, so it is an ordinary look');
+  assert.match(html, /<li class="card-x card-later"[^>]*>.*<span class="st st-quiet"><svg[^]*?<\/svg>Later<\/span>.*Check the page.*From 1 Oct/);
+  assert.match(html, /<li class="card-x card-look"[^>]*>.*Check the phone/, 'its day has come, so it is an ordinary look');
   assert.ok(html.indexOf('Check the phone') < html.indexOf('Check the page'), 'later looks come last');
   assert.match(html, /<span class="lane-name">Waiting on you<\/span><span class="lane-count">2<\/span>/);
   assert.match(html, /<span class="badge" aria-label="2 waiting on you">2<\/span>/);
@@ -395,7 +395,45 @@ test("a card's guessed build time shares the size chip with its points", () => {
 test('a card with no stage, such as a Done card, puts its date in the foot beside the size chip', () => {
   const board = { ...md, board: md.board.replace('## Done\n', '## Done\n- #20 Shipped · M1 · 2 pts · 2026-09-30\n') };
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
-  const card = html.match(/<li class="card-x card-done">(?:(?!<\/li>).)*Shipped.*?<\/li>/)[0];
+  const card = html.match(/<li class="card-x card-done"[^>]*>(?:(?!<\/li>).)*Shipped.*?<\/li>/)[0];
   assert.match(card, /<div class="card-foot"><p class="card-meta">.*30 Sep<\/p><span class="tag pts pts-2">2 pts<\/span><\/div><\/li>$/);
   assert.equal(card.match(/class="card-meta"/g).length, 1, 'the date is shown once');
+});
+
+test('with cards in two milestones or more, a row of milestone chips above the lanes filters the board', () => {
+  const plan = `# Plan
+### M1 — The page · in progress
+short: First page
+### M2 — More · not started
+### M3 — Unused · not started
+`;
+  const board = `# Board
+## Ideas
+- #4 Later idea · M2
+## Up next
+- #1 Write it · M1
+- #5 No milestone
+## Doing
+## Needs your look
+- #2 Check it · M1 · built 2026-09-30
+## Needs your decision
+## Done
+`;
+  const { html } = renderPage({ name: 'demo', md: { ...md, plan, board }, builtAt, template });
+  const bar = html.match(/<div class="ms-filter"[^]*?<\/div>/)?.[0];
+  assert.ok(bar, 'the chip row is on the board');
+  assert.match(bar, /<button[^>]*data-ms=""[^>]*aria-pressed="true"[^>]*>All<\/button>/);
+  // In plan order, only milestones that have cards, each in its own colour with its short name.
+  const chips = [...bar.matchAll(/data-ms="(M\d+)"/g)].map((m) => m[1]);
+  assert.deepEqual(chips, ['M1', 'M2']);
+  assert.match(bar, /class="[^"]*ms-c1[^"]*"[^>]*data-ms="M1"[^>]*>[^]*?First page/);
+  // Each card carries its milestone, so the page's script can hide the others.
+  assert.match(html, /<li class="card-x card-up-next" data-ms="M1">/);
+  assert.match(html, /<li class="card-x card-up-next" data-ms="">/);
+  assert.match(html, /<li class="card-x card-ideas" data-ms="M2">/);
+});
+
+test('with one milestone on the board, there is no chip row', () => {
+  const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  assert.doesNotMatch(html, /class="ms-filter"/);
 });
