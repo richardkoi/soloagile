@@ -2,7 +2,7 @@
 name: save
 description: End-of-session handoff — tidy the board, update NEXT_SESSION.md, flag what's unverified, park open questions. Use when the user says they are finishing — "done for today", "wrap up", "save".
 argument-hint: "[e.g. \"and push\" | \"back in 2 hours\" | \"shut down containers\"]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git branch:*), Bash(docker ps:*), Bash(docker compose ps:*), Bash(docker compose down:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(soloagile card:*), Bash(soloagile archive:*), Bash(soloagile build:*), Bash(head:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git branch:*), Bash(docker ps:*), Bash(docker compose ps:*), Bash(docker compose down:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(soloagile card:*), Bash(soloagile archive:*), Bash(soloagile build:*), Bash(soloagile backup:*), Bash(head:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
 
 The user is ending the session. Extra instructions from them: **$ARGUMENTS**
@@ -60,6 +60,8 @@ Rules:
   refuses a dirty tree.
 - Any *other* uncommitted work: only commit or push it if the user asked in the
   arguments above. Say plainly what you left uncommitted.
+- Run `soloagile backup` last. It runs the project's own backup when `pm/settings.json`
+  names one, and says so when there is none. Say what it reported.
 - Only shut containers down if the user asked, or said they're away for hours — say
   what you stopped.
 

@@ -11,6 +11,8 @@
 //        soloagile set [habit on|off] [--all]   switch a habit (src/habits.js); alone, list them
 //        soloagile pictures <card> [files…] [--url …] [--caption …] [--by …]   a card's page of pictures
 //        soloagile retake <card>    take them again from pm/takes/card-<n>.sh
+//        soloagile cleanup [--dry-run] [--days 7]   clear what can be made again
+//        soloagile backup           run the backup command named in pm/settings.json
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
@@ -36,6 +38,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
+import { backupCommand, cleanupProject } from '../src/cleanup.js';
 import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
@@ -67,6 +70,8 @@ const COMMANDS = [
   ['set [habit on|off] [--all]', 'switch a habit for this project, or every project; alone, list them'],
   ['pictures <card> [files…] [--url <address>] [--caption "…"] [--by "<command>"]', "a card's own page of pictures, and the script that takes them again"],
   ['retake <card>', "take a card's pictures again, from its kept script"],
+  ['cleanup [--dry-run] [--days 7]', 'clear merged helper worktrees, old shots folders, and old cards\' picture pages'],
+  ['backup', "run the project's backup command, named in pm/settings.json"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
@@ -226,6 +231,36 @@ if (cmd === 'retake') {
     process.exit(1);
   }
   const run = spawnSync('sh', [script], { stdio: 'inherit', env: { ...process.env, PATH: `${dirname(new URL(import.meta.url).pathname)}:${process.env.PATH}` } });
+  process.exit(run.status ?? 1);
+}
+
+if (cmd === 'cleanup') {
+  const args = process.argv.slice(3);
+  const at = args.indexOf('--days');
+  const days = at >= 0 ? Number(args[at + 1]) : 7;
+  if (!(days >= 0)) {
+    console.error('usage: soloagile cleanup [--dry-run] [--days 7]');
+    process.exit(2);
+  }
+  const said = cleanupProject(process.cwd(), { days, dry: args.includes('--dry-run') });
+  console.log(said.length ? said.map((l) => `soloagile: ${l}`).join('\n') : 'soloagile: nothing to clear');
+  process.exit(0);
+}
+
+if (cmd === 'backup') {
+  // For "done for today": the project's own backup, when it has one and the habit is on.
+  const here = process.cwd();
+  const command = backupCommand(here);
+  if (!command) {
+    console.log('soloagile: no backup set; name one as "backup" in pm/settings.json, such as "tools/backup.sh"');
+    process.exit(0);
+  }
+  if (!habitOn(here, 'weekly-cleanup')) {
+    console.log('soloagile: the weekly-cleanup habit is off, so no backup ran');
+    process.exit(0);
+  }
+  const run = spawnSync('sh', ['-c', command], { cwd: here, stdio: 'inherit' });
+  if (run.status !== 0) console.error(`soloagile: the backup failed: ${command}`);
   process.exit(run.status ?? 1);
 }
 

@@ -13,7 +13,8 @@ import { isPmProject } from './hook.js';
 import { localDate } from './init.js';
 import { onHome, pageUrl, projectsFolderOf } from './settings.js';
 import { readSizes } from './sizes.js';
-import { habitStates, habitsText } from './habits.js';
+import { habitOn, habitStates, habitsText } from './habits.js';
+import { weeklyCleanup } from './cleanup.js';
 import { VERSION, builtBy, compareVersions } from './version.js';
 
 // The short rules, which the start hook gives Claude in a project with a board. A plugin's
@@ -85,6 +86,13 @@ export function sessionStartOutput(payload) {
   }
   const summary = typeof payload?.cwd === 'string' ? startSummary(payload.cwd) : null;
   if (!summary) return null;
+  // The weekly-cleanup habit: once a week, clear what can be made again, and say how much.
+  try {
+    if (isPmProject(payload.cwd) && habitOn(payload.cwd, 'weekly-cleanup')) {
+      const said = weeklyCleanup(payload.cwd);
+      if (said?.length) summary.message += ` · cleared ${said.length} old item${said.length === 1 ? '' : 's'}`;
+    }
+  } catch {}
   return {
     systemMessage: summary.message,
     ...(summary.context && { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: summary.context } }),
