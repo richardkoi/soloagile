@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readArchive } from './archive.js';
 import { readPictures } from './design.js';
+import { readCardPages } from './pictures.js';
 import { habitStates } from './habits.js';
 import { recordMoves } from './history.js';
 import { renderPage } from './page.js';
@@ -32,6 +33,9 @@ export function readProject(repoPath) {
   return { repo, dir, name: basename(repo), md };
 }
 
+// A card's own picture page (soloagile pictures), keyed "card-<n>" beside the option pictures.
+const cardPages = (dir) => Object.fromEntries(Object.entries(readCardPages(dir)).map(([id, count]) => [`card-${id}`, { count }]));
+
 export function buildProject(repoPath, builtAt = new Date()) {
   const { repo, dir, name, md } = readProject(repoPath);
   const template = readTemplate('page.html');
@@ -48,7 +52,7 @@ export function buildProject(repoPath, builtAt = new Date()) {
   md.history = existsSync(history) ? readFileSync(history, 'utf8') : '';
   md.finished = readArchive(repo);
   const out = join(dir, 'index.html');
-  const page = renderPage({ name, md, builtAt, template, pictures: readPictures(dir), stampUrl: stampOf(out).url, habits: habitStates(repo) });
+  const page = renderPage({ name, md, builtAt, template, pictures: { ...readPictures(dir), ...cardPages(dir) }, stampUrl: stampOf(out).url, habits: habitStates(repo) });
   writeFileSync(out, page.html);
   writeStamp(out, builtAt);
   return { out, problems: [...problems, ...page.problems] };

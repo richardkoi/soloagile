@@ -112,8 +112,14 @@ function optionPicture(card, line, pictures) {
 // A photo icon in the card's top row, with how many pictures are inside, so the user knows
 // to open it.
 function picturesTag(card, pictures) {
-  const n = card.details.filter((d) => pictureOf(card, d, pictures)).length;
+  const n = card.details.filter((d) => pictureOf(card, d, pictures)).length + (pictures[`card-${card.id}`]?.count ?? 0);
   return n ? `<span class="tag tag-pics" title="${n} ${n === 1 ? 'picture' : 'pictures'} inside">${icon('image')}${n}</span>` : '';
+}
+
+// A card with its own page of pictures (soloagile pictures) links it, in a new tab.
+function picturePage(card, pictures) {
+  const page = pictures[`card-${card.id}`];
+  return page ? `<a class="pic-page" href="designs/card-${card.id}/index.html" target="_blank">${icon('image')}Open its picture page (${page.count})</a>` : '';
 }
 
 // How long a card has waited on the user, as a note after its date: "waiting 6 days". It
@@ -160,12 +166,12 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   // data-ms and data-later are for the milestone filter (template/refresh.html).
   const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${later ? ' data-later' : ''}>`;
   if (!c.details.length) {
-    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${tookLine}</li>`;
+    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${tookLine}${picturePage(c, pictures)}</li>`;
   }
   const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
   const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(inline(d))}${optionPicture(c, d, pictures)}</li>`).join('');
-  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${tookLine}<ul class="modal-body">${lines}</ul></div>`;
+  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></div>`;
   return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${tookLine}${modal}</li>`;
 }
 

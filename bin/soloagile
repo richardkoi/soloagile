@@ -9,6 +9,8 @@
 //        soloagile board [repo]     print the board without its finished cards, for a session to read
 //        soloagile finished <milestone or card number>…   print finished cards in full
 //        soloagile set [habit on|off] [--all]   switch a habit (src/habits.js); alone, list them
+//        soloagile pictures <card> [files…] [--url …] [--caption …] [--by …]   a card's page of pictures
+//        soloagile retake <card>    take them again from pm/takes/card-<n>.sh
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
@@ -34,6 +36,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
+import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 
@@ -62,6 +65,8 @@ const COMMANDS = [
   ['board [repo]', 'print the board without its finished cards'],
   ['finished <milestone or card number>…', 'print finished cards in full'],
   ['set [habit on|off] [--all]', 'switch a habit for this project, or every project; alone, list them'],
+  ['pictures <card> [files…] [--url <address>] [--caption "…"] [--by "<command>"]', "a card's own page of pictures, and the script that takes them again"],
+  ['retake <card>', "take a card's pictures again, from its kept script"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …]', 'four screenshots: desktop and phone, dark and light'],
@@ -183,6 +188,45 @@ if (cmd === 'set') {
     process.exit(2);
   }
   process.exit(0);
+}
+
+if (cmd === 'pictures') {
+  // Run in the project's folder. The page goes in pm/designs/card-<n>/, its script in pm/takes/.
+  const here = process.cwd();
+  const argv = process.argv.slice(3);
+  try {
+    if (!isPmProject(here)) throw new Error(`no pm/ in ${here}; run this in the project's folder`);
+    const want = parsePictureArgs(argv);
+    const board = readFileSync(resolve(here, 'pm', 'board.md'), 'utf8');
+    const title = board.match(new RegExp(`^- #${want.id} (.*?)(?: · |$)`, 'm'))?.[1] ?? null;
+    const { folder, figures } = await makePictures(here, want, { title, argv });
+    console.log(`soloagile: ${figures.length} picture${figures.length === 1 ? '' : 's'} in ${folder}`);
+    console.log(`soloagile: take them again with soloagile retake ${want.id} (${takeScript(here, want.id)})`);
+    // The page's address goes on the card once, so a session and the user can find it.
+    const address = `${pageUrl(here).replace(/index\.html$/, '')}designs/card-${want.id}/index.html`;
+    if (title && !board.includes(address)) {
+      const r = runCard(['note', String(want.id), `pictures: ${address}`], { board, plan: '', archive: readArchive(here), today: localDate() });
+      writeFileSync(resolve(here, 'pm', 'board.md'), r.board);
+    }
+    console.log(`soloagile: ${address}`);
+    buildAndSay(here);
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'retake') {
+  // Runs the card's kept script, with this soloagile first on the PATH.
+  const id = (process.argv[3] ?? '').replace('#', '');
+  const script = takeScript(process.cwd(), id);
+  if (!/^\d+$/.test(id) || !existsSync(script)) {
+    console.error(`soloagile: no kept script for card ${id || '?'}: soloagile pictures makes one at pm/takes/card-<n>.sh`);
+    process.exit(1);
+  }
+  const run = spawnSync('sh', [script], { stdio: 'inherit', env: { ...process.env, PATH: `${dirname(new URL(import.meta.url).pathname)}:${process.env.PATH}` } });
+  process.exit(run.status ?? 1);
 }
 
 if (cmd === 'sizes') {
