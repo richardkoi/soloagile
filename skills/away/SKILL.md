@@ -11,7 +11,7 @@ Board, without its finished cards: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" board
 
 Habits: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" set 2>/dev/null || echo "-"`
 
-The week's usage: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" usage 2>/dev/null || echo "-"`
+Usage, the week and the 5 hours: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" usage 2>/dev/null || echo "-"`
 
 Page: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" link 2>/dev/null || echo "-"`
 
@@ -42,8 +42,9 @@ commit it, and move it to Needs your look. Then the next card.
   on it saying what was found, move it to Needs your decision, and go on to the next.
 - While something slow runs, such as a long test or build, start the next card that
   can't disturb it.
-- Between cards, run `soloagile usage`. It prints the week's usage when a usage address
-  is set, and exits 3 when the week has reached its stop (98% unless set).
+- Between cards, run `soloagile usage`. It prints the week's usage, and the 5 hours' too
+  when that is set, once a usage address is set. It exits 3 when the week or the 5 hours
+  has reached its stop (98% unless set).
 
 **4. Stop** when Up next has nothing left you can build, when `soloagile usage` says stop,
 or at the time the user gave. Finish the card in hand first. Then run the save skill
