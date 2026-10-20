@@ -5,7 +5,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import './isolate.js';
-import { findBrowser, findShell, isLocal, parseShotArgs, takeShots } from '../src/shots.js';
+import { FULL_MAX, findBrowser, findShell, isLocal, parseShotArgs, takeShots } from '../src/shots.js';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'pm-shots-test-'));
 
@@ -83,7 +83,12 @@ test('reads the clicks and typing to do before the picture, in the order written
     dir: 'out',
     steps: [{ do: 'type', what: 'Search', text: 'a=b' }, { do: 'click', what: 'Go' }],
   });
-  for (const bad of [[], ['--click', 'Go'], ['http://x/', '--click'], ['http://x/', '--type', 'no box'], ['http://x/', '--tap', 'Go'], ['a', 'b', 'c']]) {
+  assert.deepEqual(parseShotArgs(['--full', 'http://x/', '--click', 'Plan']), {
+    url: 'http://x/',
+    dir: undefined,
+    steps: [{ do: 'click', what: 'Plan' }, { do: 'full' }],
+  }, '--full can go anywhere, and is done last');
+  for (const bad of [[], ['--full'], ['--click', 'Go'], ['http://x/', '--click'], ['http://x/', '--type', 'no box'], ['http://x/', '--tap', 'Go'], ['a', 'b', 'c']]) {
     assert.throws(() => parseShotArgs(bad), /usage: soloagile shots/, bad.join(' '));
   }
 });
@@ -153,4 +158,19 @@ test('the browser starts with its sandbox on, and goes without it only for a loc
   const remote = unsandboxable();
   await assert.rejects(takeShots('https://example.com/', tmp(), [], remote.bin), /isn't opened without one/);
   assert.deepEqual(remote.starts().map((s) => s.includes('--no-sandbox')), [false]);
+});
+
+test('--full takes the whole height of the page, up to FULL_MAX', { skip: !findBrowser() && 'no headless Chromium here' }, async () => {
+  const tall = (px) => `<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><body style="margin:0"><div style="height:${px}px"></div>`;
+  const server = createServer((req, res) => res.end(tall(req.url === '/huge' ? FULL_MAX + 4000 : 3000))).listen(0, '127.0.0.1');
+  await new Promise((r) => server.once('listening', r));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/`;
+    const files = await takeShots(url, tmp(), [{ do: 'full' }]);
+    assert.deepEqual(files.map(size), [[1400, 3000], [1400, 3000], [360, 3000], [360, 3000]]);
+    const huge = await takeShots(`${url}huge`, tmp(), [{ do: 'full' }]);
+    assert.deepEqual(huge.map(size).map(([, h]) => h), Array(4).fill(FULL_MAX), 'a very tall page stops at FULL_MAX');
+  } finally {
+    server.close();
+  }
 });
