@@ -147,6 +147,16 @@ test('on the desktop the lanes run in flow order; narrower screens keep Waiting 
   assert.deepEqual(order, { ideas: 1, 'up-next': 2, doing: 3, waiting: 4, done: 5 });
 });
 
+test('on a phone the milestone chips keep to one line each and scroll sideways (#149)', () => {
+  const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  const phone = html.match(/@media \(max-width: 700px\) \{\n([\s\S]*?)\n\}/)[1];
+  assert.match(phone, /\.ms-strip, \.ms-filter \{ flex-wrap: nowrap; overflow-x: auto;/);
+  assert.match(phone, /\.ms-strip > \*, \.ms-filter > \* \{ flex: none; white-space: nowrap; \}/);
+  // Outside the phone rules both rows still wrap, so the desktop looks as before.
+  assert.match(html, /\.ms-strip \{ list-style: none; display: flex; flex-wrap: wrap;/);
+  assert.match(html, /\.ms-filter \{ display: flex; flex-wrap: wrap;/);
+});
+
 test("a look that can't happen yet is marked Later, sits last and isn't counted as waiting", () => {
   const looks = '- #2 Check the page · M1 · from 2026-10-01\n- #5 Check the phone · M1 · from 2026-09-30\n';
   const board = md.board.replace(/- #2 .*\n/, looks);
