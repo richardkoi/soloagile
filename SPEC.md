@@ -156,7 +156,8 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
 - **One self-contained HTML file.** `soloagile build` renders the Markdown to HTML with a
   vendored copy of `marked` (MIT). Its only scripts are the theme toggle and one that
   counts the days on waiting cards, opens a picture full size and reloads the page when its file changes. It needs no server, and its tabs work
-  with plain CSS.
+  with plain CSS. A page over 5 MB is slow to open, so `soloagile build` warns with its
+  size; this one is about 0.4 MB.
 - **An open page refreshes itself, with or without a server.** Opened as a file, it can't
   ask a server whether it changed, so each build leaves a stamp: a one-line script in
   `~/.soloagile/stamps` saying when the page was built. The open page loads it every three

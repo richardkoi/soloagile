@@ -10,6 +10,8 @@ import { renderPage } from './page.js';
 import { stampOf, writeStamp } from './settings.js';
 
 export const FILES = ['board', 'plan', 'releases', 'overview', 'decisions', 'links'];
+// A page over this many bytes is slow to open, on a phone above all, so the build warns (#128).
+export const PAGE_WARN_MB = 5;
 const TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), '..', 'template');
 
 // Reads template/<file> with each "{{> part}}" replaced by template/part.html, so the
@@ -54,6 +56,8 @@ export function buildProject(repoPath, builtAt = new Date()) {
   const out = join(dir, 'index.html');
   const page = renderPage({ name, md, builtAt, template, pictures: { ...readPictures(dir), ...cardPages(dir) }, stampUrl: stampOf(out).url, habits: habitStates(repo) });
   writeFileSync(out, page.html);
+  const mb = Buffer.byteLength(page.html) / 1024 / 1024;
+  if (mb > PAGE_WARN_MB) problems.push(`index.html is ${mb.toFixed(1)} MB: a page over ${PAGE_WARN_MB} MB is slow to open; look for what is filling it, such as a long decisions.md`);
   writeStamp(out, builtAt);
   return { out, problems: [...problems, ...page.problems] };
 }

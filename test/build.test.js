@@ -315,6 +315,16 @@ test('buildProject writes pm/index.html, even with pm/ files missing', () => {
   assert.match(readFileSync(out, 'utf8'), /Check the page/);
 });
 
+test('buildProject warns when the page passes about 5 MB, naming its size (#128)', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-test-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), md.board);
+  writeFileSync(join(repo, 'pm', 'decisions.md'), `# Decisions\n\n${'A long note about a choice. '.repeat(200000)}\n`);
+  const { problems } = buildProject(repo, builtAt);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /^index\.html is 5\.\d MB: a page over 5 MB is slow to open; look for what is filling it, such as a long decisions\.md$/);
+});
+
 test('a folder without pm/ is an error', () => {
   assert.throws(() => buildProject(mkdtempSync(join(tmpdir(), 'pm-test-'))), /no pm\/ folder/);
 });
