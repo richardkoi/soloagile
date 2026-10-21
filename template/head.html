@@ -89,7 +89,9 @@ button { font-family: inherit; }
 .header-subtitle b { color: var(--text-secondary); }
 .header-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); }
 .updated { font-size: var(--font-xs); color: var(--text-muted); }
-.ms-strip { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+/* position: relative anchors each chip's hidden label inside the strip. Without it the
+   labels escape the phone's sideways scroll and widen the whole page. */
+.ms-strip { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-xs); position: relative; }
 @media (max-width: 1100px) { .header { flex-wrap: wrap; } .header-right { justify-content: flex-start; } }
 
 /* ---------- nav (the page's tabs) ----------

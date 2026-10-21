@@ -157,6 +157,14 @@ test('on a phone the milestone chips keep to one line each and scroll sideways (
   assert.match(html, /\.ms-filter \{ display: flex; flex-wrap: wrap;/);
 });
 
+test('the chips\' hidden labels stay inside the strip, so a phone page is no wider than the screen', () => {
+  // Each chip carries a .visually-hidden label (position: absolute). With nothing positioned
+  // around it, it escaped the strip's sideways scroll and made the page ~1700px wide, so a
+  // phone zoomed out and a card's pop-up landed in the corner.
+  const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  assert.match(html, /\.ms-strip \{[^}]*position: relative;/);
+});
+
 test("a look that can't happen yet is marked Later, sits last and isn't counted as waiting", () => {
   const looks = '- #2 Check the page · M1 · from 2026-10-01\n- #5 Check the phone · M1 · from 2026-09-30\n';
   const board = md.board.replace(/- #2 .*\n/, looks);
