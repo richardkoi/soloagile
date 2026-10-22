@@ -13,6 +13,7 @@ in `pm/`. Follow these rules while you work here.
   lists every form. Edit `pm/board.md` by hand only for what it can't do.
 - Send card commands in the same turn as other work, never a turn of their own: each turn
   re-reads the whole conversation. Join them with `&&` beside the next test, build or commit.
+- A card note is one short line, under about 100 characters, with the detail in the commit message.
 - Keep the board live: Doing when a card's own build starts, one at a time; Needs your look
   once live (deployed, or running where the user uses it); Needs your decision when blocked
   on the user. Only the user's yes moves a card to Done.

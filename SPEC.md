@@ -297,6 +297,9 @@ The six columns, always in this order and always present, even when empty:
     much as a real one: on 2026-10-22, upkeep took about 21% of usage in projects with a
     board, two-thirds of it in such turns. Several card commands join into one with `&&`,
     sent beside the next test, build or commit.
+  - A card note is one short line, under about 100 characters, with the detail in the commit
+    message. On 2026-10-22 the median note was 198 characters, and Claude's writing costs
+    about five times what its reading does.
   - Editing `board.md` by hand still works, for what the command can't do. `soloagile build`
     checks it afterwards, as before. In twelve days of use Claude changed boards about
     1,770 times with one-off scripts, and the checker sent 89 of them back.
