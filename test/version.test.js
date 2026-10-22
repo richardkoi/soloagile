@@ -56,6 +56,8 @@ test('an old copy hands the whole command to the newest one, stdin included', ()
   // The newer copy only says it was called, and echoes what came on stdin.
   mkdirSync(join(dir, '0.1.2', 'bin'), { recursive: true });
   const fake = join(dir, '0.1.2', 'bin', 'soloagile');
+  // Its own package.json, so Node never reads a stray one higher up, such as /tmp/package.json.
+  writeFileSync(join(dir, '0.1.2', 'package.json'), '{}');
   writeFileSync(fake, `#!/usr/bin/env node\nconst i = require('fs').readFileSync(0, 'utf8');\nconsole.log('newer ' + process.argv.slice(2).join(' ') + ' ' + i);\n`);
   chmodSync(fake, 0o755);
   const r = spawnSync(join(dir, '0.1.1', 'bin', 'soloagile'), ['hook'], { encoding: 'utf8', input: '{"cwd":"/"}' });
