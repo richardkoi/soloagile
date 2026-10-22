@@ -22,6 +22,10 @@ kept in `pm/`. Follow these rules while you work here.
     kept in `pm/decisions.md`
   `soloagile card` alone lists every form. Edit `pm/board.md` by hand only for what the
   command can't do.
+- Send card commands in the same turn as other work, never a turn of their own: a turn
+  re-reads the whole conversation, so one just for the board is the costliest kind. Join
+  them into one command (`soloagile card note 12 "tested: …" && soloagile card move 12
+  look`) and put it beside the next test, build or commit.
 - Keep the board live. Move a card the moment its state changes:
   - starting it → Doing, only when its own build starts, one card at a time, so its build
     time means something

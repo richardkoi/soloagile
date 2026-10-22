@@ -46,3 +46,11 @@ test('the rules and the spec carry the lessons from the M9, M15 and M17 retros',
     assert.doesNotMatch(text, /3dweather/, `${file}: 3dweather isn't on this machine (#165)`);
   }
 });
+
+test('the rules and the spec keep board upkeep cheap (M20)', () => {
+  for (const file of ['rules.md', 'SPEC.md']) {
+    const text = readFileSync(join(ROOT, file), 'utf8').replace(/\s+/g, ' ');
+    assert.match(text, /card commands[^.]*same turn as[^.]*other work/i, `${file}: card commands ride along with real work (#176)`);
+    assert.match(text, /never a turn of their own/i, `${file}: no turn just for the board (#176)`);
+  }
+});

@@ -292,6 +292,11 @@ The six columns, always in this order and always present, even when empty:
     such as one folded into another. The reason goes at the top of `decisions.md` as
     `## <today> · #<n> dropped: <title>`, with `**Why:**` and the card's text. The burn-up
     takes its points out of the total.
+  - Card commands go in the same turn as other work, never a turn of their own. Every
+    turn re-reads the whole conversation, so a turn that only updates the board costs as
+    much as a real one: on 2026-10-22, upkeep took about 21% of usage in projects with a
+    board, two-thirds of it in such turns. Several card commands join into one with `&&`,
+    sent beside the next test, build or commit.
   - Editing `board.md` by hand still works, for what the command can't do. `soloagile build`
     checks it afterwards, as before. In twelve days of use Claude changed boards about
     1,770 times with one-off scripts, and the checker sent 89 of them back.
