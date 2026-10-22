@@ -8,3 +8,6 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 4. Put a card that comes after a milestone's work is done into a new milestone, not the open old one. (From retro of M9, #162.)
 5. Take a card's phone shots before it goes to Needs your look. (From retro of M17, #163.)
 6. Name only projects on this machine in a milestone's done when. (From retro of M15, #165.)
+7. Release a fix as a new version as soon as it is committed. (From retro of M19, #175.)
+8. When the rules grow, check the session start text stays under 9,500 characters. (From retro of M18, #177.)
+9. When a card makes a standing rule out of date, remove that rule in the same card. (From retro of M18, #174.)
