@@ -559,6 +559,7 @@ stay as they are; the stage says how far round a card is.
 | Claude creates anything with an address (site, port, artifact, doc, repo) | It goes in `links.md` straight away |
 | Any `pm/*.md` file is edited | A hook rebuilds `pm/index.html`. Open pages refresh themselves within a few seconds, once any open card is closed |
 | A session starts after a plugin update | Its project's page, built by the older version, is rebuilt, and so is every other project's old page on the home page, so all of them show the new look without a card moving |
+| A session starts in a project with `pm/` | Claude gets `rules.md`, the waiting and Doing cards, Up next, the build times and the habits, kept under 9,500 characters: Claude Code cuts a hook's text over 10,000 down to a short preview. Up next is cut from the bottom first, with a line saying how many more, then the build times lose their example cards |
 | A card changes lane, stage, points, milestone or title | The same rebuild adds a line to `history.md`, with the time |
 | `/soloagile:catchup` | Reads the board without its finished cards: the two "Needs your…" columns first, then Up next |
 | `/soloagile:save` | Tidies the board against the git log, runs `soloagile archive`, which also takes Done cards past their 48 hours off the board, and keeps NEXT_SESSION.md short |

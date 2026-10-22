@@ -1,102 +1,59 @@
 # soloagile rules
 
-This project has a soloagile page: a board, plan, reports, release notes, docs and links,
-kept in `pm/`. Follow these rules while you work here.
+This project has a soloagile page (board, plan, reports, release notes, docs, links), kept
+in `pm/`. Follow these rules while you work here.
 
 ## The board
-- `pm/board.md` is the only task list. `NEXT_SESSION.md` is a short note that points at it.
-- Change the board with `soloagile card`, run in the project's folder. It numbers the card,
-  checks it and rebuilds the page. A wrong move is refused with the reason, and nothing is
-  written:
-  - `soloagile card add "<title>" --milestone M3 --points 3 --done-when "…"` adds to Up
-    next; `--lane ideas`, `doing` or `decision` picks another lane
-  - `soloagile card move <number> doing`, `look`, `decision`, `done`, `next` or `ideas`;
-    `soloagile card move <number> doing test` changes a Doing card's stage
-  - `soloagile card note <number> "tested: …"` adds a detail line; `card set <number>
-    --milestone M3` changes its milestone, points or title; `card show <number>` prints it
-  - `soloagile card choose <number> b` records the user's pick on a question or design
-    card: its options become one `chosen <today>: b) …` line. It doesn't move the card
-  - `soloagile card reword <number> "done when" "done when: …"` changes one detail line,
-    found by how it starts; `card unnote <number> "not before"` removes one
-  - `soloagile card drop <number> "folded into #12"` takes a card off the board, its reason
-    kept in `pm/decisions.md`
-  `soloagile card` alone lists every form. Edit `pm/board.md` by hand only for what the
-  command can't do.
-- Send card commands in the same turn as other work, never a turn of their own: a turn
-  re-reads the whole conversation, so one just for the board is the costliest kind. Join
-  them into one command (`soloagile card note 12 "tested: …" && soloagile card move 12
-  look`) and put it beside the next test, build or commit.
-- Keep the board live. Move a card the moment its state changes:
-  - starting it → Doing, only when its own build starts, one card at a time, so its build
-    time means something
-  - live (deployed, or running where the user uses it) → Needs your look
-  - blocked on the user → Needs your decision
-  - only the user's yes moves a card to Done. A finished card keeps one line on the board,
-    and its text goes to `pm/finished-cards.md`: `soloagile card move <number> done` does
-    both. After moving one by hand, run `soloagile archive`
-- To read a finished card in full, run `soloagile finished <card number or milestone>`.
-  To read the board without its finished cards, run `soloagile board`.
-- A Doing card's line ends with its stage, such as `· 3 pts · test`: `design`, `develop`,
-  `test` or `release`. Change the word as the work moves on. Cards in other lanes have none.
-- Every new card gets story points, a quick size guess written `· 3 pts` on its line: 1, 2,
-  3, 5, 8 or 13, where 13 means split it. Decision cards get none.
-- Every new work card gets a guessed build time too, `--guess 40`, shown as `· ~40 min`.
-  Make it from the build times the session start gives you (`soloagile sizes` prints them
-  again): the usual time for its size, moved up or down by how it compares with the examples.
-- Habits the session start lists come from soloagile's settings: follow each one that is
-  on, and skip each one that is off. When the user asks to switch one, run
-  `soloagile set <habit> on|off` in the project, with `--all` for every project.
-- Every new card gets a milestone, written `· M3` on its line, an idea too: the closest one
-  in `pm/plan.md`. When none fits, add a milestone for it there, as `not started`. A card
-  that comes after a milestone's work is done goes in a new milestone, not the open old one.
-- Every milestone has a `short:` line under its heading: 2 to 4 words saying what it is,
-  such as `short: Public plugin`. Its chips on the page show them.
-- A milestone with cards names each by number on a `Cards:` line under its `short:` line,
-  such as `Cards: #12, #14`. Add a card's number when it joins the milestone.
-- Every address you create (site, port, artifact, doc, repo) goes in `pm/links.md` straight
-  away. Never a `file://` address.
-- `pm/index.html` is built from the Markdown: never edit it. A hook rebuilds it after an
-  edit, and `soloagile build` does it by hand.
+- `pm/board.md` is the only task list. `NEXT_SESSION.md` is a short note pointing at it.
+- Change it with `soloagile card`, in the project's folder: it numbers, checks and rebuilds,
+  and refuses a wrong move with the reason. `card add "<title>" --milestone M3 --points 3
+  --guess 40 --done-when "…"` (`--lane` for another lane); `card move <n> doing|look|
+  decision|done|next|ideas` (`doing test` sets a stage); `card note <n> "tested: …"`;
+  `card set`, `show`, `choose <n> b`, `reword`, `unnote`, `drop <n> "why"`. `soloagile card`
+  lists every form. Edit `pm/board.md` by hand only for what it can't do.
+- Send card commands in the same turn as other work, never a turn of their own: each turn
+  re-reads the whole conversation. Join them with `&&` beside the next test, build or commit.
+- Keep the board live: Doing when a card's own build starts, one at a time; Needs your look
+  once live (deployed, or running where the user uses it); Needs your decision when blocked
+  on the user. Only the user's yes moves a card to Done.
+- `soloagile board` prints the board without finished cards; `soloagile finished <n or M3>`
+  prints finished ones in full.
+- A Doing card ends with its stage: `design`, `develop`, `test` or `release`.
+- Every new card gets points (1, 2, 3, 5, 8, 13 = split it; none on a decision), a guessed
+  build time from the build times below, and a milestone from `pm/plan.md`. With none
+  fitting, add one there as `not started`. A card that comes after a milestone's work is
+  done goes in a new milestone, not the open old one. A milestone has a `short:` line of 2
+  to 4 words and a `Cards:` line naming its cards.
+- Follow each habit listed below that is on; `soloagile set <habit> on|off [--all]` switches one.
+- Every address you create (site, port, artifact, doc, repo) goes in `pm/links.md` at once,
+  never as `file://`.
+- Never edit `pm/index.html`: it is built from the Markdown.
 
-## The wheel
-Every card goes round six stages: **Plan → Design → Develop → Test → Release → Feedback**.
-- **Plan**: a card with a title, points, a milestone and a "done when" line. A "done when"
-  names only projects on this machine, so it can be checked. When a plan leans on a fact
-  from docs, try it for real first. When a milestone can only be proven in a special
-  set-up, such as a clean machine, setting that up is its first card.
-- **Design**: the approach, before any code. 1 or 2 points: say it in one line and carry
-  on. 3 points or more: move the card to Needs your decision as a design card
-  (`· 5 pts · design · asked <date>`, with the options under it), then ask the user. For
-  anything visual, give each option a real picture: write a small HTML mock-up of each and
-  run `soloagile design <card number> <option letter> <mock-up.html>`. The user's yes moves
-  the card to Doing as `· develop`. A design card keeps its option pictures until the
-  user's yes on its look: `soloagile card choose` leaves the picked option's picture on its
-  `chosen` line.
-- **Develop**: build it. If the build departs from the option the user picked, say so at
-  once, not at their look.
-- **Test**: the project's checks. For anything seen in a browser, then run
-  `soloagile shots <url>` and read its four screenshots: desktop and phone width, dark and
-  light. The phone shots are taken before the card moves to Needs your look. A new chart
-  is checked on another project here with many milestones, as well as this one. A new skill is run once for real, and its `tested:` line says what it
-  did. Write a `tested:` line on the card saying what was checked. A card reaches the
-  user already tested.
-- **Release**: commit the card's work, without waiting to be asked, before the card moves
-  to Needs your look. Deploy where the project has a server, and write the release note.
-- **Feedback**: the user's look on the card. When a milestone's last card is approved, run
-  `/soloagile:retro`. A "done when" that needs days to pass, or a look that waits on an
-  outside event, doesn't hold the card open: it is approved on what was built, and the
-  rest becomes a follow-up card with a `not before <date>` line.
+## The wheel: Plan → Design → Develop → Test → Release → Feedback
+- **Plan**: title, points, milestone and a "done when" that names only projects on this
+  machine. When a plan leans on a fact from docs, try it for real first. When a milestone
+  can only be proven in a special set-up, setting that up is its first card.
+- **Design**: 1 or 2 points, say the approach in a line and carry on. 3 or more, make it a
+  design card in Needs your decision with options and ask; for anything visual, give each
+  option a picture with `soloagile design <n> <letter> <mock-up.html>`.
+- **Develop**: if the build departs from the option the user picked, say so at once.
+- **Test**: run the checks, and write a `tested:` line on the card. For anything in a
+  browser, run `soloagile shots <url>` and read its pictures; the phone shots are taken
+  before the card moves to Needs your look. A new chart is checked on a busy project too.
+  A new skill is run once for real, and its `tested:` line says what it did.
+- **Release**: commit without being asked, before Needs your look. Deploy where there's a
+  server, and write the release note.
+- **Feedback**: the user's look. When a milestone's last card is approved, run
+  `/soloagile:retro`. A check that needs days to pass becomes a follow-up card with a
+  `not before <date>` line, and doesn't hold the card open.
 
-## Questions
-- Ask the user as multiple choice, with an open option.
-- A question that can wait becomes a Needs your decision card: one option per line, the
-  recommended one first and an open one last. The answer goes in `pm/decisions.md`.
-
-## The session
-- Plain words run the skills: "catch me up" → `/soloagile:catchup`, "commit" →
-  `/soloagile:commit`, "what needs me" → `/soloagile:needs`, "done for today" →
-  `/soloagile:save`, "retro" → `/soloagile:retro`, "I'm off to bed" or "work while I'm
-  away" → `/soloagile:away`, "build these in parallel" → `/soloagile:parallel`.
-- Read `NEXT_SESSION.md` when a session starts, if it exists, and update it before one ends.
+## Questions and the session
+- Ask as multiple choice with an open option. A question that can wait becomes a Needs
+  your decision card, recommended option first, an open one last; answers go in
+  `pm/decisions.md`.
+- Plain words run the skills: "catch me up" catchup, "commit" commit, "what needs me"
+  needs, "done for today" save, "retro" retro, "I'm off to bed" away, "build these in
+  parallel" parallel (each `/soloagile:<name>`).
+- Read `NEXT_SESSION.md` when a session starts, and update it before one ends.
 
 The format of every file, and each rule in full: `{{spec}}`.

@@ -23,6 +23,9 @@ import { VERSION, builtBy, compareVersions } from './version.js';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const rules = () => readFileSync(join(ROOT, 'rules.md'), 'utf8').replace('{{spec}}', join(ROOT, 'SPEC.md')).trim();
 
+// Under Claude Code's 10,000-character limit for a hook's text, with room to spare.
+export const START_BUDGET = 9500;
+
 const cardsIn = (board, column) => board.columns.find((c) => c.name === column)?.cards ?? [];
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const line = (c) => `#${c.id} ${c.title}`;
@@ -47,7 +50,7 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
   const message = `${name} · ${waiting.length ? `${waiting.join(' and ')} waiting on you` : 'nothing waiting on you'} · say "catch me up"${url ? ` · ${url}` : ''}`;
 
   const section = (title, cards) => (cards.length ? [`${title}:`, ...cards.map((c) => `- ${line(c)}`)] : []);
-  const context = [
+  const head = [
     rules(),
     '',
     `Board for ${name} (pm/board.md), read when this session started:`,
@@ -55,13 +58,29 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
     ...section('Needs your look', look),
     ...(later.length ? ["Looks that can't happen yet (not waiting on the user):", ...later.map((c) => `- ${line(c)}, from ${c.date.value}`)] : []),
     ...section('Doing', cardsIn(board, 'Doing')),
-    ...section('Up next', cardsIn(board, 'Up next')),
+  ];
+  const tail = (examples) => [
     '',
-    readSizes(repo),
+    readSizes(repo, { examples }),
     '',
     ...(habitsText(habitStates(repo)) ? [habitsText(habitStates(repo)), ''] : []),
     'When the user greets you or asks where things stand ("catch me up", "what\'s next"), run the soloagile:catchup skill.',
-  ].join('\n');
+  ];
+  // Claude Code cuts a hook's text over 10,000 characters down to a short preview, rules and
+  // all (#177). So the start text keeps under START_BUDGET: Up next is cut from the bottom
+  // first, then the build times lose their example cards.
+  const next = cardsIn(board, 'Up next').map((c) => `- ${line(c)}`);
+  const fits = (lines) => lines.join('\n').length <= START_BUDGET;
+  const build = (examples) => {
+    for (let n = next.length; n >= 0; n--) {
+      const more = next.length - n;
+      const shown = next.length ? ['Up next:', ...next.slice(0, n), ...(more ? [`…and ${more} more in Up next: soloagile board prints them`] : [])] : [];
+      const lines = [...head, ...shown, ...tail(examples)];
+      if (fits(lines) || (n === 0 && !examples)) return lines;
+      if (n === 0) return null;
+    }
+  };
+  const context = (build(true) ?? build(false)).join('\n');
   return { message, context };
 }
 

@@ -27,22 +27,23 @@ export function sizeTable(events) {
 const short = (t, max = 60) => (t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t);
 const pts = (n) => `${n} pt${n === 1 ? '' : 's'}`;
 
-export function sizesText(events) {
+// `examples: false` leaves out the example cards, for a session start short of room.
+export function sizesText(events, { examples = true } = {}) {
   const rows = sizeTable(events);
   if (!rows.length) return 'No finished cards yet, so guess each new card\'s build time from the card itself.';
   return [
     "Build times from this project's finished cards (time spent in Doing). Guess a new card's time from these, with --guess:",
     ...rows.map(
       (r) =>
-        `- ${pts(r.size)}: usually ${duration(r.usual)} (${r.count} card${r.count === 1 ? '' : 's'}), such as ${r.examples
+        `- ${pts(r.size)}: usually ${duration(r.usual)} (${r.count} card${r.count === 1 ? '' : 's'})${examples ? `, such as ${r.examples
           .map((e) => `#${e.id} ${short(e.title)} (${duration(e.minutes)})`)
-          .join(' and ')}`,
+          .join(' and ')}` : ''}`,
     ),
   ].join('\n');
 }
 
 // The table for a project, read from its pm/history.md.
-export function readSizes(repo) {
+export function readSizes(repo, options) {
   const file = join(resolve(repo), 'pm', 'history.md');
-  return sizesText(existsSync(file) ? parseHistory(readFileSync(file, 'utf8')) : []);
+  return sizesText(existsSync(file) ? parseHistory(readFileSync(file, 'utf8')) : [], options);
 }
