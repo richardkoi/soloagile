@@ -213,6 +213,11 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   - `soloagile board` prints the board with Done as one line, a count by milestone. The
     session skills read that. `soloagile finished M3` prints a milestone's finished cards
     in full, and `soloagile finished 12` one card.
+  - `soloagile next` prints the board in a few lines: the count in each lane, the cards
+    waiting on the user, Doing, the top 5 of Up next with what holds any back (a `not
+    before` line), and the one next move: a decision, then a look, then a Doing card, then
+    the first Up next card that can start. The catchup skill loads it instead of the whole
+    board, which on 2026-10-22 was 44,549 characters on weatherglider against 907 (#171).
 - **Answered decisions go to `decisions.md`** with the date and the answer,
   rather than being deleted.
 - **A project that uses OpenSpec:** one card per OpenSpec change; its `tasks.md`
@@ -591,6 +596,7 @@ soloagile/
   src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md (tested)
   src/usage.js            soloagile usage: the week's and the 5 hours' usage from a usage address, for away mode (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
+  src/next.js             soloagile next: the board in a few lines and the one next move; the catchup skill loads it (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end
   src/board.js            reads board.md into columns (tested)

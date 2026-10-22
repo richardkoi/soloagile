@@ -29,7 +29,7 @@
 // Format problems are printed as warnings; the page is still written.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
 import { buildProject } from '../src/build.js';
 import { CARD_USAGE, MILESTONE_CARDS, Refused, addDecision, milestoneCount, runCard } from '../src/card.js';
@@ -37,6 +37,8 @@ import { addPicture } from '../src/design.js';
 import { isPmProject, runHook } from '../src/hook.js';
 import { buildAll, buildHome } from '../src/home.js';
 import { initProject, localDate } from '../src/init.js';
+import { nextText } from '../src/next.js';
+import { parseBoard, parsePlan } from '../src/board.js';
 import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js';
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
@@ -71,6 +73,7 @@ const COMMANDS = [
   ['card add|move|note|set|show …', 'change a card, checked before it is written; `soloagile card` says how'],
   ['archive [repo]', "move finished cards' text to pm/finished-cards.md, then build"],
   ['board [repo]', 'print the board without its finished cards'],
+  ['next [repo]', 'the board in a few lines, and the one move to make next'],
   ['finished <milestone or card number>…', 'print finished cards in full'],
   ['set [habit on|off] [--all]', 'switch a habit for this project, or every project; alone, list them'],
   ['pictures <card> [files…] [--url <address>] [--caption "…"] [--by "<command>"]', "a card's own page of pictures, and the script that takes them again"],
@@ -158,6 +161,19 @@ if (cmd === 'link') {
     console.error(`soloagile: ${err.message}`);
     process.exit(1);
   }
+  process.exit(0);
+}
+
+if (cmd === 'next') {
+  // What the catchup skill reads: the board in a few lines and the next move (#171).
+  const file = resolve(repo, 'pm', 'board.md');
+  if (!existsSync(file)) {
+    console.error(`soloagile: no pm/board.md in ${resolve(repo)}`);
+    process.exit(1);
+  }
+  const plan = resolve(repo, 'pm', 'plan.md');
+  const name = (existsSync(plan) && parsePlan(readFileSync(plan, 'utf8')).title) || basename(resolve(repo));
+  console.log(nextText(parseBoard(readFileSync(file, 'utf8')), { name, today: localDate() }));
   process.exit(0);
 }
 

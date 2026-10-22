@@ -40,3 +40,9 @@ test("every command a skill runs as it loads is in the skill's own allowed-tools
     }
   }
 });
+
+test('catchup preloads soloagile next, not the whole board (#171)', () => {
+  const text = readFileSync(join(SKILLS, 'catchup', 'SKILL.md'), 'utf8');
+  assert.match(text, /!`"\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/soloagile" next/);
+  assert.doesNotMatch(text, /!`[^`]*soloagile" board/);
+});
