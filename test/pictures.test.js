@@ -67,3 +67,22 @@ test('soloagile pictures notes the page on the card and links it from the pop-up
   assert.equal(readFileSync(join(repo, 'pm', 'board.md'), 'utf8').match(/pictures:/g).length, 1, 'the address is noted once');
   assert.equal(spawnSync(PM, ['retake', '9'], { cwd: repo }).status, 1);
 });
+
+// Card #93 in mohawk, 26 Oct: a kept script whose --by ran itself started ~770 copies
+// and filled the terminal's memory. Both shapes of that loop are refused.
+test('a --by that runs the card\'s own kept script is refused, not looped', () => {
+  const repo = project();
+  assert.equal(spawnSync(PM, ['pictures', '7', 'front.png'], { cwd: repo }).status, 0);
+  const r = spawnSync(PM, ['pictures', '7', 'front.png', '--by', 'pm/takes/card-7.sh'], { cwd: repo, encoding: 'utf8', timeout: 10000 });
+  assert.equal(r.status, 1, `exit ${r.status} ${r.signal ?? ''}`);
+  assert.match(r.stderr, /runs itself/);
+  assert.doesNotMatch(readFileSync(join(repo, 'pm', 'takes', 'card-7.sh'), 'utf8'), /--by/, 'the kept script is left as it was');
+});
+
+test('a --by that starts another soloagile pictures --by inside it is refused', () => {
+  const repo = project();
+  const inner = `${PM} pictures 7 front.png --by true`;
+  const r = spawnSync(PM, ['pictures', '7', 'front.png', '--by', inner], { cwd: repo, encoding: 'utf8', timeout: 10000 });
+  assert.equal(r.status, 1, `exit ${r.status} ${r.signal ?? ''}`);
+  assert.match(r.stdout + r.stderr, /inside another --by/);
+});

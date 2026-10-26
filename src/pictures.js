@@ -77,7 +77,12 @@ ${figures.map(figure).join('\n')}
 export async function makePictures(repo, { id, files, urls, captions, by }, { title = null, takenAt = localStamp(), shoot = takeShots, argv = null } = {}) {
   repo = resolve(repo);
   if (by) {
-    const run = spawnSync('sh', ['-c', by], { cwd: repo, encoding: 'utf8' });
+    // A --by that leads back here loops without end: on 26 Oct mohawk's card-93.sh ran
+    // itself ~770 deep and filled memory. Refuse the card's own kept script, a retake,
+    // and any --by started inside another --by.
+    if (process.env.SOLOAGILE_IN_BY) throw new Error(`--by refused: it ran inside another --by (${process.env.SOLOAGILE_IN_BY}), which would loop`);
+    if (by.includes(`card-${id}.sh`) || /\bretake\b/.test(by)) throw new Error(`--by refused: "${by}" runs itself, card #${id}'s kept script; give the command that makes the pictures, or leave --by out`);
+    const run = spawnSync('sh', ['-c', by], { cwd: repo, encoding: 'utf8', env: { ...process.env, SOLOAGILE_IN_BY: by } });
     if (run.status !== 0) throw new Error(`--by failed: ${by}\n${run.stdout}${run.stderr}`);
   }
   const folder = cardFolder(repo, id);
