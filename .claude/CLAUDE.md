@@ -11,3 +11,5 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 7. Release a fix as a new version as soon as it is committed. (From retro of M19, #175.)
 8. When the rules grow, check the session start text stays under 9,500 characters. (From retro of M18, #177.)
 9. When a card makes a standing rule out of date, remove that rule in the same card. (From retro of M18, #174.)
+10. Commit only when the tests pass: chain the commit on the test command's own exit code, never on a grep of its output. (From retro of M20 and M23, #186.)
+11. Before measuring against a bar, write in the done when exactly what the measure counts. (From retro of M20 and M23, #179.)
