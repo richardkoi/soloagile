@@ -278,11 +278,12 @@ The six columns, always in this order and always present, even when empty:
     `look`, `decision` or `done`. It writes the stage and the date the lane carries:
     `doing test` sets a stage, `look` dates the card `live <today>`, `look --from <date>`
     dates it for later, `decision` dates it `asked <today>`, and `done` dates it and moves
-    its text to the archive. It refuses a look with no `tested:` line, a decision with no
-    options, and a card with no milestone or no points. A card coming back from Done
-    gets its text back.
+    its text to the archive. It refuses a look with no `tested:` line, a decision with fewer
+    than two options, and a card with no milestone or no points. A card coming back from Done
+    gets its text back. `decision --option "…" --option "…"` letters the options on as it
+    moves, after any the card has.
   - `soloagile card note <number> "<line>"` adds a detail line, first with `--first`.
-    `soloagile card set <number>` changes the milestone, points or title.
+    `soloagile card set <number>` changes the milestone, points, guess, title or `done when:` line.
     `soloagile card show <number>` prints one card in full, finished or not.
   - `soloagile card choose <number> <letter>` records the user's pick on a question or
     design card. Its a/b/c lines become one line, where the first option was:
@@ -291,7 +292,7 @@ The six columns, always in this order and always present, even when empty:
     The picked option's picture stays under its `chosen` line, so a design card shows
     what was picked until the user's yes on its look.
   - `soloagile card reword <number> "<start>" "<new line>"` changes the one detail line that
-    starts with those words, and `soloagile card unnote <number> "<start>"` removes it. Case
+    starts with those words, or the title when those words start it and no detail line does, and `soloagile card unnote <number> "<start>"` removes it. Case
     doesn't matter. Both refuse when no line starts so, or more than one does.
   - `soloagile card drop <number> "<why>"` takes a card off the board without it being done,
     such as one folded into another. The reason goes at the top of `decisions.md` as

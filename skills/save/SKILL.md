@@ -2,7 +2,7 @@
 name: save
 description: End-of-session handoff — tidy the board, update NEXT_SESSION.md, flag what's unverified, park open questions. Use when the user says they are finishing — "done for today", "wrap up", "save".
 argument-hint: "[e.g. \"and push\" | \"back in 2 hours\" | \"shut down containers\"]"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git branch:*), Bash(docker ps:*), Bash(docker compose ps:*), Bash(docker compose down:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(soloagile card:*), Bash(soloagile archive:*), Bash(soloagile build:*), Bash(soloagile backup:*), Bash(head:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git branch:*), Bash(docker ps:*), Bash(docker compose ps:*), Bash(docker compose down:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(soloagile card:*), Bash(soloagile archive:*), Bash(soloagile build:*), Bash(soloagile backup:*), Bash(head:*), Bash(echo:*), Bash(awk:*), Bash(cat:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
 
 The user is ending the session. Extra instructions from them: **$ARGUMENTS**
@@ -12,6 +12,13 @@ Current state:
 - Commits this session: !`git log --oneline -12 2>/dev/null || echo "-"`
 - Running containers: !`docker ps --format '{{.Names}}\t{{.Status}}' 2>/dev/null | head -10 || echo "-"`
 - Page: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" link 2>/dev/null || echo "-"`
+- Archive, already run: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" archive 2>&1 | grep -v "wrote /" | tail -3 || echo "-"`
+- Board, in a few lines: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" next 2>/dev/null || echo "no pm/board.md"`
+- Doing and Needs your look, in full: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" board 2>/dev/null | awk '/^## Doing/,/^## Needs your decision/' | grep -v '^## Needs your decision'`
+- NEXT_SESSION.md as it stands: !`cat NEXT_SESSION.md 2>/dev/null || echo "none yet"`
+
+All of this is read already: don't run `soloagile board`, `archive` or read NEXT_SESSION.md
+again. Use `soloagile card show <number>` only for an Up next card you need in full.
 
 **If the project has `pm/board.md`, tidy the board first.** The format and rules are
 in `${CLAUDE_PLUGIN_ROOT}/SPEC.md`.
@@ -24,9 +31,8 @@ in `${CLAUDE_PLUGIN_ROOT}/SPEC.md`.
   Doing, like unfinished work, and so does a Needs your look card that isn't live yet.
   A live look that the user can't do before a known day is dated `from <that day>`
   instead. Never move a card to Done — that takes the user's yes.
-- Run `soloagile archive`. It moves every finished card's text to `pm/finished-cards.md`,
-  leaves each one line in Done, and takes Done cards past their 48 hours off the board:
-  one finished on 30 Sep stays through 2 Oct.
+- `soloagile archive` ran as this loaded (its result is above): finished cards' text is in
+  `pm/finished-cards.md`, and Done cards past their 48 hours are off the board.
 - Open questions become Needs your decision cards (the question as the title, one
   option per line, recommended first, an open option last) instead of going in QUESTIONS.md.
 - Every address created this session (site, port, artifact, doc, repo) is in

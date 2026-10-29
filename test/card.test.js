@@ -90,7 +90,7 @@ test('move: through the lanes, with the stage and the date each one carries', ()
 test('move: a wrong move is refused and says why', () => {
   refused(['move', '7', 'look'], /#7 has no "tested:" line; say what was checked first: soloagile card note 7 "tested: …"/);
   refused(['move', '3', 'next'], /#3 has no milestone; give it the closest one in pm\/plan\.md: soloagile card set 3 --milestone M3/);
-  refused(['move', '7', 'decision'], /#7 has no options to choose from/);
+  refused(['move', '7', 'decision'], /#7 needs at least two options.*--option/);
   refused(['move', '7', 'doing', 'testing'], /"testing" is not a stage; use design, develop, test or release/);
   refused(['move', '7', 'next', 'test'], /only a Doing card has a stage/);
   refused(['move', '7', 'waiting'], /there is no "waiting" lane; use ideas, next, doing, look, decision or done/);
@@ -201,7 +201,7 @@ test('reword and unnote change or remove one detail line, found by how it starts
   assert.equal(u.said, '#8: removed "not before 2026-10-27"');
   assert.ok(u.board.includes('- #8 Queued · M2 · 2 pts\n  done when: it is done\n\n'));
   refused(['reword', '8', 'tested', 'tested: x'], /#8 has no detail line starting "tested"; its lines start: done when: it is done/);
-  refused(['reword', '8', 'done when'], /say the new line/);
+  refused(['reword', '8', 'done when'], /say the start and the new line/);
   refused(['unnote', '8'], /say how the line starts/);
   const two = run(['note', '8', 'done when: again'], BOARD).board;
   refused(['unnote', '8', 'done'], /2 of #8's lines start "done"; say more of it/, two);
@@ -227,4 +227,25 @@ test('soloagile card drop writes the decision into pm/decisions.md', () => {
   const r = spawnSync(PM, ['card', 'drop', '8', 'not needed'], { cwd: repo, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   assert.match(readFileSync(join(repo, 'pm', 'decisions.md'), 'utf8'), /^## \d{4}-\d\d-\d\d · #8 dropped: Queued\n\*\*Why:\*\* not needed$/m);
+});
+
+test('move to decision can bring its options in the same step (#184)', () => {
+  const r = run(['move', '7', 'decision', '--option', 'Tabs (recommended)', '--option', 'Something else: tell Claude']);
+  assert.ok(r.board.includes('- #7 In hand · M2 · 3 pts · asked 2026-10-13\n  the short line\n  a) Tabs (recommended)\n  b) Something else: tell Claude\n'));
+  // Options already on the card keep their letters; new ones follow on.
+  const one = run(['note', '7', 'a) Tabs'], BOARD).board;
+  assert.ok(run(['move', '7', 'decision', '--option', 'Other'], one).board.includes('  a) Tabs\n  b) Other\n'));
+  refused(['move', '7', 'decision', '--option', 'Only one'], /needs at least two options/);
+  refused(['move', '7', 'look', '--option', 'x'], /--option is for a question or design going to decision/);
+});
+
+test('reword can change the title, and set takes --done-when (#185)', () => {
+  const t = run(['reword', '7', 'In hand', 'In hand, renamed']);
+  assert.ok(t.board.includes('- #7 In hand, renamed · M2 · 3 pts · develop\n  the short line\n'));
+  refused(['reword', '7', 'In hand'], /say the start and the new line.*set 7 --title/);
+  // A detail line that starts the same way still wins over the title.
+  assert.ok(run(['reword', '7', 'the', 'the new line']).board.includes('- #7 In hand · M2 · 3 pts · develop\n  the new line\n'));
+  const d = run(['set', '8', '--done-when', 'done when: it ships']);
+  assert.ok(d.board.includes('- #8 Queued · M2 · 2 pts\n  done when: it ships\n'));
+  assert.ok(run(['set', '7', '--done-when', 'it works']).board.includes('  the short line\n  done when: it works\n'));
 });
