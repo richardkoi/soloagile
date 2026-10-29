@@ -511,3 +511,25 @@ test('buildProject warns about a file:// address in links.md (#168)', () => {
   const { problems } = buildProject(repo, builtAt);
   assert.deepEqual(problems, ['links.md: file:///home/me/report.html is a file:// address, which opens only on this machine; serve it and link the http address instead']);
 });
+
+test('a milestone whose cards are all Done has no chip; its cards still show under Done (#183)', () => {
+  const day = (d) => d.toISOString().slice(0, 10);
+  const board = `# Board
+<!-- next-id: 9 -->
+## Ideas
+## Up next
+- #1 Write it · M1 · 2 pts
+  done when: written
+- #3 Plan it · M3 · 1 pt
+  done when: planned
+## Doing
+## Needs your look
+## Needs your decision
+## Done
+- #2 Finished · M2 · 1 pt · ${day(builtAt)}
+`;
+  const { html } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
+  const bar = html.match(/<div class="ms-filter"[^]*?<\/div>/)?.[0];
+  assert.deepEqual([...bar.matchAll(/data-ms="(M\d+)"/g)].map((m) => m[1]), ['M1', 'M3']);
+  assert.match(html, /<li class="card-x card-done" data-ms="M2" data-id="\d+">/, 'the finished card is still on the board');
+});

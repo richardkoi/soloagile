@@ -207,11 +207,12 @@ function recentlyDone(builtAt) {
 // a card's number and Enter opens it. The finding is done by template/refresh.html.
 const FIND_BOX = '<div class="card-find"><input type="search" placeholder="Find a card: words, or #12 and Enter" aria-label="Find a card" autocomplete="off"><span class="card-find-note" aria-live="polite"></span></div>';
 
-// The milestone filter: an All chip, then one chip per milestone that has a card on the
-// board, in plan order. A click shows only that milestone's cards; the page's script does
+// The milestone filter: an All chip, then one chip per milestone that has an open card on
+// the board, in plan order. A milestone whose cards are all Done loses its chip at once,
+// though its cards stay under Done for their 48 hours (#183). A click shows only that milestone's cards; the page's script does
 // it and remembers the pick (template/refresh.html). One milestone or none needs no filter.
 function renderFilter(cards, shorts) {
-  const present = new Set(cards.map(({ card }) => card.milestone).filter(Boolean));
+  const present = new Set(cards.filter(({ column }) => column !== 'Done').map(({ card }) => card.milestone).filter(Boolean));
   const order = [...Object.keys(shorts), ...[...present].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))];
   const ids = [...new Set(order)].filter((id) => present.has(id));
   if (ids.length < 2) return '';
