@@ -68,3 +68,7 @@ test('each project keeps its checks under ## Checks in pm/overview.md; the rules
     assert.match(readFileSync(join(ROOT, file), 'utf8'), /`## Checks`/, `${file} points at the checks list`);
   }
 });
+
+test('the retro skill reads a card\'s commits with soloagile card <number> (#172)', () => {
+  assert.match(readFileSync(join(ROOT, 'skills/retro/SKILL.md'), 'utf8'), /`soloagile card <number>`/);
+});

@@ -32,7 +32,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
 import { buildProject } from '../src/build.js';
-import { CARD_USAGE, MILESTONE_CARDS, Refused, addDecision, milestoneCount, runCard } from '../src/card.js';
+import { CARD_USAGE, MILESTONE_CARDS, Refused, addDecision, cardCommits, milestoneCount, runCard } from '../src/card.js';
 import { addPicture } from '../src/design.js';
 import { isPmProject, runHook } from '../src/hook.js';
 import { buildAll, buildHome } from '../src/home.js';
@@ -365,9 +365,15 @@ if (cmd === 'card') {
   const read = (f) => (existsSync(resolve(here, 'pm', f)) ? readFileSync(resolve(here, 'pm', f), 'utf8') : '');
   try {
     if (!existsSync(file)) throw new Refused(`no pm/board.md in ${here}; run this in the project's folder`);
-    const r = runCard(argv, { board: read('board.md'), plan: read('plan.md'), archive: readArchive(here), today: localDate() });
+    // A bare number shows the card in full, then the commits that name it.
+    const bare = /^#?\d+$/.test(argv[0]);
+    const r = runCard(bare ? ['show', argv[0].replace('#', '')] : argv, { board: read('board.md'), plan: read('plan.md'), archive: readArchive(here), today: localDate() });
     if (r.print) {
       process.stdout.write(r.print);
+      if (bare) {
+        const log = spawnSync('git', ['log', '--date=short', '--format=%ad %h %s'], { cwd: here, encoding: 'utf8' }).stdout ?? '';
+        process.stdout.write(cardCommits(log, Number(argv[0].replace('#', ''))));
+      }
       process.exit(0);
     }
     writeFileSync(file, r.board);

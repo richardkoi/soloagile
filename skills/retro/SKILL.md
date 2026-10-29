@@ -25,7 +25,8 @@ the card and stop: a retro closes a finished milestone.
 **Read** before drafting: the milestone's cards and their detail lines, which
 `soloagile finished <milestone>` prints in full (such as `soloagile finished M7`), its entries in
 `pm/decisions.md` and `pm/releases.md`, the commits above, and the "NOT verified" list
-in `NEXT_SESSION.md`.
+in `NEXT_SESSION.md`. For a card whose commits you need, `soloagile card <number>` prints
+the card and every commit that names it.
 
 **Draft** four parts from what you read. Each point is one plain line of twelve words or
 fewer, and comes from something that happened, not a general truth:

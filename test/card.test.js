@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './isolate.js';
 import { parseBoard } from '../src/board.js';
-import { Refused, addDecision, runCard } from '../src/card.js';
+import { Refused, addDecision, runCard, cardCommits } from '../src/card.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const PLAN = '# Demo\n## Milestones\n### M1 — Start · done 2026-10-01\n### M2 — Now · in progress\n';
@@ -250,4 +250,10 @@ test('reword can change the title, and set takes --done-when (#185)', () => {
   const d = run(['set', '8', '--done-when', 'done when: it ships']);
   assert.ok(d.board.includes('- #8 Queued · M2 · 2 pts\n  done when: it ships\n'));
   assert.ok(run(['set', '7', '--done-when', 'it works']).board.includes('  the short line\n  done when: it works\n'));
+});
+
+test('cardCommits lists the commits that name a card, not a longer number (#172)', () => {
+  const log = '2026-10-29 aaa111 Two cards at once (#17, #172)\n2026-10-28 bbb222 Only #1720\n2026-10-27 ccc333 Start #172\n';
+  assert.equal(cardCommits(log, 172), 'Commits:\n- 2026-10-29 aaa111 Two cards at once (#17, #172)\n- 2026-10-27 ccc333 Start #172\n');
+  assert.equal(cardCommits(log, 9), 'Commits: none name this card\n');
 });

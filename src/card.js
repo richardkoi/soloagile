@@ -318,7 +318,8 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
   soloagile card unnote <number> "<start>"          remove the detail line that starts so
   soloagile card drop <number> "<why>"              take it off the board; the reason goes in decisions.md
   soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"] [--done-when "…"]
-  soloagile card show <number>                      the card in full, finished or not`;
+  soloagile card show <number>                      the card in full, finished or not
+  soloagile card <number>                           the card in full, and the commits its work made`;
 
 // Runs one command against the files' text. Returns { board, said, column } for a change,
 // or { print } for `show`.
@@ -337,6 +338,14 @@ export function milestoneCount(boardMd, archiveMd, milestone) {
 
 // A milestone holds about this many cards at most (the milestone-size habit).
 export const MILESTONE_CARDS = 15;
+
+// The commits a card's work made: lines of `git log --format='%ad %h %s'` that name it as
+// #<id>, not as the start of a longer number. One commit can name several cards.
+export function cardCommits(log, id) {
+  const named = new RegExp(`#${id}(?!\\d)`);
+  const lines = log.split('\n').filter((l) => named.test(l));
+  return lines.length ? `Commits:\n${lines.map((l) => `- ${l}`).join('\n')}\n` : 'Commits: none name this card\n';
+}
 
 export function runCard(argv, { board, plan, archive, today }) {
   const { verb, args } = parseCardArgs(argv);

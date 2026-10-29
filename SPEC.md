@@ -284,7 +284,8 @@ The six columns, always in this order and always present, even when empty:
     moves, after any the card has.
   - `soloagile card note <number> "<line>"` adds a detail line, first with `--first`.
     `soloagile card set <number>` changes the milestone, points, guess, title or `done when:` line.
-    `soloagile card show <number>` prints one card in full, finished or not.
+    `soloagile card show <number>` prints one card in full, finished or not; `soloagile card
+    <number>` prints it too, then every commit whose subject names it, such as `(#12)`.
   - `soloagile card choose <number> <letter>` records the user's pick on a question or
     design card. Its a/b/c lines become one line, where the first option was:
     `chosen <today>: c) words light the matching cards`. It refuses a letter the card
