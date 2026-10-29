@@ -55,3 +55,9 @@ test('the rules and the spec keep board upkeep cheap (M20)', () => {
     assert.match(text, /card note is one short line[^.]*100 characters[^.]*commit message/i, `${file}: short card notes (#178)`);
   }
 });
+
+test('tested: says what ran, not tested: says what didn\'t, in the rules, SPEC and save (#166)', () => {
+  for (const file of ['rules.md', 'SPEC.md', 'skills/save/SKILL.md']) {
+    assert.match(readFileSync(join(ROOT, file), 'utf8'), /`not tested:`/, `${file} names the not tested: line`);
+  }
+});

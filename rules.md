@@ -39,7 +39,8 @@ in `pm/`. Follow these rules while you work here.
   design card in Needs your decision with options and ask; for anything visual, give each
   option a picture with `soloagile design <n> <letter> <mock-up.html>`.
 - **Develop**: if the build departs from the option the user picked, say so at once.
-- **Test**: run the checks, and write a `tested:` line on the card. For anything in a
+- **Test**: run the checks, and write a `tested:` line saying only what ran; what didn't
+  goes on a `not tested:` line. For anything in a
   browser, run `soloagile shots <url>` and read its pictures; the phone shots are taken
   before the card moves to Needs your look. A new chart is checked on a busy project too.
   A new skill is run once for real, and its `tested:` line says what it did.

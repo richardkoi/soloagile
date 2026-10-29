@@ -537,6 +537,8 @@ stay as they are; the stage says how far round a card is.
   to Needs your look, so the page and the repo never disagree about what is built.
 - **A card reaches Needs your look with a `tested:` detail line** saying what was
   checked, such as `tested: 89 checks pass; seen at desktop and 360px, dark and light`.
+  It names only what ran. What was left unchecked goes on its own `not tested:` line,
+  such as `not tested: on the real phone`, never folded into the `tested:` line.
   `soloagile build` reports a look that has none, and the rebuild hook shows that to Claude, so
   a card can't reach the user untested by mistake. Looks that went live before the check
   began, on 2026-10-03, are left alone.

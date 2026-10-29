@@ -49,7 +49,8 @@ context can pick this up cold. It must contain, in this order:
 2. **Where we are.** What this project is, and what state it's actually in right now.
 3. **What changed this session.** Concrete: files, decisions, what was proven to work.
 4. **What is NOT verified.** Anything shipped without a passing check, anything the
-   user said they'd test and didn't. Be explicit — this is the part that costs time later.
+   user said they'd test and didn't, and every card's `not tested:` line. Be explicit —
+   this is the part that costs time later.
 5. **What's next**, as a numbered list, one sentence each, plain English. With a
    board, this is one line pointing at it instead: the tasks live only there.
 6. **How to run and test it** — the exact commands, including env quirks.
