@@ -12,3 +12,6 @@ NEXT_SESSION.md
 
 # Helpers' copies of the code (Claude Code worktrees)
 .claude/worktrees/
+
+# Eval runs: claude plugin eval writes its reports here
+evals/results/
