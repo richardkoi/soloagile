@@ -13,3 +13,5 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 9. When a card makes a standing rule out of date, remove that rule in the same card. (From retro of M18, #174.)
 10. Commit only when the tests pass: chain the commit on the test command's own exit code, never on a grep of its output. (From retro of M20 and M23, #186.)
 11. Before measuring against a bar, write in the done when exactly what the measure counts. (From retro of M20 and M23, #179.)
+12. Before building a card, check that an earlier card or standing rule doesn't already cover it. (From retro of M10 and M22, #173.)
+13. Run the trigger tests (claude plugin eval) before each release. (From retro of M10 and M22, #169.)
