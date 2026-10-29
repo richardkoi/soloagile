@@ -231,7 +231,7 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   plan.md        goal, out of scope, milestones
   board.md       the kanban board
   releases.md    release notes, newest first
-  overview.md    what it is, how to run it, how it's built (about 60 lines max)
+  overview.md    what it is, how to run it, how it's built, its checks (about 60 lines max)
   decisions.md   decisions the user made, newest first
   links.md       every address Claude creates: sites, IPs and ports, artifacts, repos
   history.md     every card move, with its time. Written by `soloagile build`; never edit by hand
@@ -488,7 +488,7 @@ stay as they are; the stage says how far round a card is.
 | **Plan** | Writes the card: a title, points, a milestone (an idea too) and a "done when" line. When a plan leans on a fact from docs, tries it for real first. When a milestone can only be proven in a special set-up, such as a clean machine, makes setting that up its first card. | Says what they want, and picks what's next. | Ideas, Up next |
 | **Design** | Settles the approach before any code. 1 or 2 points: says it in one line and carries on. 3 points or more: moves the card to Needs your decision as a design card and asks the user. For anything visual, each option gets a real picture on the card, made with `soloagile design`. | For 3 points or more: says yes, or what to change. | Doing. Needs your decision while a design waits for the user's yes |
 | **Develop** | Builds it. If the build departs from the option the user picked, says so at once, not at their look. | Nothing. | Doing |
-| **Test** | Runs the project's checks. For anything seen in a browser, then runs `soloagile shots <url>` and reads its four screenshots: desktop and phone width (360px), dark and light, taking the phone shots before the card moves to Needs your look. To open a pop-up, fill in a box or press a key first, adds `--click`, `--type` and `--press`. Uses a real browser only for what that can't do, such as dragging. Fixes what turns up, and writes a `tested:` line on the card. | Nothing: a card reaches them already tested. | Doing |
+| **Test** | Runs the project's checks, the commands listed under `## Checks` in `pm/overview.md`. For anything seen in a browser, then runs `soloagile shots <url>` and reads its four screenshots: desktop and phone width (360px), dark and light, taking the phone shots before the card moves to Needs your look. To open a pop-up, fill in a box or press a key first, adds `--click`, `--type` and `--press`. Uses a real browser only for what that can't do, such as dragging. Fixes what turns up, and writes a `tested:` line on the card. | Nothing: a card reaches them already tested. | Doing |
 | **Release** | Commits the card's work, without waiting to be asked, before the card moves to Needs your look. Deploys where the project has a server, and writes the release note. | Says "deploy" or "ship it" for a server. "commit" still works at any time. | Doing, until it's live |
 | **Feedback** | Asks for the user's look on the card. When the milestone's last card is approved, runs `/soloagile:retro`: open questions, what worked, what to change, what's next. | Looks, and says yes or what to fix. Answers the retro. | Needs your look, then Done |
 

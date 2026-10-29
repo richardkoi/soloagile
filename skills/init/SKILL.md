@@ -59,7 +59,8 @@ they or the project's CLAUDE.md name (it may live outside the repo), `README.md`
   newest first, ten at most.
 - `pm/links.md`: the live site, the repo, local addresses and ports, and any artifact
   or doc those files name.
-- `pm/overview.md`: what it is, how to run it and how it's built, from the README.
+- `pm/overview.md`: what it is, how to run it and how it's built, from the README, and
+  under `## Checks` the commands that test it (from the README, package.json, the handoff).
 
 Then make the board the only task list:
 - `NEXT_SESSION.md` shrinks to a short note that points at the board. Take out its

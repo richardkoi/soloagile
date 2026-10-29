@@ -386,7 +386,7 @@ function renderReleases(md) {
   );
 }
 
-const OVERVIEW_ICONS = { 'What it is': 'info', 'How to run it': 'terminal', "How it's built": 'wrench' };
+const OVERVIEW_ICONS = { 'What it is': 'info', 'How to run it': 'terminal', "How it's built": 'wrench', Checks: 'list-todo' };
 const LINK_SECTION_ICONS = {
   'This page': 'layout-dashboard', Live: 'globe', Local: 'server', Code: 'git-branch',
   Artifacts: 'file-text', References: 'book-marked', Phone: 'smartphone',

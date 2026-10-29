@@ -61,3 +61,10 @@ test('tested: says what ran, not tested: says what didn\'t, in the rules, SPEC a
     assert.match(readFileSync(join(ROOT, file), 'utf8'), /`not tested:`/, `${file} names the not tested: line`);
   }
 });
+
+test('each project keeps its checks under ## Checks in pm/overview.md; the rules and commit skill point there (#167)', () => {
+  assert.match(readFileSync(join(ROOT, 'starter/pm/overview.md'), 'utf8'), /^## Checks$/m);
+  for (const file of ['rules.md', 'skills/commit/SKILL.md', 'skills/init/SKILL.md']) {
+    assert.match(readFileSync(join(ROOT, file), 'utf8'), /`## Checks`/, `${file} points at the checks list`);
+  }
+});

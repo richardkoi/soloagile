@@ -17,8 +17,9 @@ Do this in order, and stop at the first thing that fails:
 1. **Read the actual diff.** Not the file list — the diff. Flag anything that
    doesn't belong in this commit: debug prints, commented-out code, secrets, a
    stray refactor. Say what you found before proceeding.
-2. **Run the project's checks.** Find them yourself — `pytest`, `npm test`,
-   `tsc --noEmit`, `ruff`, whatever this repo actually uses. If there are none,
+2. **Run the project's checks.** The ones listed under `## Checks` in `pm/overview.md`
+   come first. With none listed, find them yourself — `pytest`, `npm test`,
+   `tsc --noEmit`, `ruff`, whatever this repo actually uses, and add them to that list. If there are none,
    say so plainly rather than skipping quietly. Report real output. Do not
    commit over failing checks unless the user tells you to.
 3. **Update the board**, if the project has `pm/board.md`: a card this commit
