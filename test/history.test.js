@@ -124,7 +124,7 @@ test('the first build fills in earlier days from git', () => {
 
 test('soloagile build writes the log, and the page is still up to date after it', () => {
   const repo = project();
-  writeFileSync(join(repo, 'pm', 'board.md'), board({ 'Up next': ['#1 A card · M1 · 3 pts'] }));
+  writeFileSync(join(repo, 'pm', 'board.md'), board({ 'Up next': ['#1 A card · M1 · 3 pts\n  done when: it shows'] }));
   const { problems } = buildProject(repo, at(14, 31));
   assert.deepEqual(problems, []);
   assert.deepEqual(lines(repo), ['- 2026-10-02 14:31 · Up next · #1 A card · M1 · 3 pts']);

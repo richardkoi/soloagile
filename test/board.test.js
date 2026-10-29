@@ -184,3 +184,13 @@ test('reads a guessed build time after the points, in minutes or hours', () => {
   assert.equal(parseCardLine('#9 No guess · M1 · 2 pts').guess, null);
   assert.deepEqual([5, 40, 119, 120, 150, 200].map(guessText), ['~5 min', '~40 min', '~119 min', '~2 h', '~2.5 h', '~3.5 h']);
 });
+
+test('an Up next or Doing card with points and no done when: is reported; questions and designs are not (#168)', () => {
+  const board = (upNext, doing = '') =>
+    parseBoard(`# Board\n<!-- next-id: 9 -->\n## Ideas\n- #5 Some day · M1 · 2 pts\n## Up next\n${upNext}## Doing\n${doing}## Needs your look\n## Needs your decision\n## Done\n`).problems;
+  assert.deepEqual(board('- #1 Build it · M1 · 2 pts\n'), ['board.md: card #1 has no "done when:" line; add one: soloagile card set 1 --done-when "…"']);
+  assert.deepEqual(board('', '- #2 Build it · M1 · 3 pts · develop\n'), ['board.md: card #2 has no "done when:" line; add one: soloagile card set 2 --done-when "…"']);
+  assert.deepEqual(board('- #1 Build it · M1 · 2 pts\n  done when: the page shows it\n'), []);
+  assert.deepEqual(board('- #3 Which colour? · M1\n'), [], 'a question has no points and no done when');
+  assert.deepEqual(board('', '- #4 Pick a look · M1 · 3 pts · design\n'), [], 'a design card is done when the user picks');
+});

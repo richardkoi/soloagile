@@ -89,6 +89,12 @@ const TESTED_SINCE = '2026-10-03';
 const untested = (card, column) =>
   column === 'Needs your look' && !(card.date?.value < TESTED_SINCE) && !card.details.some((d) => d.startsWith('tested:'));
 
+// A card being built, or next up, says what done means (#168). A question (no points) and a
+// card in its design stage are left out: their answer is the done.
+const noDoneWhen = (card, column) =>
+  (column === 'Up next' || column === 'Doing') && card.points !== null && card.stage !== 'design' &&
+  !card.details.some((d) => /^done when:/i.test(d));
+
 export function parseBoard(md) {
   const columns = [];
   let nextId = null;
@@ -141,6 +147,7 @@ function checkBoard(columns, nextId) {
       if (c.stage && !(col.name === 'Doing' && DOING_STAGES.includes(c.stage)) && !isDesign(c, col.name)) {
         problems.push(`board.md: card #${c.id} is marked "${c.stage}"; only a Doing card carries a stage: ${DOING_STAGES.slice(0, -1).join(', ')} or ${DOING_STAGES.at(-1)}`);
       }
+      if (noDoneWhen(c, col.name)) problems.push(`board.md: card #${c.id} has no "done when:" line; add one: soloagile card set ${c.id} --done-when "…"`);
       if (untested(c, col.name)) problems.push(`board.md: card #${c.id} waits for the user's look with no "tested:" line; add one saying what was checked`);
       if (c.points !== null && !SCALE.includes(c.points)) {
         problems.push(`board.md: card #${c.id} has ${c.points} pts; use ${SCALE.slice(0, -1).join(', ')} or ${SCALE.at(-1)}`);

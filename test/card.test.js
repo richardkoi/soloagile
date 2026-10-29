@@ -34,6 +34,8 @@ const BOARD = `# Board
 `;
 const ARCHIVE = '# Finished cards, in full\n\n- #6 Finished · M2 · 1 pt · 2026-10-13\n  what was built\n  tested: 4 pass\n- #2 Long gone · M1 · 2026-10-01\n';
 const today = '2026-10-13';
+// The fixture's own known faults: #3 has no milestone, #7 no done when.
+const known = (p) => !p.includes('#3') && !p.includes('#7 has no "done when');
 const run = (words, board = BOARD) => runCard(words, { board, plan: PLAN, archive: ARCHIVE, today });
 const refused = (words, why, board = BOARD) => assert.throws(() => run(words, board), (e) => e instanceof Refused && why.test(e.message), words.join(' '));
 const lane = (board, name) => parseBoard(board).columns.find((c) => c.name === name).cards;
@@ -43,7 +45,7 @@ test('add: a new card gets the next number, its milestone, points and finish lin
   assert.equal(r.said, 'added #9 to Up next');
   assert.ok(r.board.includes('<!-- next-id: 10 -->'));
   assert.ok(r.board.includes('  done when: it is done\n- #9 Night vision mode · M2 · 3 pts\n  asked today\n  done when: seen at night\n\n## Doing'));
-  assert.deepEqual(parseBoard(r.board).problems.filter((p) => !p.includes('#3')), []);
+  assert.deepEqual(parseBoard(r.board).problems.filter(known), []);
 });
 
 test('add: other lanes; an idea needs no finish line, a question has options and no points', () => {
@@ -84,7 +86,7 @@ test('move: through the lanes, with the stage and the date each one carries', ()
   const done = run(['move', '8', 'done'], look.board);
   assert.equal(done.column, 'Done');
   assert.ok(done.board.includes('- #8 Queued · M2 · 2 pts · 2026-10-13\n'));
-  assert.deepEqual(parseBoard(look.board).problems.filter((p) => !p.includes('#3')), []);
+  assert.deepEqual(parseBoard(look.board).problems.filter(known), []);
 });
 
 test('move: a wrong move is refused and says why', () => {
@@ -114,7 +116,7 @@ test('note, set and show', () => {
   refused(['note', '7'], /say what to note/);
   const set = run(['set', '3', '--milestone', 'M2', '--points', '5', '--title', 'An idea, placed']);
   assert.ok(set.board.includes('- #3 An idea, placed · M2 · 5 pts\n'));
-  assert.deepEqual(parseBoard(set.board).problems, []);
+  assert.deepEqual(parseBoard(set.board).problems.filter(known), []);
   refused(['set', '3'], /say what to set/);
   refused(['set', '3', '--milestone', 'M7'], /pm\/plan\.md has no M7/);
   assert.equal(run(['show', '7']).print, 'Doing\n- #7 In hand · M2 · 3 pts · develop\n  the short line\n');
@@ -143,7 +145,7 @@ test('the command writes the board and the page, archives a finished card, and w
   mkdirSync(join(repo, 'pm'));
   const d = new Date();
   const now = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  writeFileSync(join(repo, 'pm', 'board.md'), BOARD.replace('- #3 An idea with no milestone · 2 pts', '- #3 An idea · M2 · 2 pts').replaceAll('2026-10-13', now));
+  writeFileSync(join(repo, 'pm', 'board.md'), BOARD.replace('- #3 An idea with no milestone · 2 pts', '- #3 An idea · M2 · 2 pts').replace('  the short line\n', '  the short line\n  done when: it works\n').replaceAll('2026-10-13', now));
   writeFileSync(join(repo, 'pm', 'plan.md'), PLAN);
   const card = (...args) => spawnSync(PM, ['card', ...args], { cwd: repo, encoding: 'utf8' });
   const board = () => readFileSync(join(repo, 'pm', 'board.md'), 'utf8');
@@ -167,8 +169,8 @@ test('the command writes the board and the page, archives a finished card, and w
   assert.match(done.stdout, /#7 is in Done\nsoloagile: 2 finished cards are in pm\/finished-cards\.md/, "#6 had no entry yet, so it is kept too");
   assert.ok(board().includes(`- #7 In hand · M2 · 3 pts · ${now}\n`));
   assert.ok(!board().includes('tested: 3 pass'));
-  assert.ok(readFileSync(join(repo, 'pm', 'finished-cards.md'), 'utf8').includes('  the short line\n  tested: 3 pass\n'));
-  assert.match(card('show', '7').stdout, /^Done\n- #7 .*\n  the short line\n  tested: 3 pass\n/);
+  assert.ok(readFileSync(join(repo, 'pm', 'finished-cards.md'), 'utf8').includes('  the short line\n  done when: it works\n  tested: 3 pass\n'));
+  assert.match(card('show', '7').stdout, /^Done\n- #7 .*\n  the short line\n  done when: it works\n  tested: 3 pass\n/);
   assert.match(card().stdout, /soloagile card add "<title>"/);
   assert.match(card().stdout, /soloagile card choose <number> <letter>/);
 });

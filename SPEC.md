@@ -543,6 +543,11 @@ stay as they are; the stage says how far round a card is.
   a card can't reach the user untested by mistake. Looks that went live before the check
   began, on 2026-10-03, are left alone.
 
+- **`soloagile build` warns about two more slips**, shown to Claude the same way: an Up next
+  or Doing card with points and no `done when:` line (a question, and a card in its design
+  stage, are left out), and a `file://` address in `links.md`, which opens only on this
+  machine.
+
 - **`/soloagile:retro` closes a milestone.** Claude drafts a few points under each part from the
   milestone's cards, decisions and commits, and the user picks, with room for their own. Open
   questions are asked first, one by one. The retro is saved in `decisions.md`; each

@@ -58,6 +58,11 @@ export function buildProject(repoPath, builtAt = new Date()) {
   writeFileSync(out, page.html);
   const mb = Buffer.byteLength(page.html) / 1024 / 1024;
   if (mb > PAGE_WARN_MB) problems.push(`index.html is ${mb.toFixed(1)} MB: a page over ${PAGE_WARN_MB} MB is slow to open; look for what is filling it, such as a long decisions.md`);
+  // A file:// address opens only on this machine, never from a phone or another computer (#168).
+  for (const line of md.links.split('\n')) {
+    const file = line.match(/\]\((file:[^)\s]*)/);
+    if (file) problems.push(`links.md: ${file[1]} is a file:// address, which opens only on this machine; serve it and link the http address instead`);
+  }
   writeStamp(out, builtAt);
   return { out, problems: [...problems, ...page.problems] };
 }

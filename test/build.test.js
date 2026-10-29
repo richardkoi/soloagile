@@ -502,3 +502,12 @@ test('Ideas and Done have a fold button, and the page remembers which are folded
   }
   assert.match(html, /'soloagile-fold:' \+ location\.pathname/);
 });
+
+test('buildProject warns about a file:// address in links.md (#168)', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-test-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), md.board);
+  writeFileSync(join(repo, 'pm', 'links.md'), '# Links\n\n## Local\n- [The report](file:///home/me/report.html) · added 2026-10-29\n- [Dev server](http://localhost:5173) · added 2026-10-29\n');
+  const { problems } = buildProject(repo, builtAt);
+  assert.deepEqual(problems, ['links.md: file:///home/me/report.html is a file:// address, which opens only on this machine; serve it and link the http address instead']);
+});
