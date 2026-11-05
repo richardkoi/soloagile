@@ -159,15 +159,18 @@ test('soloagile session-end commits and pushes to the upstream', async () => {
   assert.equal(git(remote, 'rev-parse', 'main').stdout.trim(), head);
 });
 
-test('start: a busy board still fits under Claude Code\'s 10,000-character limit, rules whole (#177)', () => {
+test('start: a busy board stays under 9,500 characters, inside Claude Code\'s 10,000 limit, rules whole (#177, #181)', () => {
   const long = (n) => `- #${n} A card with a long title that goes on about the far overcast sheet near the horizon, left by #${n - 1} · M1 · 3 pts`;
   const busy = BOARD.replace('- #2 Next thing · M1', Array.from({ length: 40 }, (_, i) => long(100 + i)).join('\n'))
     .replace('- #4 Look at this · M1 · built 2026-09-30', Array.from({ length: 6 }, (_, i) => long(200 + i).replace('3 pts', 'live 2026-09-30')).join('\n'));
   const { context } = startSummary(pmProject(busy));
-  assert.ok(context.length < 10000, `start text is ${context.length} characters`);
+  assert.ok(context.length < 9500, `start text is ${context.length} characters; keep it under 9,500 (standing rule 8)`);
   assert.match(context, /The format of every file, and each rule in full/, 'the rules arrive whole');
   assert.match(context, /- #205 A card/, 'every look stays');
   assert.match(context, /- #100 A card/, 'Up next starts at its top');
+  // The budget trims Up next, so growing rules would show here as fewer cards, not as overflow.
+  const shown = context.match(/^- #1\d\d A card/gm).length;
+  assert.ok(shown >= 10, `only ${shown} Up next cards fit beside the rules: trim the rules (standing rule 8)`);
   assert.match(context, /…and \d+ more in Up next: soloagile board/, 'says what was left out');
   assert.match(context, /run the soloagile:catchup skill/, 'the last line stays');
 });
