@@ -2,7 +2,8 @@
 # Usage: tools/release.sh <version> "<what it brings>"
 #   e.g. tools/release.sh 1.20.0 "rule --remove and a release warning"
 # Releases soloagile: runs every check, stops at the first failure, then bumps the version
-# in package.json and .claude-plugin/plugin.json, commits, pushes, and updates the
+# in package.json and .claude-plugin/plugin.json, commits, pushes, tags v<version> and
+# publishes it as a GitHub release with its note from pm/releases.md, and updates the
 # installed plugin. Pages rebuild by themselves at each project's next session start, so
 # there is no build-all. Write the release note in pm/releases.md first.
 set -euo pipefail
@@ -29,6 +30,11 @@ if [[ -f pm/releases.md ]] && ! grep -q "soloagile $version" pm/releases.md; the
   exit 2
 fi
 
+if ! gh auth status >/dev/null 2>&1; then
+  echo "release: gh isn't signed in, so the GitHub release can't be made (gh auth login)" >&2
+  exit 2
+fi
+
 echo "release: tests"
 node --test >/dev/null
 echo "release: plugin validate"
@@ -51,6 +57,11 @@ done
 git add package.json .claude-plugin/plugin.json
 git commit -q -m "soloagile $version: $what"
 git push -q origin main
+git tag "v$version"
+git push -q origin "v$version"
+note=$(tools/release-note.sh "$version" 2>/dev/null || echo "$what")
+gh release create "v$version" --title "soloagile $version" --notes "$note" >/dev/null
+echo "release: GitHub release v$version is published"
 claude plugin marketplace update soloagile
 claude plugin update soloagile@soloagile
 echo "release: soloagile $version is pushed and installed; restart Claude Code to use it"
