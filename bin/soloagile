@@ -32,7 +32,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
 import { buildProject } from '../src/build.js';
-import { boardJson } from '../src/json.js';
+import { boardJson, cardPictures } from '../src/json.js';
 import { CARD_USAGE, MILESTONE_CARDS, Refused, addDecision, cardCommits, milestoneCount, runCard } from '../src/card.js';
 import { addPicture } from '../src/design.js';
 import { isPmProject, runHook } from '../src/hook.js';
@@ -198,7 +198,7 @@ if (cmd === 'board') {
   const read = (f) => (existsSync(join(dir, 'pm', f)) ? readFileSync(join(dir, 'pm', f), 'utf8') : '');
   const planMd = read('plan.md');
   const name = parsePlan(planMd).title || basename(dir);
-  const text = `${JSON.stringify(boardJson({ boardMd, planMd, archiveMd: readArchive(dir), name, today: localDate(), page: pageUrl(dir) }), null, 2)}\n`;
+  const text = `${JSON.stringify(boardJson({ boardMd, planMd, archiveMd: readArchive(dir), name, today: localDate(), page: pageUrl(dir), pictures: cardPictures(join(dir, 'pm'), pageUrl(dir)) }), null, 2)}\n`;
   // Wait until it is all written: into a non-blocking pipe, such as Herdr's, Node writes a
   // big output in pieces, and process.exit before the last one cuts it off at 64 KB.
   await new Promise((done) => process.stdout.write(text, done));

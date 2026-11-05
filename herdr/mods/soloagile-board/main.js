@@ -3,9 +3,9 @@
 // Shows the next move, what waits on you, Doing, Up next and the milestones being worked
 // on. Click a card for its full text. All of it comes from `soloagile board --json`, so a
 // change to soloagile's Markdown never breaks this panel.
-import { View, div } from "gpui-kit";
+import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { focused, spaces, agents, exec, run, watchFolder, theme, props, closeOverlay } from "herdr";
+import { focused, spaces, agents, exec, run, watchFolder, theme, props, closeOverlay, appHome, settings } from "herdr";
 
 const UP_NEXT = 5; // Up next cards shown; the rest are on the page.
 
@@ -16,6 +16,15 @@ const FIND = `command -v soloagile || ls -d "$HOME"/.claude/plugins/cache/soloag
 
 const lane = (j, name) => j.lanes.find((l) => l.name === name)?.cards ?? [];
 
+// Opens an address or a file in the desktop's own program: a link in the browser, a
+// picture full size.
+// image() reads only from Herdr's own folder, so a card's pictures are copied into
+// data/soloagile-board/pictures there (cp -u: only new or changed ones), named after their path.
+const PICTURES = "data/soloagile-board/pictures";
+const copyName = (file) => file.replace(/^\/+/, "").replace(/\//g, "_");
+
+const openIt = (what) => exec("xdg-open", [what]).catch(() => {});
+
 export default class SoloagileBoard extends View {
   init(_props, cx) {
     this.root = null;  // the project folder shown
@@ -23,6 +32,7 @@ export default class SoloagileBoard extends View {
     this.data = null;  // the board's JSON, or { none: "why" }
     this.open = {};    // card id -> expanded
     this.cwd = undefined;
+    this.width = 380; // the panel's width, for sizing pictures
     this.follow(cx);
     // Spaces change without the files changing: check which project is shown.
     cx.timer.every(1000, (cx) => this.follow(cx));
@@ -94,6 +104,7 @@ export default class SoloagileBoard extends View {
           else {
             try { data = JSON.parse(r.stdout); } catch { data = { none: "soloagile gave something unreadable." }; }
             if (data.lanes === undefined) data = { none: "This soloagile is too old for the panel: update it to 1.18.0 or later." };
+            else if (!on) await this.copyPictures(data);
           }
         }
         if (root === this.root) { this.data = data; cx.notify(); }
@@ -101,6 +112,16 @@ export default class SoloagileBoard extends View {
         this.loading = false;
       }
     });
+  }
+
+  // Copies the pictures of the cards shown into Herdr's folder, and marks each with its copy.
+  async copyPictures(data) {
+    const pics = data.lanes.filter((l) => l.name !== "Ideas").flatMap((l) => l.cards.flatMap((c) => c.pictures ?? []));
+    if (!pics.length) return;
+    const dir = `${appHome()}/${PICTURES}`;
+    const r = await exec("sh", ["-c", 'mkdir -p "$1" && shift && for f; do cp -u "$f" "$0/$(printf %s "$f" | sed "s#^/*##; s#/#_#g")" || exit 1; done', dir, dir, ...pics.map((p) => p.file)])
+      .catch(() => null);
+    if (r && r.code === 0) for (const p of pics) p.shown = `${PICTURES}/${copyName(p.file)}`;
   }
 
   // "What needs me": types /soloagile:needs into Claude in this space, or starts Claude
@@ -151,10 +172,15 @@ export default class SoloagileBoard extends View {
 
     const footer = d && !d.none && d.page
       ? h_flex().px(14).py(10).border_t(1).border_color(t.border)
-          .child(this.button(t, "sb-page", "Open the project's page", () => exec("xdg-open", [d.page]).catch(() => {})))
+          .child(this.button(t, "sb-page", "Open the project's page", () => openIt(d.page)))
       : null;
 
     return v_flex().id("sb-root").size_full().bg(t.surface).text_size(13)
+      // The size comes in screen pixels; the layout is in pixels before Herdr's zoom.
+      .on_size_change((size, cx) => {
+        const width = size.width / (settings()?.zoom || 1);
+        if (Math.abs(width - this.width) > 1) { this.width = width; cx.notify(); }
+      })
       .child(header)
       .child(v_flex().id("sb-scroll").flex_1().overflow_y_scrollbar().p(14).child(body))
       .when(Boolean(footer), (el) => el.child(footer));
@@ -192,7 +218,13 @@ export default class SoloagileBoard extends View {
       c.milestone,
       c.points ? `${c.points} pt${c.points === 1 ? "" : "s"}` : null,
       c.kind ? null : c.stage === "plan" ? null : c.stage,
+      c.pictures?.length > 1 ? `${c.pictures.length} pictures` : null,
     ].filter(Boolean).join(" · ");
+    // The room beside the colour stripe: the panel less its padding, the card's padding,
+    // borders, the stripe and the gap.
+    const room = Math.max(120, this.width - 28 - 16 - 2 - 3 - 8);
+    // Closed, a card shows its first picture; open, all of them, its links and its picture page.
+    const pictures = open ? c.pictures ?? [] : (c.pictures ?? []).slice(0, 1);
     return h_flex().id(`sb-card-${c.id}`).items_start().gap(8).p(8).rounded(6).bg(t.background)
       .border_1().border_color(t.border)
       .hover((s) => s.bg(t.hover))
@@ -203,10 +235,34 @@ export default class SoloagileBoard extends View {
         .child(div().text_color(t.foreground).whitespace_normal().child(c.title))
         .child(div().text_size(11).text_color(t.dim).child(tags))
         .when(Boolean(c.waits), (el) => el.child(div().text_size(11).text_color(t.muted).whitespace_normal().child(`waits: ${c.waits}`)))
+        .children(pictures.filter((p) => p.shown).map((p, i) => this.picture(t, c, p, i, room)))
         .when(open, (el) => el.child(v_flex().gap(3).pt(4)
           .children(c.details.length
             ? c.details.map((n) => div().text_size(12).text_color(t.muted).whitespace_normal().child(n))
-            : [div().text_size(12).text_color(t.dim).child("No notes on this card.")]))));
+            : [div().text_size(12).text_color(t.dim).child("No notes on this card.")])
+          .children([...new Set([...(c.picturePage ? [c.picturePage] : []), ...(c.links ?? [])])]
+            .map((url, i) => this.link(t, `sb-link-${c.id}-${i}`, url === c.picturePage ? "Its page of pictures" : url, url))))));
+  }
+
+  // One picture, as wide as the card allows and never taller than it is wide. A click opens
+  // it full size.
+  picture(t, c, p, i, room) {
+    const ratio = p.width && p.height ? p.height / p.width : 0.6;
+    const w = ratio > 1 ? Math.round(room / ratio) : room;
+    return v_flex().id(`sb-pic-${c.id}-${i}`).gap(2).pt(4)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); openIt(p.url || p.file); })
+      .when(Boolean(p.option), (el) => el.child(div().text_size(11).text_color(t.dim).child(`option ${p.option}`)))
+      .child(image(p.shown).w(w).h(Math.round(w * ratio)).rounded(4).border_1().border_color(t.border));
+  }
+
+  // A link from a card: underlined, opened in the browser on click.
+  link(t, id, label, url) {
+    return div().id(id).text_size(12).text_color(t.accent).underline().whitespace_normal()
+      .hover((s) => s.text_color(t.foreground))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); openIt(url); })
+      .child(label);
   }
 
   milestoneList(t, list) {

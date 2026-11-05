@@ -77,6 +77,7 @@ test('board json: every open lane with its cards in full, and no Done lane', () 
   assert.deepEqual(upNext[0], {
     id: 9, title: 'Parse board.md', milestone: 'M2', points: 3, guess: 7, stage: 'plan',
     date: null, details: ['done when: node --test passes'], waits: null, later: false,
+    pictures: [], picturePage: null, links: [],
   });
   assert.equal(upNext[1].waits, 'the next time Rich uses the laptop');
   const doing = j.lanes[2].cards[0];
@@ -152,4 +153,35 @@ sys.stdout.write(str(len(b"".join(chunks))))
   const whole = spawnSync(process.execPath, [PM, 'board', '--json', repo], { encoding: 'utf8', maxBuffer: 1 << 24 });
   assert.ok(whole.stdout.length > 70000, `the board is big enough: ${whole.stdout.length}`);
   assert.equal(Number(r.stdout), Buffer.byteLength(whole.stdout));
+});
+
+test('board json: a card carries its pictures, its picture page and the links in its notes (#197)', async () => {
+  const { cardPictures } = await import('../src/json.js');
+  const repo = mkdtempSync(join(SERVED_FOLDER, 'json-pics-'));
+  const designs = join(repo, 'pm', 'designs');
+  mkdirSync(join(designs, 'card-7'), { recursive: true });
+  writeFileSync(join(designs, 'card-7', 'index.html'), '<html></html>');
+  // A real PNG's first 24 bytes: the signature, then IHDR with a width of 720 and a height of 1280.
+  const png = Buffer.concat([Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'), Buffer.from([0, 0, 2, 208, 0, 0, 5, 0])]);
+  writeFileSync(join(designs, 'card-7', 'b-phone.png'), png);
+  writeFileSync(join(designs, 'card-7', 'a-desktop.png'), 'png');
+  writeFileSync(join(designs, 'card-7', 'notes.txt'), 'not a picture');
+  writeFileSync(join(designs, '13-a.png'), 'png');
+  writeFileSync(join(designs, '13-b.png'), 'png');
+  writeFileSync(join(designs, '13-a-mock.html'), '<html></html>');
+  const pics = cardPictures(join(repo, 'pm'), 'http://pages.test/x/');
+  const board = BOARD.replace('  tested: shots at 360px', '  tested: shots at 360px, see https://example.test/a?b=1 and http://192.168.1.41/x/.');
+  const j = boardJson({ boardMd: board, planMd: PLAN, name: 'Alpha', today: TODAY, page: 'http://pages.test/x/', pictures: pics });
+  const look = j.lanes[3].cards[0];
+  assert.deepEqual(look.pictures, [
+    { file: join(designs, 'card-7', 'a-desktop.png'), url: 'http://pages.test/x/designs/card-7/a-desktop.png', option: null, width: null, height: null },
+    { file: join(designs, 'card-7', 'b-phone.png'), url: 'http://pages.test/x/designs/card-7/b-phone.png', option: null, width: 720, height: 1280 },
+  ]);
+  assert.equal(look.picturePage, 'http://pages.test/x/designs/card-7/index.html');
+  assert.deepEqual(look.links, ['https://example.test/a?b=1', 'http://192.168.1.41/x/']);
+  const decision = j.lanes[4].cards[0];
+  assert.deepEqual(decision.pictures.map((p) => p.option), ['a', 'b']);
+  assert.equal(decision.picturePage, null);
+  assert.deepEqual(j.lanes[1].cards[0].pictures, []);
+  assert.deepEqual(j.lanes[1].cards[0].links, []);
 });

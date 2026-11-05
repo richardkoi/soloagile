@@ -222,7 +222,9 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
     Herdr add-on, so they never parse the Markdown (#193): `format` (1), `project`, `page`,
     `counts` (decisions, looks, waiting, doing, upNext, ideas, done), `next` (the same move
     as `soloagile next`), `lanes` (every lane but Done, each card with id, title,
-    milestone, points, guess, stage, date, details, `waits` and `later`) and `milestones`
+    milestone, points, guess, stage, date, details, `waits`, `later`, `pictures` (each a
+    `file`, its `url`, the design `option` letter or null, and a PNG's `width` and `height`),
+    `picturePage` and `links`, the addresses in its notes) and `milestones`
     (each with an open card: id, title, short, status, done, total). New fields may be
     added; `format` goes up only when one is removed or changes meaning.
 - **Answered decisions go to `decisions.md`** with the date and the answer,
