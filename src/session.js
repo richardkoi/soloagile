@@ -15,6 +15,7 @@ import { onHome, pageUrl, projectsFolderOf } from './settings.js';
 import { readSizes } from './sizes.js';
 import { habitOn, habitStates, habitsText } from './habits.js';
 import { weeklyCleanup } from './cleanup.js';
+import { refreshHerdr } from './herdr.js';
 import { VERSION, builtBy, compareVersions } from './version.js';
 
 // The short rules, which the start hook gives Claude in a project with a board. A plugin's
@@ -119,6 +120,11 @@ export function sessionStartOutput(payload) {
       const said = weeklyCleanup(payload.cwd);
       if (said?.length) summary.message += ` · cleared ${said.length} old item${said.length === 1 ? '' : 's'}`;
     }
+  } catch {}
+  // After a plugin update, the Herdr add-ons, when installed, are brought level with it.
+  try {
+    const said = refreshHerdr();
+    if (said) summary.message += ` · ${said}`;
   } catch {}
   return {
     systemMessage: summary.message,

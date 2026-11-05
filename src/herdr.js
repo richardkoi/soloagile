@@ -39,7 +39,7 @@ function wanted(source, sound) {
 
 // Installs or updates. `sound`: a Herdr sound name, or a file to copy into <herdr>/sounds.
 // `dryRun` only reports. Returns { changed: [paths], sound, key: 'added'|'kept'|<other action> }.
-export function installHerdr({ herdr = herdrFolder(), source = join(ROOT, 'herdr'), sound = null, dryRun = false } = {}) {
+export function installHerdr({ herdr = herdrFolder(), source = join(ROOT, 'herdr'), sound = null, dryRun = false, bindKey = true } = {}) {
   if (!existsSync(herdr)) throw new Error(`Herdr isn't set up here: no ${herdr}`);
   if (!existsSync(join(source, 'mods'))) throw new Error(`no add-ons to install: no ${join(source, 'mods')}`);
   const changed = [];
@@ -73,11 +73,11 @@ export function installHerdr({ herdr = herdrFolder(), source = join(ROOT, 'herdr
   const keys = JSON.parse(readOr(keysFile, '{}'));
   const bound = keys.global?.[KEY];
   let key = 'kept';
-  if (!bound) {
+  if (!bound && bindKey) {
     key = 'added';
     changed.push('keys.json');
     if (!dryRun) writeFileSync(keysFile, JSON.stringify({ ...keys, global: { ...keys.global, [KEY]: ACTION } }, null, 2) + '\n');
-  } else if (bound !== ACTION) key = bound;
+  } else if (bound && bound !== ACTION) key = bound;
 
   const used = sound || SOUND_LINE.exec(readFileSync(join(source, 'mods', 'soloagile-alerts', 'main.js'), 'utf8'))?.[1];
   return { changed, sound: used, key };
@@ -92,4 +92,12 @@ export function herdrText({ changed, sound, key }, dryRun = false) {
   if (key === 'added') lines.push('soloagile: F3 now opens the board');
   else if (key !== 'kept') lines.push(`soloagile: F3 is taken (${key}), so it wasn't changed; bind "mod.open:soloagile-board" in keys.json`);
   return lines.join('\n');
+}
+
+// For session start: when the add-ons are installed and older than this plugin's copy,
+// update them, keeping the sound and leaving keys.json alone. Returns a line, or null.
+export function refreshHerdr(herdr = herdrFolder()) {
+  if (!existsSync(join(herdr, 'mods', 'soloagile-board'))) return null;
+  const { changed } = installHerdr({ herdr, bindKey: false });
+  return changed.length ? 'updated the Herdr add-ons' : null;
 }

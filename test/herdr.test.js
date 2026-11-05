@@ -72,3 +72,21 @@ test('soloagile herdr reports what it did, and refuses when Herdr is not set up'
   assert.equal(none.status, 2);
   assert.match(none.stderr, /Herdr isn't set up here/);
 });
+
+test('session start updates installed add-ons that are older, keeping the sound and the keys', async () => {
+  const { refreshHerdr } = await import('../src/herdr.js');
+  const { sessionStartOutput } = await import('../src/session.js');
+  const herdr = process.env.HERDR_CONFIG_DIR;
+  assert.equal(refreshHerdr(herdr), null, 'nothing when the add-ons are not installed');
+  mkdirSync(herdr, { recursive: true });
+  writeFileSync(join(herdr, 'keys.json'), '{"global":{}}');
+  installHerdr({ herdr, bindKey: false });
+  const board = join(herdr, 'mods', 'soloagile-board', 'main.js');
+  writeFileSync(board, '// an older copy\n');
+  const repo = mkdtempSync(join(tmpdir(), 'herdr-project-'));
+  writeFileSync(join(repo, 'NEXT_SESSION.md'), 'note\n');
+  assert.match(sessionStartOutput({ cwd: repo }).systemMessage, / · updated the Herdr add-ons$/);
+  assert.equal(readFileSync(board, 'utf8'), readFileSync(join(SOURCE, 'mods', 'soloagile-board', 'main.js'), 'utf8'));
+  assert.equal(readFileSync(join(herdr, 'keys.json'), 'utf8'), '{"global":{}}', 'keys left alone');
+  assert.doesNotMatch(sessionStartOutput({ cwd: repo }).systemMessage, /Herdr/);
+});

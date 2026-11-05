@@ -15,4 +15,5 @@ mkdirSync(join(dir, 'tmp'));
 writeFileSync(join(dir, 'settings.json'), JSON.stringify({ pageUrl: 'http://pages.test/{project}/', projectsFolder: SERVED_FOLDER }));
 process.env.SOLOAGILE_DIR = dir;
 process.env.TMPDIR = join(dir, 'tmp');
+process.env.HERDR_CONFIG_DIR = join(dir, 'herdr-app'); // never the user's own Herdr
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
