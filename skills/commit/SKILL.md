@@ -26,7 +26,8 @@ Do this in order, and stop at the first thing that fails:
    finishes moves to Needs your look (`soloagile card move <number> look`, after its
    `tested:` line is on it), only if its work is already live where the user uses it. Work that still has to be deployed stays in
    Doing; the deploy moves it. Include the `pm/*.md` changes in the commit.
-4. **Commit.** Match the style of the recent messages above. Subject line says
+4. **Commit**, chained on the checks' own exit code: `npm test && git commit …`, never
+   on a grep or tail of their output, which passes even when they fail. Match the style of the recent messages above. Subject line says
    what changed and why, not which files moved. If the user gave a message in the
    arguments, use their wording.
 5. **Push**, unless you are on the default branch and they didn't ask for it — in
