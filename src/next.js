@@ -6,7 +6,7 @@ const TOP = 5;
 
 // What holds an Up next card back, from its "not before" line: a date still to come, or an
 // event with no date (such as "the next time Rich uses the laptop"). Null when it can start.
-function heldBy(card, today) {
+export function heldBy(card, today) {
   const line = card.details.find((d) => /^not before\b/i.test(d));
   if (!line) return null;
   const date = /^not before (\d{4}-\d{2}-\d{2})/i.exec(line)?.[1];
@@ -14,9 +14,13 @@ function heldBy(card, today) {
   return { event: line.replace(/^not before:?\s*/i, '') };
 }
 
+// Looks waiting on the user now: a look dated "from" a later day isn't waiting yet.
+export const waitingLooks = (board, today) =>
+  cardsIn(board, 'Needs your look').filter((c) => !(c.date?.label === 'from' && c.date.value > today));
+
 export function nextText(board, { name, today }) {
   const decide = cardsIn(board, 'Needs your decision');
-  const looks = cardsIn(board, 'Needs your look').filter((c) => !(c.date?.label === 'from' && c.date.value > today));
+  const looks = waitingLooks(board, today);
   const doing = cardsIn(board, 'Doing');
   const next = cardsIn(board, 'Up next');
 
@@ -33,9 +37,19 @@ export function nextText(board, { name, today }) {
     }
   }
 
+  out.push(`Next move: ${nextMove(board, today)}`);
+  return out.join('\n');
+}
+
+// The one move to make next, as a sentence: also what `soloagile board --json` gives as "next".
+export function nextMove(board, today) {
+  const decide = cardsIn(board, 'Needs your decision');
+  const looks = waitingLooks(board, today);
+  const doing = cardsIn(board, 'Doing');
+  const next = cardsIn(board, 'Up next');
   const free = next.find((c) => !heldBy(c, today));
   const dates = next.map((c) => heldBy(c, today)?.date).filter(Boolean).sort();
-  const move = decide.length
+  return decide.length
     ? `ask the user about #${decide[0].id} (/soloagile:needs)`
     : looks.length
       ? `get the user's look on #${looks[0].id} (/soloagile:needs)`
@@ -46,6 +60,4 @@ export function nextText(board, { name, today }) {
           : next.length
             ? `nothing can start${dates.length ? ` until ${dates[0]}` : ' yet'}; plan more in pm/plan.md`
             : 'plan the next milestone in pm/plan.md';
-  out.push(`Next move: ${move}`);
-  return out.join('\n');
 }

@@ -218,6 +218,13 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
     before` line), and the one next move: a decision, then a look, then a Doing card, then
     the first Up next card that can start. The catchup skill loads it instead of the whole
     board, which on 2026-10-22 was 44,549 characters on weatherglider against 907 (#171).
+  - `soloagile board --json` gives the board in one fixed shape for other tools, such as a
+    Herdr add-on, so they never parse the Markdown (#193): `format` (1), `project`, `page`,
+    `counts` (decisions, looks, waiting, doing, upNext, ideas, done), `next` (the same move
+    as `soloagile next`), `lanes` (every lane but Done, each card with id, title,
+    milestone, points, guess, stage, date, details, `waits` and `later`) and `milestones`
+    (each with an open card: id, title, short, status, done, total). New fields may be
+    added; `format` goes up only when one is removed or changes meaning.
 - **Answered decisions go to `decisions.md`** with the date and the answer,
   rather than being deleted.
 - **A project that uses OpenSpec:** one card per OpenSpec change; its `tasks.md`

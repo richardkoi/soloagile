@@ -6,7 +6,7 @@
 //        soloagile build-all        rebuild every project's page in the projects folder, then the home page
 //        soloagile card add|move|note|set|show …   change a card, checked before it is written (`soloagile card` lists them)
 //        soloagile archive [repo]   move finished cards' text to pm/finished-cards.md, then build
-//        soloagile board [repo]     print the board without its finished cards, for a session to read
+//        soloagile board [repo] [--json]   print the board without its finished cards; --json for other tools
 //        soloagile finished <milestone or card number>…   print finished cards in full
 //        soloagile set [habit on|off] [--all]   switch a habit (src/habits.js); alone, list them
 //        soloagile pictures <card> [files…] [--url …] [--caption …] [--by …]   a card's page of pictures
@@ -29,9 +29,10 @@
 // Format problems are printed as warnings; the page is still written.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
 import { buildProject } from '../src/build.js';
+import { boardJson } from '../src/json.js';
 import { CARD_USAGE, MILESTONE_CARDS, Refused, addDecision, cardCommits, milestoneCount, runCard } from '../src/card.js';
 import { addPicture } from '../src/design.js';
 import { isPmProject, runHook } from '../src/hook.js';
@@ -72,7 +73,7 @@ const COMMANDS = [
   ['build-all', "rebuild every project's page in the projects folder, then the home page"],
   ['card add|move|note|set|show …', 'change a card, checked before it is written; `soloagile card` says how'],
   ['archive [repo]', "move finished cards' text to pm/finished-cards.md, then build"],
-  ['board [repo]', 'print the board without its finished cards'],
+  ['board [repo] [--json]', 'print the board without its finished cards; --json gives it in one fixed shape for other tools'],
   ['next [repo]', 'the board in a few lines, and the one move to make next'],
   ['finished <milestone or card number>…', 'print finished cards in full'],
   ['set [habit on|off] [--all]', 'switch a habit for this project, or every project; alone, list them'],
@@ -178,13 +179,26 @@ if (cmd === 'next') {
 }
 
 if (cmd === 'board') {
-  // What the skills read: the board with Done as one line.
+  // What the skills read: the board with Done as one line. With --json, the board in one
+  // fixed shape for other tools, such as a Herdr add-on (src/json.js).
+  const args = process.argv.slice(3);
+  const json = args.includes('--json');
+  const dir = resolve(args.find((a) => a !== '--json') ?? process.cwd());
+  let boardMd;
   try {
-    process.stdout.write(openBoard(readFileSync(resolve(repo, 'pm', 'board.md'), 'utf8')));
+    boardMd = readFileSync(join(dir, 'pm', 'board.md'), 'utf8');
   } catch {
-    console.error(`soloagile: no pm/board.md in ${resolve(repo)}`);
+    console.error(`soloagile: no pm/board.md in ${dir}`);
     process.exit(1);
   }
+  if (!json) {
+    process.stdout.write(openBoard(boardMd));
+    process.exit(0);
+  }
+  const read = (f) => (existsSync(join(dir, 'pm', f)) ? readFileSync(join(dir, 'pm', f), 'utf8') : '');
+  const planMd = read('plan.md');
+  const name = parsePlan(planMd).title || basename(dir);
+  console.log(JSON.stringify(boardJson({ boardMd, planMd, archiveMd: readArchive(dir), name, today: localDate(), page: pageUrl(dir) }), null, 2));
   process.exit(0);
 }
 
