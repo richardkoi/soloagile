@@ -198,7 +198,10 @@ if (cmd === 'board') {
   const read = (f) => (existsSync(join(dir, 'pm', f)) ? readFileSync(join(dir, 'pm', f), 'utf8') : '');
   const planMd = read('plan.md');
   const name = parsePlan(planMd).title || basename(dir);
-  console.log(JSON.stringify(boardJson({ boardMd, planMd, archiveMd: readArchive(dir), name, today: localDate(), page: pageUrl(dir) }), null, 2));
+  const text = `${JSON.stringify(boardJson({ boardMd, planMd, archiveMd: readArchive(dir), name, today: localDate(), page: pageUrl(dir) }), null, 2)}\n`;
+  // Wait until it is all written: into a non-blocking pipe, such as Herdr's, Node writes a
+  // big output in pieces, and process.exit before the last one cuts it off at 64 KB.
+  await new Promise((done) => process.stdout.write(text, done));
   process.exit(0);
 }
 

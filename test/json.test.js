@@ -118,3 +118,38 @@ test('soloagile board --json with no board fails with a message', () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /no pm\/board\.md/);
 });
+
+// Herdr runs programs with a non-blocking pipe and reads it only as it goes. Leaving with
+// process.exit straight after a big write cut the JSON off at the pipe's 64 KB (#195).
+test('soloagile board --json writes all of a big board into a non-blocking pipe', () => {
+  const repo = mkdtempSync(join(SERVED_FOLDER, 'json-big-'));
+  mkdirSync(join(repo, 'pm'));
+  const ideas = Array.from({ length: 600 }, (_, i) => `- #${i + 100} An idea with a long enough title to fill the pipe quickly · M3 · 1 pt\n  done when: something long enough to make each card take a good few bytes of JSON`).join('\n');
+  writeFileSync(join(repo, 'pm', 'board.md'), BOARD.replace('## Ideas\n', `## Ideas\n${ideas}\n`).replace('next-id: 20', 'next-id: 900'));
+  writeFileSync(join(repo, 'pm', 'plan.md'), PLAN);
+  // Python opens the pipe, makes the writing end non-blocking, and reads only after the
+  // command has exited, as a slow reader would.
+  const py = `
+import os, subprocess, sys, time
+r, w = os.pipe()
+os.set_blocking(w, False)
+p = subprocess.Popen(sys.argv[1:], stdout=w)
+os.close(w)
+chunks = []
+while True:
+    try:
+        b = os.read(r, 65536)
+    except BlockingIOError:
+        continue
+    if not b:
+        break
+    chunks.append(b)
+    time.sleep(0.05)
+p.wait()
+sys.stdout.write(str(len(b"".join(chunks))))
+`;
+  const r = spawnSync('python3', ['-c', py, process.execPath, PM, 'board', '--json', repo], { encoding: 'utf8' });
+  const whole = spawnSync(process.execPath, [PM, 'board', '--json', repo], { encoding: 'utf8', maxBuffer: 1 << 24 });
+  assert.ok(whole.stdout.length > 70000, `the board is big enough: ${whole.stdout.length}`);
+  assert.equal(Number(r.stdout), Buffer.byteLength(whole.stdout));
+});
