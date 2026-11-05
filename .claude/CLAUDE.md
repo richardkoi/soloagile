@@ -15,3 +15,5 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 11. Before measuring against a bar, write in the done when exactly what the measure counts. (From retro of M20 and M23, #179.)
 12. Before building a card, check that an earlier card or standing rule doesn't already cover it. (From retro of M10 and M22, #173.)
 13. Run the trigger tests (claude plugin eval) before each release. (From retro of M10 and M22, #169.)
+14. Before releasing a new command, run it on the biggest board (weatherglider) through the reader that will use it. (From retro of M25, #195.)
+15. Before building a visual card, ask what it should show, even when it copies an existing look. (From retro of M25, #194.)
