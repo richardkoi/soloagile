@@ -5,7 +5,7 @@
 // change to soloagile's Markdown never breaks this panel.
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { focused, spaces, agents, exec, run, watchFolder, theme, props, closeOverlay, appHome, settings } from "herdr";
+import { focused, spaces, agents, exec, run, watchFolder, theme, props, closeOverlay, openOverlay, appHome, settings } from "herdr";
 
 const UP_NEXT = 5; // Up next cards shown; the rest are on the page.
 
@@ -244,14 +244,18 @@ export default class SoloagileBoard extends View {
             .map((url, i) => this.link(t, `sb-link-${c.id}-${i}`, url === c.picturePage ? "Its page of pictures" : url, url))))));
   }
 
-  // One picture, as wide as the card allows and never taller than it is wide. A click opens
-  // it full size.
+  // One picture, as wide as the card allows and never taller than it is wide. A click shows
+  // it full screen (soloagile-picture); a click there brings it back to the card.
   picture(t, c, p, i, room) {
     const ratio = p.width && p.height ? p.height / p.width : 0.6;
     const w = ratio > 1 ? Math.round(room / ratio) : room;
     return v_flex().id(`sb-pic-${c.id}-${i}`).gap(2).pt(4)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => { cx.stop_propagation(); openIt(p.url || p.file); })
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        openOverlay({ mod: "soloagile-picture", kind: "dialog", frame: "none", width: 0.95, height: 0.95,
+                      props: { shown: p.shown, width: p.width, height: p.height } });
+      })
       .when(Boolean(p.option), (el) => el.child(div().text_size(11).text_color(t.dim).child(`option ${p.option}`)))
       .child(image(p.shown).w(w).h(Math.round(w * ratio)).rounded(4).border_1().border_color(t.border));
   }

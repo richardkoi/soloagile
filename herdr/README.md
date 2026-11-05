@@ -1,19 +1,22 @@
 # soloagile for Herdr
 
-Two add-ons (Herdr calls them mods) for people who run Claude Code inside
+Three add-ons (Herdr calls them mods) for people who run Claude Code inside
 [Herdr](https://herdr.dev) and keep their projects on soloagile boards.
 
 - **soloagile-board**: F3 opens the board of the project in the focused terminal: the
   next move, the cards waiting on you (with a button that types `/soloagile:needs` into
   that space's Claude), Doing, the top of Up next, the milestones being worked on, and a
-  button that opens the project's page. Click a card for its full text.
+  button that opens the project's page. A card shows its first picture; click a card for
+  its full text, all its pictures and its links. Click a picture to see it full screen,
+  and again to put it back.
+- **soloagile-picture**: the full-screen picture, opened by soloagile-board.
 - **soloagile-alerts**: a 1px strip at the bottom of the layout. When a card lands in
   Needs your look or Needs your decision on any open project's board, a pop-up names it
   and a sound plays, with a desktop notification while Herdr isn't the window in use.
   It shares the count waiting in each space as `shared("soloagile.waiting")`
   (`{ [space id]: count }`) for a tab bar to show.
 
-Both read `soloagile board --json` (soloagile 1.18.0 or later), never the Markdown, so a
+The board and the alerts read `soloagile board --json` (soloagile 1.18.0 or later), never the Markdown, so a
 change to the board's format can't break them. They find the newest installed soloagile
 by themselves.
 
@@ -23,8 +26,9 @@ Ask the agent in Herdr: "add the soloagile mods from
 /path/to/soloagile/herdr", or by hand:
 
 ```sh
-cp -r herdr/mods/soloagile-board herdr/mods/soloagile-alerts ~/.config/herdr-app/mods/
+cp -r herdr/mods/soloagile-board herdr/mods/soloagile-picture herdr/mods/soloagile-alerts ~/.config/herdr-app/mods/
 herdr-app check ~/.config/herdr-app/mods/soloagile-board
+herdr-app check ~/.config/herdr-app/mods/soloagile-picture
 herdr-app check ~/.config/herdr-app/mods/soloagile-alerts
 ```
 

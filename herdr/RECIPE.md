@@ -54,8 +54,11 @@ board…", "No board in this project.", "soloagile isn't installed on this machi
   design option's), its note lines (12px, `muted`; "No notes on this card." when none),
   then "Its page of pictures" and each address in its notes as underlined `accent` links.
   Another click closes it.
-- A click on a picture opens it full size, and a click on a link opens it, with
-  `xdg-open`. "Open the project's page" opens the board's page the same way.
+- A click on a picture shows it full screen: a frameless dialog, 95% of the window,
+  the picture fitted inside keeping its shape (never past its own pixels), the rest
+  dimmed. A click on it, a click beside it, or Esc brings it back to the card.
+- A click on a link opens it with `xdg-open`. "Open the project's page" opens the board's
+  page the same way.
 - "Answer them (/soloagile:needs)" types `/soloagile:needs` into the Claude in the same
   space (`hc send`) and focuses it; with no Claude there, it opens a new tab running
   `claude /soloagile:needs` in the project's folder.
@@ -71,7 +74,9 @@ board…", "No board in this project.", "soloagile isn't installed on this machi
 ## Built from
 
 - `mods/soloagile-board/` (`mod.json`: place `none`, overlay window, key
-  `soloagile-board`) and `mods/soloagile-alerts/` (`mod.json`: place `bottom`, size 1).
+  `soloagile-board`), `mods/soloagile-picture/` (place `none`; opened by the board with
+  `openOverlay({ kind: "dialog", frame: "none", width: 0.95, height: 0.95, props: { shown,
+  width, height } })`) and `mods/soloagile-alerts/` (`mod.json`: place `bottom`, size 1).
   `keys.json`: `"f3": "mod.open:soloagile-board"`.
 - Data: `soloagile board --json <project>` (soloagile 1.18.0 or later; pictures and links
   from 1.18.2). Its shape is in soloagile's SPEC.md: `project`, `page`, `counts`, `next`,
@@ -82,7 +87,7 @@ board…", "No board in this project.", "soloagile isn't installed on this machi
 - `herdr`: `focused`, `spaces`, `panes`, `agents`, `exec`, `run` (`pane.focus`, `tab.new`,
   `space.select` in a pop-up), `watchFolder`, `notify`,
   `playSound`, `shared`/`setShared`, `window`, `settings`, `appHome`, `theme`, `props`,
-  `closeOverlay`; `gpui-kit`'s `image`.
+  `openOverlay`, `closeOverlay`; `gpui-kit`'s `image`.
 - Programs: `soloagile`, `git`, `sh`, `cp`, `sed`, `xdg-open`, `notify-send`, `hc`.
 
 ## Watch out
@@ -101,11 +106,12 @@ board…", "No board in this project.", "soloagile isn't installed on this machi
 
 ## Done when
 
-1. `herdr-app check` passes on both mod folders.
+1. `herdr-app check` passes on all three mod folders.
 2. F3 in a soloagile project's terminal shows its next move, the waiting cards, Doing and
    Up next as `soloagile next` lists them, with the milestone bars.
 3. A card with a picture page (`soloagile pictures <n> …`) shows its first picture inside
-   the card, at the card's width.
+   the card, at the card's width; a click shows it full screen, and another click puts it
+   back.
 4. Moving a card to Needs your look posts the pop-up within 15 seconds, and that space's
    count in `shared("soloagile.waiting")` goes up by one.
 5. A project of 75 KB of JSON (hundreds of cards) still shows its board.
