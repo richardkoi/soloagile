@@ -23,6 +23,7 @@
 //                                Any number of each, done in the order written
 //        soloagile design <card> <letter> <mock-up> [width]
 //                            a picture of a mock-up, shown under that option of a design card
+//        soloagile herdr [--sound <name or file>] [--dry-run]   install or update the Herdr add-ons (src/herdr.js)
 //        soloagile hook             Claude Code PostToolUse hook; reads the tool call as JSON on stdin
 //        soloagile session-start    SessionStart hook: what waits on the user, and the board for Claude
 //        soloagile session-end      SessionEnd hook: commits and pushes forgotten handoff files, if that option is on
@@ -50,6 +51,7 @@ import { backupCommand, cleanupProject, clearCardShots, markShots } from '../src
 import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
+import { herdrText, installHerdr } from '../src/herdr.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
 // is installed beside this one, the whole command goes to it, stdin and all, so an old
@@ -87,6 +89,7 @@ const COMMANDS = [
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …] [--press …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
+  ['herdr [--sound <name or file>] [--dry-run]', 'install or update the Herdr add-ons, keeping their sound, and bind F3 to the board if free'],
 ].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
 
 // Both session hooks run in every project, so, like `soloagile hook`, they never fail a session.
@@ -323,6 +326,20 @@ if (cmd === 'rule') {
   try {
     const { file, number } = addRuleTo(here, text, from);
     console.log(number ? `soloagile: standing rule ${number} in ${file}` : `soloagile: that rule is already in ${file}`);
+  } catch (err) {
+    console.error(`soloagile: ${err.message}`);
+    process.exit(2);
+  }
+  process.exit(0);
+}
+
+if (cmd === 'herdr') {
+  const args = process.argv.slice(3);
+  const at = args.indexOf('--sound');
+  const dryRun = args.includes('--dry-run');
+  try {
+    const done = installHerdr({ sound: at >= 0 ? args[at + 1] : null, dryRun });
+    console.log(herdrText(done, dryRun));
   } catch (err) {
     console.error(`soloagile: ${err.message}`);
     process.exit(2);
