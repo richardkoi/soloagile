@@ -22,19 +22,21 @@ by themselves.
 
 ## Install
 
-Ask the agent in Herdr: "add the soloagile mods from
-/path/to/soloagile/herdr", or by hand:
+With soloagile 1.19.0 or later:
 
 ```sh
-cp -r herdr/mods/soloagile-board herdr/mods/soloagile-picture herdr/mods/soloagile-alerts ~/.config/herdr-app/mods/
-herdr-app check ~/.config/herdr-app/mods/soloagile-board
-herdr-app check ~/.config/herdr-app/mods/soloagile-picture
-herdr-app check ~/.config/herdr-app/mods/soloagile-alerts
+soloagile herdr
 ```
 
-Then add `"f3": "mod.open:soloagile-board"` under `"global"` in
-`~/.config/herdr-app/keys.json` (see `keys.json` here). The alerts strip docks into the
-layout shown when Herdr first sees its folder.
+It copies the three mods into `~/.config/herdr-app/mods`, and binds F3 to
+`mod.open:soloagile-board` in `~/.config/herdr-app/keys.json` unless F3 is already taken.
+Run it again to update them: it writes only what changed, and keeps the sound the alerts
+already use. `soloagile herdr --sound <name or file>` changes that sound (a Herdr sound
+name such as `blocked`, or a file, which is copied into `~/.config/herdr-app/sounds`), and
+`--dry-run` says what it would change. Once installed, they are updated by themselves at
+the first session start after a soloagile update.
+
+The alerts strip docks into the layout shown when Herdr first sees its folder.
 
 ## What they run
 

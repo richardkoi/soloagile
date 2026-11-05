@@ -77,7 +77,8 @@ board…", "No board in this project.", "soloagile isn't installed on this machi
   `soloagile-board`), `mods/soloagile-picture/` (place `none`; opened by the board with
   `openOverlay({ kind: "dialog", frame: "none", width: 0.95, height: 0.95, props: { shown,
   width, height } })`) and `mods/soloagile-alerts/` (`mod.json`: place `bottom`, size 1).
-  `keys.json`: `"f3": "mod.open:soloagile-board"`.
+  `keys.json`: `"f3": "mod.open:soloagile-board"`. `soloagile herdr` (1.19.0 or later)
+  installs all three and adds that key, and keeps them up to date.
 - Data: `soloagile board --json <project>` (soloagile 1.18.0 or later; pictures and links
   from 1.18.2). Its shape is in soloagile's SPEC.md: `project`, `page`, `counts`, `next`,
   `lanes` (each card with `pictures`, `picturePage`, `links`, `waits`, `later`) and
