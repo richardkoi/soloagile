@@ -174,3 +174,30 @@ test('start: a busy board stays under 9,500 characters, inside Claude Code\'s 10
   assert.match(context, /…and \d+ more in Up next: soloagile board/, 'says what was left out');
   assert.match(context, /run the soloagile:catchup skill/, 'the last line stays');
 });
+
+test('start: a plugin with commits after its version bump says how many are not released (#180)', () => {
+  const repo = pmProject();
+  const g = (...a) => git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...a);
+  g('init', '-q');
+  mkdirSync(join(repo, '.claude-plugin'));
+  const manifest = (v) => writeFileSync(join(repo, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'p', version: v }));
+  manifest('1.0.0');
+  g('add', '-A');
+  g('commit', '-qm', 'release 1.0.0');
+  assert.doesNotMatch(startSummary(repo).message, /not released/);
+  writeFileSync(join(repo, 'tool.js'), 'fix\n');
+  g('add', 'tool.js');
+  g('commit', '-qm', 'a fix');
+  mkdirSync(join(repo, 'test'));
+  writeFileSync(join(repo, 'test', 'a.test.js'), 'x\n');
+  g('add', 'test');
+  g('commit', '-qm', 'only a test: does not count');
+  const s = startSummary(repo);
+  assert.match(s.message, / · 1 commit since 1\.0\.0 not released · /);
+  assert.match(s.context, /^Release: 1 commit since 1\.0\.0 not released; release them/m);
+  manifest('1.0.1');
+  g('commit', '-qam', 'release 1.0.1');
+  assert.doesNotMatch(startSummary(repo).message, /not released/);
+  const plain = pmProject();
+  assert.doesNotMatch(startSummary(plain).message, /not released/, 'not a plugin: no line');
+});

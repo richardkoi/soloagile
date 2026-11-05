@@ -27,6 +27,21 @@ export const rules = () => readFileSync(join(ROOT, 'rules.md'), 'utf8').replace(
 // Under Claude Code's 10,000-character limit for a hook's text, with room to spare.
 export const START_BUDGET = 9500;
 
+// A plugin's commits since its version was last bumped, counting only those that change
+// what ships (not tests, evals, README or the project's own CLAUDE.md), so a fix doesn't
+// sit unreleased (#180). Null when the repo isn't a plugin or nothing waits.
+export function unreleased(repo) {
+  const manifest = join(repo, '.claude-plugin', 'plugin.json');
+  if (!existsSync(manifest)) return null;
+  const run = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' });
+  const bump = run('log', '-1', '--format=%H', '-G', '"version"', '--', '.claude-plugin/plugin.json').stdout.trim();
+  if (!bump) return null;
+  const count = Number(run('rev-list', '--count', `${bump}..HEAD`, '--', '.', ':!test', ':!evals', ':!README.md', ':!.claude', ':!pm').stdout.trim());
+  if (!count) return null;
+  const version = JSON.parse(readFileSync(manifest, 'utf8')).version;
+  return `${plural(count, 'commit')} since ${version} not released`;
+}
+
 const cardsIn = (board, column) => board.columns.find((c) => c.name === column)?.cards ?? [];
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const line = (c) => `#${c.id} ${c.title}`;
@@ -48,7 +63,11 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
   const later = looks.filter((c) => isLater(c, 'Needs your look', today));
   const look = looks.filter((c) => !later.includes(c));
   const waiting = [decide.length && plural(decide.length, 'decision'), look.length && plural(look.length, 'look')].filter(Boolean);
-  const message = `${name} · ${waiting.length ? `${waiting.join(' and ')} waiting on you` : 'nothing waiting on you'} · say "catch me up"${url ? ` · ${url}` : ''}`;
+  let behind = null;
+  try {
+    behind = unreleased(repo);
+  } catch {}
+  const message = `${name} · ${waiting.length ? `${waiting.join(' and ')} waiting on you` : 'nothing waiting on you'}${behind ? ` · ${behind}` : ''} · say "catch me up"${url ? ` · ${url}` : ''}`;
 
   const section = (title, cards) => (cards.length ? [`${title}:`, ...cards.map((c) => `- ${line(c)}`)] : []);
   const head = [
@@ -59,6 +78,7 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
     ...section('Needs your look', look),
     ...(later.length ? ["Looks that can't happen yet (not waiting on the user):", ...later.map((c) => `- ${line(c)}, from ${c.date.value}`)] : []),
     ...section('Doing', cardsIn(board, 'Doing')),
+    ...(behind ? [`Release: ${behind}; release them as a new version unless a card is still being built.`] : []),
   ];
   const tail = (examples) => [
     '',
