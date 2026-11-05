@@ -1,0 +1,1 @@
+{ "place": "none", "title": "soloagile", "overlay": { "kind": "window", "key": "soloagile-board", "width": 380, "height": 0.8, "at": { "x": 1366, "y": 64 } } }
