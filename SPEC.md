@@ -74,7 +74,8 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   in a `## Standing rules` section of the project's `CLAUDE.md`, said as what to do and
   tagged with its retro and card: `soloagile rule "<the rule>" --from "retro of M3, #12"`.
   The command makes the section when missing, numbers on from the last rule, never adds the
-  same rule twice, and writes nothing when the retro-rules habit is off.
+  same rule twice, and writes nothing when the retro-rules habit is off. A card that makes
+  a rule out of date takes it out with `soloagile rule --remove <n>`, which renumbers the rest.
 - **`soloagile cleanup`** clears what can be made again: helper worktrees under
   `.claude/worktrees` whose branch is merged and clean, `soloagile shots` folders untouched
   for a week, and the picture pages of cards finished over a week ago (their script in
@@ -611,7 +612,7 @@ soloagile/
   src/habits.js           habits: switches for ways of working, the Settings tab, soloagile set (tested)
   src/pictures.js         soloagile pictures and retake: a card's page of pictures, and its kept script (tested)
   src/cleanup.js          soloagile cleanup and backup, and the weekly run at session start (tested)
-  src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md (tested)
+  src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md; --remove takes one out (tested)
   src/usage.js            soloagile usage: the week's and the 5 hours' usage from a usage address, for away mode (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
   src/next.js             soloagile next: the board in a few lines and the one next move; the catchup skill loads it (tested)

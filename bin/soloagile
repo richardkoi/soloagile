@@ -14,6 +14,7 @@
 //        soloagile cleanup [--dry-run] [--days 7]   clear what can be made again
 //        soloagile backup           run the backup command named in pm/settings.json
 //        soloagile rule "<rule>" [--from …]   a numbered standing rule in CLAUDE.md
+//        soloagile rule --remove <n>   take rule n out and renumber the rest
 //        soloagile usage            the week's usage, for away mode (src/usage.js)
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
@@ -45,7 +46,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
-import { addRuleTo } from '../src/rules.js';
+import { addRuleTo, removeRuleFrom } from '../src/rules.js';
 import { readUsage } from '../src/usage.js';
 import { backupCommand, cleanupProject, clearCardShots, markShots } from '../src/cleanup.js';
 import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
@@ -84,6 +85,7 @@ const COMMANDS = [
   ['cleanup [--dry-run] [--days 7]', 'clear merged helper worktrees, old shots folders, and old cards\' picture pages'],
   ['backup', "run the project's backup command, named in pm/settings.json"],
   ['rule "<the rule>" [--from "retro of M3, #12"]', "add a standing rule to the project's CLAUDE.md"],
+  ['rule --remove <n>', 'take standing rule n out of CLAUDE.md and renumber the rest'],
   ['usage', "the week's and the 5 hours' usage, from the address set as usageUrl; exits 3 when either reaches the stop"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['link [repo]', "print the address of the project's page"],
@@ -319,6 +321,17 @@ if (cmd === 'rule') {
   const from = at >= 0 ? args[at + 1] : null;
   const text = args.filter((_, i) => at < 0 || (i !== at && i !== at + 1)).join(' ');
   const here = process.cwd();
+  // --remove <n>: a card made rule n out of date; the rest are renumbered.
+  if (args[0] === '--remove') {
+    try {
+      const { file, removed } = removeRuleFrom(here, Number(args[1]));
+      console.log(`soloagile: removed from ${file}: ${removed}`);
+    } catch (err) {
+      console.error(`soloagile: ${err.message}`);
+      process.exit(2);
+    }
+    process.exit(0);
+  }
   if (!habitOn(here, 'retro-rules')) {
     console.log('soloagile: the retro-rules habit is off, so no rule was written');
     process.exit(0);

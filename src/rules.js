@@ -33,11 +33,38 @@ export function addRule(md, text, from) {
   return { md: `${lines.join('\n').replace(/\n*$/, '')}\n`, number };
 }
 
-export function addRuleTo(repo, text, from) {
-  // Claude Code also loads .claude/CLAUDE.md. A project that keeps its file there (such as a
-  // plugin, which may not have one at its root) gets its rules there.
+// The CLAUDE.md text with rule `number` taken out and the rules after it renumbered (#182),
+// for when a card makes a standing rule out of date. Returns { md, removed: its line }.
+export function removeRule(md, number) {
+  const lines = md.split('\n');
+  const at = lines.findIndex((l) => l.trim() === HEADING);
+  let end = lines.findIndex((l, i) => i > at && /^#{1,2} /.test(l));
+  if (end < 0) end = lines.length;
+  const i = at < 0 ? -1 : lines.findIndex((l, j) => j > at && j < end && l.startsWith(`${number}. `));
+  if (i < 0) throw new Error(`there is no standing rule ${number}`);
+  const [removed] = lines.splice(i, 1);
+  for (let j = i; j < end - 1; j++) {
+    lines[j] = lines[j].replace(/^(\d+)\. /, (_, n) => `${Number(n) > number ? Number(n) - 1 : n}. `);
+  }
+  return { md: lines.join('\n'), removed };
+}
+
+// Claude Code also loads .claude/CLAUDE.md. A project that keeps its file there (such as a
+// plugin, which may not have one at its root) gets its rules there.
+export function rulesFile(repo) {
   const inDotClaude = join(resolve(repo), '.claude', 'CLAUDE.md');
-  const file = !existsSync(join(resolve(repo), 'CLAUDE.md')) && existsSync(inDotClaude) ? inDotClaude : join(resolve(repo), 'CLAUDE.md');
+  return !existsSync(join(resolve(repo), 'CLAUDE.md')) && existsSync(inDotClaude) ? inDotClaude : join(resolve(repo), 'CLAUDE.md');
+}
+
+export function removeRuleFrom(repo, number) {
+  const file = rulesFile(repo);
+  const { md, removed } = removeRule(existsSync(file) ? readFileSync(file, 'utf8') : '', number);
+  writeFileSync(file, md);
+  return { file, removed };
+}
+
+export function addRuleTo(repo, text, from) {
+  const file = rulesFile(repo);
   const { md, number } = addRule(existsSync(file) ? readFileSync(file, 'utf8') : '', text, from);
   writeFileSync(file, md);
   return { file, number };

@@ -46,3 +46,21 @@ test('a project that keeps its CLAUDE.md in .claude/ gets its rules there', () =
   assert.match(readFileSync(join(repo, '.claude', 'CLAUDE.md'), 'utf8'), /^1\. Ask before a deploy\.$/m);
   assert.ok(!existsSync(join(repo, 'CLAUDE.md')), 'no second CLAUDE.md at the root');
 });
+
+test('soloagile rule --remove takes a rule out and renumbers the rest, leaving other lists alone (#182)', async () => {
+  const { removeRule } = await import('../src/rules.js');
+  const md = '# A\n\n## Standing rules\n\nIntro.\n\n1. One. (From x.)\n2. Two. (From y.)\n3. Three.\n4. Four.\n\n## Steps\n\n1. Keep me.\n2. And me.\n';
+  const { md: out, removed } = removeRule(md, 2);
+  assert.equal(removed, '2. Two. (From y.)');
+  assert.equal(out, '# A\n\n## Standing rules\n\nIntro.\n\n1. One. (From x.)\n2. Three.\n3. Four.\n\n## Steps\n\n1. Keep me.\n2. And me.\n');
+  assert.throws(() => removeRule(md, 9), /no standing rule 9/);
+  assert.throws(() => removeRule('# A\n', 1), /no standing rule 1/);
+
+  const repo = mkdtempSync(join(tmpdir(), 'soloagile-rules-'));
+  writeFileSync(join(repo, 'CLAUDE.md'), md);
+  const r = spawnSync(PM, ['rule', '--remove', '3'], { cwd: repo, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /removed from .*CLAUDE\.md: 3\. Three\./);
+  assert.match(readFileSync(join(repo, 'CLAUDE.md'), 'utf8'), /2\. Two\. \(From y\.\)\n3\. Four\.\n/);
+  assert.equal(spawnSync(PM, ['rule', '--remove', '7'], { cwd: repo, encoding: 'utf8' }).status, 2);
+});
