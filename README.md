@@ -83,6 +83,9 @@ approved, cards in each lane over time, and how long cards of each size took.
   in the same folder, and an optional `settings.json`.
 - **No server.** A page opens as a file. To read your pages from a phone, there is a
   small optional server in [`extras/page-server`](extras/page-server).
+- **In Herdr:** if you run Claude Code inside [Herdr](https://herdr.dev), two add-ons in
+  [`herdr/`](herdr) show the board in a window on F3 and alert you when a card waits on
+  you. Other tools can read the board too, with `soloagile board --json`.
 
 The format of every file, and each rule Claude follows, is in [SPEC.md](SPEC.md).
 
