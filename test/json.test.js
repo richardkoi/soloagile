@@ -21,7 +21,7 @@ const BOARD = `# Board
 - #9 Parse board.md · M2 · 3 pts · ~7 min
   done when: node --test passes
 - #10 On the laptop · M2 · 1 pt
-  not before: the next time Rich uses the laptop
+  not before: the next time the owner uses the laptop
 
 ## Doing
 - #8 Build it · M2 · 2 pts · test
@@ -79,7 +79,7 @@ test('board json: every open lane with its cards in full, and no Done lane', () 
     date: null, details: ['done when: node --test passes'], waits: null, later: false,
     pictures: [], picturePage: null, links: [],
   });
-  assert.equal(upNext[1].waits, 'the next time Rich uses the laptop');
+  assert.equal(upNext[1].waits, 'the next time the owner uses the laptop');
   const doing = j.lanes[2].cards[0];
   assert.equal(doing.stage, 'test');
   const looks = j.lanes[3].cards;
@@ -170,7 +170,7 @@ test('board json: a card carries its pictures, its picture page and the links in
   writeFileSync(join(designs, '13-b.png'), 'png');
   writeFileSync(join(designs, '13-a-mock.html'), '<html></html>');
   const pics = cardPictures(join(repo, 'pm'), 'http://pages.test/x/');
-  const board = BOARD.replace('  tested: shots at 360px', '  tested: shots at 360px, see https://example.test/a?b=1 and http://192.168.1.41/x/.');
+  const board = BOARD.replace('  tested: shots at 360px', '  tested: shots at 360px, see https://example.test/a?b=1 and http://192.0.2.10/x/.');
   const j = boardJson({ boardMd: board, planMd: PLAN, name: 'Alpha', today: TODAY, page: 'http://pages.test/x/', pictures: pics });
   const look = j.lanes[3].cards[0];
   assert.deepEqual(look.pictures, [
@@ -178,7 +178,7 @@ test('board json: a card carries its pictures, its picture page and the links in
     { file: join(designs, 'card-7', 'b-phone.png'), url: 'http://pages.test/x/designs/card-7/b-phone.png', option: null, width: 720, height: 1280 },
   ]);
   assert.equal(look.picturePage, 'http://pages.test/x/designs/card-7/index.html');
-  assert.deepEqual(look.links, ['https://example.test/a?b=1', 'http://192.168.1.41/x/']);
+  assert.deepEqual(look.links, ['https://example.test/a?b=1', 'http://192.0.2.10/x/']);
   const decision = j.lanes[4].cards[0];
   assert.deepEqual(decision.pictures.map((p) => p.option), ['a', 'b']);
   assert.equal(decision.picturePage, null);

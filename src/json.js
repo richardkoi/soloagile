@@ -74,7 +74,7 @@ export function boardJson({ boardMd, planMd = '', archiveMd = '', name, today, p
       stage: stageOf(c, column),
       date: c.date,
       details: c.details,
-      // Up next: what holds the card back, a date or an event such as "the next time Rich uses the laptop".
+      // Up next: what holds the card back, a date or an event such as "the next time the owner uses the laptop".
       waits: held ? (held.date ?? held.event) : null,
       // A look dated "from" a later day: not waiting on the user yet.
       later: column === 'Needs your look' && c.date?.label === 'from' && c.date.value > today,

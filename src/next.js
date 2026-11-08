@@ -5,7 +5,7 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const TOP = 5;
 
 // What holds an Up next card back, from its "not before" line: a date still to come, or an
-// event with no date (such as "the next time Rich uses the laptop"). Null when it can start.
+// event with no date (such as "the next time the owner uses the laptop"). Null when it can start.
 export function heldBy(card, today) {
   const line = card.details.find((d) => /^not before\b/i.test(d));
   if (!line) return null;

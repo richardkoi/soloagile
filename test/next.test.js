@@ -33,12 +33,12 @@ test('next: a Doing card is carried on before Up next starts, and a look for lat
 test('next: Up next starts at the first card that can start, and a busy one shows its top 5', () => {
   const cards = [
     '- #10 After the week · M1 · 1 pt\n  not before 2026-10-27: the week has to pass\n',
-    '- #11 On the laptop · M1 · 1 pt\n  not before: the next time Rich uses the laptop\n',
+    '- #11 On the laptop · M1 · 1 pt\n  not before: the next time the owner uses the laptop\n',
     '- #12 Was waiting, now free · M1 · 1 pt\n  not before 2026-10-20: done waiting\n',
     ...Array.from({ length: 8 }, (_, i) => `- #${20 + i} Card ${i} · M1 · 2 pts\n`),
   ].join('');
   const t = next(board({ next: cards }));
-  assert.match(t, /Up next \(top 5 of 11\):\n- #10 After the week \(not before 2026-10-27\)\n- #11 On the laptop \(waits: the next time Rich uses the laptop\)\n- #12 Was waiting, now free\n- #20 Card 0\n- #21 Card 1\n/);
+  assert.match(t, /Up next \(top 5 of 11\):\n- #10 After the week \(not before 2026-10-27\)\n- #11 On the laptop \(waits: the next time the owner uses the laptop\)\n- #12 Was waiting, now free\n- #20 Card 0\n- #21 Card 1\n/);
   assert.doesNotMatch(t, /#22/);
   assert.match(t, /Next move: start #12 Was waiting, now free$/);
 });
