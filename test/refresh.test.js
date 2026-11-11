@@ -96,7 +96,7 @@ test("a card's milestone chip keeps the short name's whole words that fit, else 
     await new Promise((ok) => setTimeout(ok, 300));
     const expression = `[...document.querySelectorAll('.lane-body > .card-x > .card-top .tag-proj')].map((c) => {
       const s = c.querySelector('.ms-short');
-      return { shown: s.hidden ? '' : s.textContent, fits: s.hidden || s.getBoundingClientRect().right <= c.getBoundingClientRect().right - parseFloat(getComputedStyle(c).paddingRight) - parseFloat(getComputedStyle(c).borderRightWidth) + 0.01, title: c.title };
+      return { whole: c.scrollWidth <= c.clientWidth, shown: s.hidden ? '' : s.textContent, fits: s.hidden || s.getBoundingClientRect().right <= c.getBoundingClientRect().right - parseFloat(getComputedStyle(c).paddingRight) - parseFloat(getComputedStyle(c).borderRightWidth) + 0.01, title: c.title };
     })`;
     return (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
   });
@@ -108,6 +108,7 @@ test("a card's milestone chip keeps the short name's whole words that fit, else 
   assert.doesNotMatch(long.shown, / (and|the)$/, 'nor on a joining word');
   assert.equal(short.shown, 'Tiny', 'a name that fits stays whole');
   assert.equal(huge.shown, '', 'one word too long: the number alone');
+  assert.ok(huge.whole, 'and the number itself is never cut');
   assert.equal(long.title, 'M1 Starts, respawns and the drones seen', 'the whole name on hover');
 });
 
@@ -131,6 +132,7 @@ test('at 1400px every lane heading is one height, so the first cards line up (#2
     return (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
   });
   assert.match(seen.batch, /likely/, 'Up next has its batch guess');
+  assert.match(seen.batch, /^likely \d+(\.5)? h\nsurely \d+(\.5)? h$/, `a batch ending on another day has no clock time (#229): ${seen.batch}`);
   assert.equal(new Set(seen.heads).size, 1, `every heading one height: ${seen.heads.join(", ")} ${seen.parts.join(" ")}`);
 });
 

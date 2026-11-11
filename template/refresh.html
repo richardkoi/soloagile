@@ -1,6 +1,7 @@
 <script>
 /* A batch's guess on Up next (#209): the build wrote "likely 3.5 h · surely 5 h"; when it
-   would end, "(by 16:30)", is counted from the moment the page is opened. */
+   would end, "(by 16:30)", is counted from the moment the page is opened, and said only
+   when that is today (#229). */
 (function () {
   function hhmm(m) {
     var now = new Date(), d = new Date(now.getTime() + m * 60000);
@@ -12,7 +13,10 @@
     var l = +el.getAttribute('data-likely'), s = +el.getAttribute('data-surely');
     // One line each, likely over surely (#224).
     el.replaceChildren();
-    ['likely ' + spoken(l) + ' (by ' + hhmm(l) + ')', 'surely ' + spoken(s) + ' (by ' + hhmm(s) + ')'].forEach(function (t) {
+    // A clock time only when it would end today (#229): "by Fri 16:49" on a 46-hour batch
+    // promised a moment nobody could count on.
+    function by(m) { var t = hhmm(m); return t.indexOf(' ') < 0 ? ' (by ' + t + ')' : ''; }
+    ['likely ' + spoken(l) + by(l), 'surely ' + spoken(s) + by(s)].forEach(function (t) {
       var line = document.createElement('span');
       line.textContent = t;
       el.appendChild(line);
@@ -192,6 +196,7 @@
     var words = full.split(' ');
     s.hidden = false;
     s.textContent = full;
+    chip.classList.remove('ms-bare');
     // The name is cut when its text runs past the chip's inner edge. (The chip's scrollWidth
     // misses this: it leaves out the right padding the text runs into. The border counts too.)
     var style = getComputedStyle(chip);
@@ -203,7 +208,9 @@
       while (words.length && /^(and|or|of|the|a|an|to|for|in|on|with|from|by|at)$/i.test(words[words.length - 1])) words.pop();
       s.textContent = words.join(' ').replace(/[,;:]$/, '');
     }
-    if (!words.length) s.hidden = true;
+    // With no word left the number stays whole: the chip drops its flag and stops shrinking,
+    // rather than showing a bare "…" (seen beside a Look pill and a picture count).
+    if (!words.length) { s.hidden = true; chip.classList.add('ms-bare'); }
   }
   var watch = new ResizeObserver(function (seen) { seen.forEach(function (e) { fit(e.target); }); });
   var tops = document.querySelectorAll('.lane-body > .card-x > .card-top');
