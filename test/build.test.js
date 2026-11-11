@@ -117,7 +117,7 @@ test('a card shows its stage as a six-part bar, filled up to that stage', () => 
   assert.ok(modal.includes(bar(4, 'Test')), 'and it is in the modal');
   assert.doesNotMatch(face, /Being tested · test|>test</, 'the stage word is not part of the title');
   assert.ok(card('Being built').includes(bar(3, 'Develop')), 'Doing with no stage written is Develop');
-  assert.ok(card('Write <code>soloagile build</code>').includes(bar(1, 'Plan')), 'Up next is Plan');
+  assert.doesNotMatch(card('Write <code>soloagile build</code>'), /class="stage"/, 'an Up next card has no bar: every one would say Plan (#222)');
   assert.ok(card('Check the page').includes(bar(6, 'Feedback')), 'a look is Feedback');
   assert.doesNotMatch(card('Push to GitHub'), /class="stage"/, 'a decision has no stage');
   assert.match(html, /\.stage-bar i\.on \{/);

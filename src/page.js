@@ -146,8 +146,9 @@ export function ageNote(card, column, today) {
 // (modalId is its id), so no script is needed.
 // shorts: each milestone's short name, by id (parsePlan).
 function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts) {
+  // Ideas and Up next are all at Plan, so their bar would say nothing; it shows from Doing on (#222).
   const stage = stageOf(c, column);
-  const wheel = stage ? stageBar(stage) : '';
+  const wheel = stage && stage !== 'plan' ? stageBar(stage) : '';
   const kind = later ? LATER : kindOf(c, column);
   const tone = kind ? (kind.tone ?? kind.label.toLowerCase()) : laneKey;
   // The head: what kind of wait, whose milestone, and the number at the right. The photo
@@ -267,7 +268,7 @@ const KEY = `<section class="key" aria-labelledby="key-h">
 <div class="key-row"><span>${milestoneTag('M1')}</span><span class="key-name">Milestone</span><span class="key-def">The plan milestone the card belongs to.</span></div>
 <div class="key-row"><span><span class="tag tag-pics">${icon('image')}2</span></span><span class="key-name">Pictures</span><span class="key-def">Pictures inside. Click one to see it full size.</span></div>
 <div class="key-row"><span class="key-hues" aria-hidden="true">${pointSwatches}</span><span class="key-name">Points</span><span class="key-def">Claude's quick guess at the card's size, from green (1, tiny) to red (13, too big).</span></div>
-<div class="key-row"><span>${stageBar('develop', '')}</span><span class="key-name">Stage</span><span class="key-def">How far round the wheel: Plan, Design, Develop, Test, Release, Feedback.</span></div>
+<div class="key-row"><span>${stageBar('develop', '')}</span><span class="key-name">Stage</span><span class="key-def">How far round the wheel: Plan, Design, Develop, Test, Release, Feedback. Shown once a card is under way; Ideas and Up next are all at Plan.</span></div>
 <div class="key-row"><span class="card-id">#7</span><span class="key-name">Card number</span><span class="key-def">Answer with it, e.g. "#7 yes".</span></div>
 <div class="key-row"><span class="card-id">&hellip;</span><span class="key-name">Short line</span><span class="key-def">Click the card for its full description.</span></div>
 <div class="key-row"><span class="lane-empty">&mdash;</span><span class="key-name">Not shown</span><span class="key-def">Work from earlier releases. See Releases.</span></div>
