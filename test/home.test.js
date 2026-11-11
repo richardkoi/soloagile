@@ -127,24 +127,15 @@ test('a project with nothing waiting says so, without the amber rail', () => {
   assert.match(html, /1 project · nothing waiting on you/);
 });
 
-test('one list shows every card waiting on the user, decisions first, each linking to its project', () => {
+test('the home page lists only projects: no waiting list, and each tile keeps its own counts', () => {
   const r = root();
   addProject(r, 'alpha', { 'board.md': board({ look: [2] }), 'plan.md': plan, 'index.html': 'page' });
-  addProject(r, 'beta', { 'board.md': board({ decide: [7] }).replace('Which one? · M1', 'Which one? · M1 · asked 2026-09-27'), 'index.html': 'page' });
-  const { html } = renderHome({ projects: listProjects(r, '2026-09-30'), builtAt, template });
-  const list = html.match(/<ul class="wait-list">[^]*?<\/ul>/)[0];
-  assert.match(list, /<a class="wait-row card-x card-decide" href="\/beta\/">.*Decide<\/span><span class="wait-proj">beta<\/span><span class="card-id">#7<\/span><span class="wait-title">Which one\?<\/span><span class="age" data-since="2026-09-27">waiting 3 days<\/span><\/a>/);
-  assert.match(list, /<a class="wait-row card-x card-look" href="\/alpha\/">.*Look<\/span><span class="wait-proj">Alpha Tool<\/span><span class="card-id">#2<\/span><span class="wait-title">Check it<\/span>/);
-  assert.ok(list.indexOf('#7') < list.indexOf('#2'), 'decisions come before looks');
-  addProject(r, 'gamma', { 'board.md': board({ decide: [9] }).replace('- #9 Which one? · M1', '- #9 Stage strip · M1 · 5 pts · design'), 'index.html': 'page' });
-  assert.match(renderHome({ projects: listProjects(r), builtAt, template }).html, /<a class="wait-row card-x card-decide" href="\/gamma\/">.*<\/svg>Design<\/span><span class="wait-proj">gamma<\/span>/, 'a design waiting for his yes says Design');
-  assert.match(html, /Waiting on you<span class="lane-count">2<\/span>/);
-});
-
-test('with nothing waiting, the list is left out', () => {
-  const { html } = renderHome({ projects: [summary('calm')], builtAt, template });
-  assert.doesNotMatch(html, /class="wait-list"/);
+  addProject(r, 'beta', { 'board.md': board({ decide: [7] }), 'index.html': 'page' });
+  const { html } = renderHome({ projects: listProjects(r), builtAt, template });
+  assert.doesNotMatch(html, /class="wait-list"|class="wait-row"/);
   assert.doesNotMatch(html, /class="sec-h"/);
+  assert.match(html, /<a class="proj proj-waiting" href="\/alpha\/">[^]*?1 Look/);
+  assert.match(html, /<a class="proj proj-waiting" href="\/beta\/">[^]*?1 Decide/);
 });
 
 test('names from the Markdown are escaped', () => {

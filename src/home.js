@@ -66,7 +66,6 @@ export function listProjects(root, today = localDate()) {
       name: plan.title ?? folder,
       // When its Markdown last changed; the generated page doesn't count.
       updated: Math.max(0, ...readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => statSync(join(dir, f)).mtimeMs)),
-      waiting,
       decide: waiting.filter((w) => w.column === 'Needs your decision').length,
       look: waiting.filter((w) => w.column === 'Needs your look').length,
       current: current ? { id: current.id, title: current.title } : null,
@@ -115,24 +114,6 @@ ${p.points?.total ? renderMeter(p.points) : ''}
 </a></li>`;
 }
 
-// Every waiting card from every project in one list, so the user needn't open each page to see
-// what needs them. A row links to its project's page.
-function renderWaiting(projects) {
-  const rows = projects.flatMap((p) => (p.waiting ?? []).map((w) => ({ ...w, p })));
-  if (!rows.length) return '';
-  const isDecision = (r) => r.column === 'Needs your decision';
-  rows.sort((a, b) => isDecision(b) - isDecision(a)); // decisions first; projects keep their order
-  const items = rows.map((r) => {
-    const k = r.kind;
-    return `<li><a class="wait-row card-x card-${k.tone ?? k.label.toLowerCase()}" href="${esc(r.p.href)}"><span class="st ${k.pill}">${icon(k.icon)}${k.label}</span><span class="wait-proj">${esc(r.p.name)}</span>${r.id !== null ? `<span class="card-id">#${r.id}</span>` : ''}<span class="wait-title">${inline(r.title)}</span>${r.age ?? ''}</a></li>`;
-  });
-  return `<h2 class="sec-h">Waiting on you<span class="lane-count">${rows.length}</span></h2>
-<ul class="wait-list">
-${items.join('\n')}
-</ul>
-<h2 class="sec-h">Projects<span class="lane-count">${projects.length}</span></h2>`;
-}
-
 const TABS = [
   ['projects', 'Projects', 'layout-dashboard'],
   ['flow', 'Session flow', 'list-todo'],
@@ -147,7 +128,6 @@ export function renderHome({ projects, builtAt, template, flow = '', stampUrl = 
     built: `${icon('clock')}Updated ${esc(stamp(builtAt))}`,
     stamp: builtAt.toISOString(),
     stampUrl,
-    waiting: renderWaiting(sorted),
     projects: sorted.length ? `<ul class="proj-list">\n${sorted.map((p) => renderRow(p, builtAt)).join('\n')}\n</ul>` : '<p class="empty">No project pages yet.</p>',
     nav: TABS.map(([id, label, ic]) => `<a href="#${id}">${icon(ic)}${label}</a>`).join(''),
     flow: trustedBlock(flow),
