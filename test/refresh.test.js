@@ -148,3 +148,42 @@ test('on desktop the lanes run Waiting on you, Doing, Up next, Done, Ideas; a ph
   assert.equal(await order(1400), 'Waiting on you, Doing, Up next, Done, Ideas');
   assert.equal(await order(360), 'Waiting on you, Doing, Up next, Ideas, Done');
 });
+
+test('on desktop a long lane shows its first 10 cards and a Show all button; search, a milestone and #n still find the rest (#219)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-more-'));
+  mkdirSync(join(repo, 'pm'));
+  // 15 Up next cards: #1-#12 in M1, #13-#15 in M2; #14 holds the word "zebra".
+  const next = Array.from({ length: 15 }, (_, i) => `- #${i + 1} ${i === 13 ? 'Zebra' : 'Next'} card ${i + 1} · ${i < 12 ? 'M1' : 'M2'} · 2 pts\n  a line`).join('\n');
+  writeFileSync(join(repo, 'pm', 'board.md'), `# Board\n<!-- next-id: 20 -->\n## Ideas\n- #16 One idea · M1\n## Up next\n${next}\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n`);
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — One · not started\n### M2 — Two · not started\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const state = () => run(`({ shown: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetParent).length,
+      button: document.querySelector('.lane-up-next .lane-more')?.offsetParent ? document.querySelector('.lane-up-next .lane-more').textContent : '',
+      ideasButton: !!document.querySelector('.lane-ideas .lane-more')?.offsetParent })`);
+    const steps = {};
+    steps.start = await state();
+    await run(`document.querySelector('.lane-up-next .lane-more').click()`);
+    steps.all = await state();
+    await run(`document.querySelector('.lane-up-next .lane-more').click()`);
+    steps.fewer = await state();
+    await run(`(() => { const m = document.querySelector('.ms-filter select'); m.value = 'M2'; m.dispatchEvent(new Event('change')); })()`);
+    steps.m2 = await state();
+    await run(`(() => { const m = document.querySelector('.ms-filter select'); m.value = ''; m.dispatchEvent(new Event('change')); })()`);
+    await run(`(() => { const b = document.querySelector('.card-find input'); b.value = 'zebra'; b.dispatchEvent(new Event('input')); })()`);
+    steps.zebra = await run(`!!document.querySelector('[data-id="14"]').offsetParent`);
+    await run(`(() => { const b = document.querySelector('.card-find input'); b.value = '#15'; b.dispatchEvent(new Event('input')); b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); })()`);
+    steps.open = await run(`!!document.querySelector('[data-id="15"] .card-modal:popover-open') && !!document.querySelector('[data-id="15"]').offsetParent`);
+    return steps;
+  });
+  assert.deepEqual(seen.start, { shown: 10, button: 'Show all 15', ideasButton: false }, 'ten cards, then the button; a short lane has none');
+  assert.deepEqual(seen.all, { shown: 15, button: 'Show the first 10', ideasButton: false });
+  assert.deepEqual(seen.fewer, seen.start);
+  assert.equal(seen.m2.shown, 3, "a milestone pick shows its cards, though they were past the first 10");
+  assert.equal(seen.m2.button, '');
+  assert.equal(seen.zebra, true, 'a search shows a match past the first 10');
+  assert.equal(seen.open, true, '#15 and Enter opens a card past the first 10');
+});

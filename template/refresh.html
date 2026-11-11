@@ -64,6 +64,7 @@
       if (none) none.hidden = shown > 0;
       body.hidden = !shown;
     });
+    if (window.soloagileLimit) window.soloagileLimit();
   }
   var saved = '';
   try { saved = localStorage.getItem(key) || ''; } catch (e) {}
@@ -97,6 +98,41 @@
     });
   });
 })();
+/* Long lanes (#219): Up next, Ideas and Done show their first 10 cards, then a "Show all N"
+   button. The count is of the cards the milestone menu leaves; while the search box has
+   words every card shows, so a match is never hidden; a card opened by its number has its
+   lane shown in full first. A lane's choice lasts until the page is opened again. */
+(function () {
+  var FIRST = 10;
+  var open = {}, searching = false;
+  function limit(lane) {
+    var body = lane.querySelector('.lane-body');
+    if (!body) return;
+    var key = lane.className.match(/lane-([a-z-]+)/)[1];
+    var cards = Array.prototype.filter.call(body.querySelectorAll(':scope > .card-x'), function (li) { return !li.hidden; });
+    var long = cards.length > FIRST;
+    cards.forEach(function (li, i) { li.classList.toggle('over', long && !open[key] && !searching && i >= FIRST); });
+    body.querySelectorAll(':scope > .card-x[hidden]').forEach(function (li) { li.classList.remove('over'); });
+    var more = lane.querySelector('.lane-more');
+    if (!more) {
+      more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'lane-more';
+      more.addEventListener('click', function () { open[key] = !open[key]; limit(lane); if (!open[key]) lane.scrollIntoView({ block: 'nearest' }); });
+      body.after(more);
+    }
+    more.hidden = !long || searching || body.hidden;
+    more.textContent = open[key] ? 'Show the first ' + FIRST : 'Show all ' + cards.length;
+  }
+  var lanes = document.querySelectorAll('.lane-up-next, .lane-ideas, .lane-done');
+  // search: the search box has words in it. card: a card about to open, whose lane opens.
+  window.soloagileLimit = function (search, card) {
+    if (search !== undefined) searching = search;
+    if (card) { var lane = card.closest('.lane'); open[lane.className.match(/lane-([a-z-]+)/)[1]] = true; }
+    lanes.forEach(limit);
+  };
+  window.soloagileLimit();
+})();
 /* The search box (#132). Words light the cards that hold them and dim the rest, across every
    lane. A card's number ("#12" or "12") and Enter opens that card: the milestone filter goes
    back to All first if it was hiding it, and a card with no pop-up is scrolled to instead. */
@@ -115,6 +151,7 @@
       if (hit && !li.hidden) n++;
     });
     note.textContent = !q ? '' : /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
+    if (window.soloagileLimit) window.soloagileLimit(!!q && !/^#?\d+$/.test(q));
   }
   box.addEventListener('input', light);
   box.addEventListener('keydown', function (e) {
@@ -125,6 +162,7 @@
     if (!li) { note.textContent = 'no card #' + m[1] + ' on this page'; return; }
     var menu = document.querySelector('.ms-filter select');
     if (li.hidden && menu) { menu.value = ''; menu.dispatchEvent(new Event('change')); }
+    if (li.classList.contains('over') && window.soloagileLimit) window.soloagileLimit(false, li);
     var modal = li.querySelector('.card-modal');
     if (modal) modal.showPopover(); else li.scrollIntoView({ block: 'center' });
   });

@@ -166,6 +166,12 @@ body:has(#settings:target) .tab-settings { display: block; }
 .lane-batch > span { display: block; }
 .ms-left { margin: 0 0 8px; font-size: var(--font-sm); color: var(--text-muted); }
 .lane-body { list-style: none; padding: var(--space-sm); display: flex; flex-direction: column; gap: var(--space-sm); flex: 1; }
+/* A long lane's cards past its first ones (#219), and the button that shows them. */
+.card-x.over { display: none; }
+.lane-more { margin: 0 var(--space-sm) var(--space-sm); padding: 6px; border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md); background: none; color: var(--accent-link); font: inherit; font-size: var(--font-sm); cursor: pointer; }
+.lane-more:hover { background: var(--accent-link-bg); }
+.lane.folded .lane-more { display: none; }
 .lane-empty { color: var(--text-faint); font-size: var(--font-sm); text-align: center; padding: var(--space-md) 0; }
 /* The ONE coloured rail: the lane of things waiting on the user. */
 .lane-waiting .lane-head { border-bottom: 2px solid var(--hue); }
