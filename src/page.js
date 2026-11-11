@@ -215,17 +215,18 @@ function recentlyDone(builtAt) {
 // a card's number and Enter opens it. The finding is done by template/refresh.html.
 const FIND_BOX = '<div class="card-find"><input type="search" placeholder="Find a card: words, or #12 and Enter" aria-label="Find a card" autocomplete="off"><span class="card-find-note" aria-live="polite"></span></div>';
 
-// The milestone filter: an All chip, then one chip per milestone that has an open card on
-// the board, in plan order. A milestone whose cards are all Done loses its chip at once,
-// though its cards stay under Done for their 48 hours (#183). A click shows only that milestone's cards; the page's script does
-// it and remembers the pick (template/refresh.html). One milestone or none needs no filter.
+// The milestone menu beside the search box (#217): All, then each milestone that has an open
+// card on the board, in plan order. A milestone whose cards are all Done leaves it at once,
+// though its cards stay under Done for their 48 hours (#183). Picking one shows only that
+// milestone's cards; the page's script does it and remembers the pick (template/refresh.html).
+// One milestone or none needs no menu.
 function renderFilter(cards, shorts) {
   const present = new Set(cards.filter(({ column }) => column !== 'Done').map(({ card }) => card.milestone).filter(Boolean));
   const order = [...Object.keys(shorts), ...[...present].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))];
   const ids = [...new Set(order)].filter((id) => present.has(id));
   if (ids.length < 2) return '';
-  const chip = (id) => `<button type="button" class="${withMs('ms-chip tag tag-proj', id)}" data-ms="${esc(id)}" aria-pressed="false">${icon('flag')}${esc(id)}${shortName(shorts[id])}</button>`;
-  return `<div class="ms-filter" role="group" aria-label="Show one milestone's cards"><span class="ms-filter-label">Show</span><button type="button" class="ms-chip ms-all tag" data-ms="" aria-pressed="true">All</button>${ids.map(chip).join('')}</div>`;
+  const option = (id) => `<option value="${esc(id)}">${esc(id)}${shorts[id] ? ` ${esc(shorts[id])}` : ''}</option>`;
+  return `<label class="ms-filter"><span class="ms-filter-label">Milestone</span><select aria-label="Show one milestone's cards"><option value="">All</option>${ids.map(option).join('')}</select></label>`;
 }
 
 // A Done card is one line on the board. Its detail lines are in the archive, so it still
@@ -248,7 +249,7 @@ function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took 
   const lanes = [...LANES, ...extra];
   return {
     html: lanes.map((lane) => renderLane(lane, cardsOf(lane.from), pictures, today, shorts, batchOf)).join('\n'),
-    filter: FIND_BOX + renderFilter(lanes.flatMap((lane) => cardsOf(lane.from)), shorts),
+    filter: `<div class="board-tools">${FIND_BOX}${renderFilter(lanes.flatMap((lane) => cardsOf(lane.from)), shorts)}</div>`,
     waiting: cardsOf(LANES[0].from).filter((c) => !c.later).length,
   };
 }
@@ -311,29 +312,15 @@ export function currentMilestone(plan, board) {
   return open.find((m) => m.status === 'in progress') ?? open.find((m) => m.status === 'not started');
 }
 
-// The top row: the milestones still open, each with its short name and a link to its own
-// place on the Plan tab, then one chip that counts the finished ones and opens that tab.
+// The header's line under the name: the milestone whose cards are moving (#217 took the
+// row of milestone chips away; the board's menu and the Plan tab list them).
 function renderMilestones(plan, board) {
   const current = currentMilestone(plan, board);
-  const done = plan.milestones.filter((m) => m.status === 'done').length;
-  const doneChip = done
-    ? `<li><a class="st st-go ms-done" href="#plan" title="${done} milestone${done === 1 ? '' : 's'} done: see the plan">${icon('check')}${done} done</a></li>`
-    : '';
-  const pills = plan.milestones
-    .filter((m) => m.status !== 'done')
-    .map((m) => {
-      const label = `${m.id}: ${m.title}, ${m.status}`;
-      const s = STATUS[m.status];
-      const cls = withMs(`st ${m === current ? 'st-open ms-current' : s.tone}`, m.id);
-      return `<li class="${cls}" title="${esc(label)}"><a class="ms-link" href="#plan-${m.id}"><span class="visually-hidden">${esc(label)}</span><span aria-hidden="true">${icon(m === current ? 'circle-dot' : s.icon)}${esc(m.id)}${shortName(m.short)}</span></a></li>`;
-    })
-    .join('') + doneChip;
-  const now = current
+  return current
     ? `Working on ${milestoneInk(current.id)} ${inline(current.title)}`
     : plan.milestones.length
       ? 'Every milestone is done'
       : '';
-  return { pills: pills ? `<ol class="ms-strip" aria-label="Milestones">${pills}</ol>` : '', now };
 }
 
 // ---------- prose tabs ----------
@@ -436,7 +423,7 @@ function renderLinks(md) {
 export function renderPage({ name, md, builtAt, template, pictures = {}, stampUrl = '', habits = [] }) {
   const board = parseBoard(md.board);
   const plan = parsePlan(md.plan);
-  const { pills, now } = renderMilestones(plan, board);
+  const now = renderMilestones(plan, board);
   const events = parseHistory(md.history ?? '');
   const took = new Map(buildTimes(events).map((c) => [c.id, c.minutes]));
   const list = shares(events);
@@ -447,7 +434,6 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
     name: esc(plan.title ?? name),
     now,
     nav: renderNav(waiting),
-    milestones: pills,
     built: `${icon('clock')}Updated ${esc(stamp(builtAt))}`,
     stamp: builtAt.toISOString(),
     stampUrl,

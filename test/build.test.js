@@ -47,9 +47,7 @@ test('renders every tab, the cards and the header summary', () => {
   assert.match(html, /<span class="lane-name">Waiting on you<\/span><span class="lane-count">2<\/span>/);
   assert.match(html, /<span class="badge" aria-label="2 waiting on you">2<\/span>/);
   assert.match(html, /Working on <b class="ms-ink ms-c1">M1<\/b> The page/);
-  assert.doesNotMatch(html, /title="M0: Convention/, 'a done milestone leaves the top row');
-  assert.match(html, /<li><a class="st st-go ms-done" href="#plan" title="1 milestone done: see the plan"><svg[^>]*>.*?<\/svg>1 done<\/a><\/li><\/ol>/);
-  assert.match(html, /<li class="st st-open ms-current ms-c1" title="M1: The page, in progress">/);
+  assert.doesNotMatch(html, /class="ms-strip"/, 'no row of milestone chips in the header (#217)');
   assert.match(html, /Updated 30 Sep, 15:04/);
   assert.match(html, /No releases yet/);
   assert.match(html, /<h2 class="md-sec h-icon"><svg[^]*?<\/svg>Decisions<\/h2>/);
@@ -147,22 +145,12 @@ test('on the desktop the lanes run in flow order; narrower screens keep Waiting 
   assert.deepEqual(order, { ideas: 1, 'up-next': 2, doing: 3, waiting: 4, done: 5 });
 });
 
-test('on a phone the milestone chips keep to one line each and scroll sideways (#149)', () => {
+test('on a phone the search box and the milestone menu each take the full width (#217)', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  assert.match(html, /\.board-tools \{ display: flex; flex-wrap: wrap;/);
   const phone = html.match(/@media \(max-width: 700px\) \{\n([\s\S]*?)\n\}/)[1];
-  assert.match(phone, /\.ms-strip, \.ms-filter \{ flex-wrap: nowrap; overflow-x: auto;/);
-  assert.match(phone, /\.ms-strip > \*, \.ms-filter > \* \{ flex: none; white-space: nowrap; \}/);
-  // Outside the phone rules both rows still wrap, so the desktop looks as before.
-  assert.match(html, /\.ms-strip \{ list-style: none; display: flex; flex-wrap: wrap;/);
-  assert.match(html, /\.ms-filter \{ display: flex; flex-wrap: wrap;/);
-});
-
-test('the chips\' hidden labels stay inside the strip, so a phone page is no wider than the screen', () => {
-  // Each chip carries a .visually-hidden label (position: absolute). With nothing positioned
-  // around it, it escaped the strip's sideways scroll and made the page ~1700px wide, so a
-  // phone zoomed out and a card's pop-up landed in the corner.
-  const { html } = renderPage({ name: 'demo', md, builtAt, template });
-  assert.match(html, /\.ms-strip \{[^}]*position: relative;/);
+  assert.match(phone, /\.board-tools > \.card-find, \.board-tools > \.ms-filter \{ flex: 1 1 100%; \}/);
+  assert.doesNotMatch(html, /\.ms-strip|\.ms-chip/, 'the old chip styles are gone');
 });
 
 test("a look that can't happen yet is marked Later, sits last and isn't counted as waiting", () => {
@@ -238,7 +226,7 @@ test('the header names the milestone whose cards are moving, not the first one s
   assert.equal(working({ Doing: ['M0'], 'Up next': ['M2'] }), 'M2', 'a finished milestone is never in hand');
   assert.equal(working({}), 'M1', 'with no cards, the first open milestone');
   const { html } = renderPage({ name: 'demo', md: inHand({ Doing: ['M2'] }), builtAt, template });
-  assert.match(html, /<li class="st st-open ms-current ms-c2" title="M2: Live, in progress">/);
+  assert.match(html, /Working on <b class="ms-ink ms-c2">M2<\/b> Live/);
 });
 
 test('release and decision headings get a date chip, and a commit chip when given', () => {
@@ -376,29 +364,18 @@ test('each milestone has its own colour, one of eight taken in turn by its numbe
   }
 });
 
-test('milestone chips carry the short name the plan gives them, on the top row and on cards', () => {
+test('milestones carry the short name the plan gives them, in the menu and on cards', () => {
   const plan = '# Plan\n### M0 — Convention · done 2026-09-30\nshort: The rules\n### M1 — The page · in progress\nshort: First page\nDone when: it builds.\n### M2 — Live · not started\n';
-  const { html } = renderPage({ name: 'demo', md: { ...md, plan }, builtAt, template });
-  const strip = html.match(/<ol class="ms-strip"[^]*?<\/ol>/)[0];
-  assert.match(strip, /M1<span class="ms-short">First page<\/span>/);
-  assert.match(strip, /<span aria-hidden="true"><svg[^>]*>.*?<\/svg>M2<\/span><\/a><\/li>/, 'no short name: just the number');
-  assert.doesNotMatch(strip, /The rules/, 'done milestones stay off the top row');
+  const board = md.board.replace('## Ideas\n', '## Ideas\n- #8 Later · M2\n');
+  const { html } = renderPage({ name: 'demo', md: { ...md, plan, board }, builtAt, template });
+  const menu = html.match(/<label class="ms-filter"[^]*?<\/label>/)[0];
+  assert.match(menu, /<option value="M1">M1 First page<\/option>/);
+  assert.match(menu, /<option value="M2">M2<\/option>/, 'no short name: just the number');
+  assert.doesNotMatch(menu, /The rules/, 'done milestones stay out of the menu');
   assert.match(html, /<span class="tag tag-proj ms-c1" title="M1 First page"><svg[^>]*>.*?<\/svg>M1<span class="ms-short">First page<\/span><\/span>/, 'on a card');
   assert.doesNotMatch(html.match(/<section class="tab tab-plan"[^]*?<\/section>/)[0], /short:/, 'the short: line is not shown as text in the plan');
 });
 
-test('with every milestone done, the top row is just the done chip', () => {
-  const plan = '# Plan\n### M0 — Convention · done 2026-09-30\n### M1 — The page · done 2026-10-01\n';
-  const { html } = renderPage({ name: 'demo', md: { ...md, plan }, builtAt, template });
-  assert.match(html, /<ol class="ms-strip" aria-label="Milestones"><li><a class="st st-go ms-done" href="#plan" title="2 milestones done: see the plan">.*?2 done<\/a><\/li><\/ol>/);
-});
-
-test('a milestone chip in the top row links to its milestone on the Plan tab', () => {
-  const { html } = renderPage({ name: 'demo', md, builtAt, template });
-  assert.match(html, /<li class="st st-open ms-current ms-c1" title="M1: The page, in progress"><a class="ms-link" href="#plan-M1">/);
-  assert.match(html, /<details class="ms-fold" id="plan-M1" open>/);
-  assert.match(html, /<details class="ms-fold" id="plan-M0">/);
-});
 
 test("a project's Markdown can't put HTML or a javascript: link on its page; soloagile's own can", async () => {
   const { block, inline, trustedBlock } = await import('../src/page.js');
@@ -457,20 +434,21 @@ short: First page
 ## Done
 `;
   const { html } = renderPage({ name: 'demo', md: { ...md, plan, board }, builtAt, template });
-  const bar = html.match(/<div class="ms-filter"[^]*?<\/div>/)?.[0];
-  assert.ok(bar, 'the chip row is on the board');
-  assert.match(bar, /<button[^>]*data-ms=""[^>]*aria-pressed="true"[^>]*>All<\/button>/);
-  // In plan order, only milestones that have cards, each in its own colour with its short name.
-  const chips = [...bar.matchAll(/data-ms="(M\d+)"/g)].map((m) => m[1]);
-  assert.deepEqual(chips, ['M1', 'M2']);
-  assert.match(bar, /class="[^"]*ms-c1[^"]*"[^>]*data-ms="M1"[^>]*>[^]*?First page/);
+  const bar = html.match(/<div class="board-tools"><div class="card-find">[^]*?<\/div><label class="ms-filter"[^]*?<\/label><\/div>/)?.[0];
+  assert.ok(bar, 'the milestone menu sits beside the search box (#217)');
+  assert.match(bar, /<span class="ms-filter-label">Milestone<\/span><select aria-label="Show one milestone's cards"><option value="">All<\/option>/);
+  // In plan order, only milestones that have cards, each with its short name.
+  const options = [...bar.matchAll(/<option value="(M\d+)"/g)].map((m) => m[1]);
+  assert.deepEqual(options, ['M1', 'M2']);
+  assert.match(bar, /<option value="M1">M1 First page<\/option>/);
+  assert.doesNotMatch(bar, /<button/, 'no chip buttons');
   // Each card carries its milestone, so the page's script can hide the others.
   assert.match(html, /<li class="card-x card-up-next" data-ms="M1" data-id="\d+">/);
   assert.match(html, /<li class="card-x card-up-next" data-ms="" data-id="\d+">/);
   assert.match(html, /<li class="card-x card-ideas" data-ms="M2" data-id="\d+">/);
 });
 
-test('with one milestone on the board, there is no chip row', () => {
+test('with one milestone on the board, there is no milestone menu', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   assert.doesNotMatch(html, /class="ms-filter"/);
 });
@@ -512,7 +490,7 @@ test('buildProject warns about a file:// address in links.md (#168)', () => {
   assert.deepEqual(problems, ['links.md: file:///home/me/report.html is a file:// address, which opens only on this machine; serve it and link the http address instead']);
 });
 
-test('a milestone whose cards are all Done has no chip; its cards still show under Done (#183)', () => {
+test('a milestone whose cards are all Done leaves the menu; its cards still show under Done (#183)', () => {
   const day = (d) => d.toISOString().slice(0, 10);
   const board = `# Board
 <!-- next-id: 9 -->
@@ -529,7 +507,7 @@ test('a milestone whose cards are all Done has no chip; its cards still show und
 - #2 Finished · M2 · 1 pt · ${day(builtAt)}
 `;
   const { html } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
-  const bar = html.match(/<div class="ms-filter"[^]*?<\/div>/)?.[0];
-  assert.deepEqual([...bar.matchAll(/data-ms="(M\d+)"/g)].map((m) => m[1]), ['M1', 'M3']);
+  const bar = html.match(/<label class="ms-filter"[^]*?<\/label>/)?.[0];
+  assert.deepEqual([...bar.matchAll(/<option value="(M\d+)"/g)].map((m) => m[1]), ['M1', 'M3']);
   assert.match(html, /<li class="card-x card-done" data-ms="M2" data-id="\d+">/, 'the finished card is still on the board');
 });

@@ -89,9 +89,6 @@ button { font-family: inherit; }
 .header-subtitle b { color: var(--text-secondary); }
 .header-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); }
 .updated { font-size: var(--font-xs); color: var(--text-muted); }
-/* position: relative anchors each chip's hidden label inside the strip. Without it the
-   labels escape the phone's sideways scroll and widen the whole page. */
-.ms-strip { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-xs); position: relative; }
 @media (max-width: 1100px) { .header { flex-wrap: wrap; } .header-right { justify-content: flex-start; } }
 
 /* ---------- nav (the page's tabs) ----------
@@ -293,34 +290,27 @@ body:has(#settings:target) .tab-settings { display: block; }
    the header's strip and on the Plan tab; its name in running text takes the colour. */
 .ms-c0 { --m: var(--ms-0); } .ms-c1 { --m: var(--ms-1); } .ms-c2 { --m: var(--ms-2); } .ms-c3 { --m: var(--ms-3); }
 .ms-c4 { --m: var(--ms-4); } .ms-c5 { --m: var(--ms-5); } .ms-c6 { --m: var(--ms-6); } .ms-c7 { --m: var(--ms-7); }
-.tag-proj[class*="ms-c"], .ms-strip .st[class*="ms-c"] { background: color-mix(in srgb, var(--m) 18%, transparent); color: var(--m);
+.tag-proj[class*="ms-c"] { background: color-mix(in srgb, var(--m) 18%, transparent); color: var(--m);
   border: 1px solid var(--m); font-weight: var(--weight-semibold); }
-.ms-strip .st-quiet[class*="ms-c"] { background: none; border-style: dashed; }
-.ms-strip .ms-current[class*="ms-c"] { box-shadow: 0 0 0 2px var(--m); }
 .ms-ink[class*="ms-c"], .proj-ms b.ms-ink[class*="ms-c"] { color: var(--m); }
 .ms-h .tag-proj { font-size: var(--font-sm); }
 /* A milestone's short name after its number on a chip ("M9 Public plugin"): lighter, so the
-   number still leads. The done chip at the end of the header's strip is a link to the plan. */
+   number still leads. */
 .ms-short { margin-left: 0.4em; font-weight: var(--weight-regular); }
-.ms-strip a.ms-done { text-decoration: none; }
-/* The milestone filter above the lanes: chips that wrap on a phone. The picked one is
-   full strength with a ring; the rest are faded until hovered. */
+/* Above the lanes: the search box and the milestone menu side by side (#217). On a phone
+   each takes a row of its own. */
+.board-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-lg); margin-bottom: var(--space-md); }
+.board-tools > .card-find { flex: 0 1 340px; }
 /* The search box (#132): matches stay lit, the rest dim. */
-.card-find { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
-.card-find input { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-overlay); color: var(--text-primary); width: min(320px, 100%); }
+.card-find { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.card-find input { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-overlay); color: var(--text-primary); width: 100%; }
 .card-find-note { color: var(--text-muted); font-size: var(--font-sm); }
 .card-x.find-dim { opacity: 0.25; }
 .card-x.find-hit { box-shadow: 0 0 0 2px var(--m, var(--text-muted)); }
-.ms-filter { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.ms-filter { display: flex; align-items: center; gap: var(--space-sm); }
 .ms-filter-label { color: var(--text-muted); font-size: var(--font-sm); }
-.ms-chip { font-family: inherit; cursor: pointer; opacity: 0.6; }
-.ms-chip.ms-all { background: var(--bg-overlay); color: var(--text-muted); border: 1px solid var(--border-default); }
-.ms-chip:hover, .ms-chip[aria-pressed="true"] { opacity: 1; }
-.ms-chip[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--m, var(--text-muted)); }
-.ms-chip.ms-all[aria-pressed="true"] { color: var(--text-primary); }
-.ms-chip:focus-visible { outline: 2px solid var(--m, var(--text-muted)); outline-offset: 2px; }
+.ms-filter select { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-overlay); color: var(--text-primary); max-width: min(360px, 100%); min-width: 0; }
 .card-x[hidden], .lane-body[hidden], .ms-none[hidden] { display: none; }
-.ms-strip a.ms-link { color: inherit; text-decoration: none; }
 .ms-fold { scroll-margin-top: var(--space-md); }
 /* The photo icon: a card with pictures inside, and how many. */
 .tag-pics { background: var(--accent-link-bg); color: var(--accent-link); border: 1px solid var(--accent-link); }
@@ -349,7 +339,6 @@ body:has(#settings:target) .tab-settings { display: block; }
 .dk-nav a .i { width: 18px; height: 18px; }
 .st .i, .tag .i { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
 .updated .i, .card-meta .i { margin-right: 5px; }
-.ms-strip .st { display: inline-flex; align-items: center; }
 .card-meta { display: flex; align-items: center; }
 /* "waiting 6 days", after a waiting card's date. */
 .age { color: var(--text-secondary); font-weight: var(--weight-semibold); white-space: nowrap; }
@@ -497,14 +486,9 @@ body:has(#settings:target) .tab-settings { display: block; }
   .dk-nav { gap: 4px; }
   .dk-nav a { padding: 6px 8px; }   /* six tabs take two rows on a phone, so none is hidden */
   .panel-x, .card-modal { padding: var(--space-md); }
-  /* With many milestones, wrapped chips push the board off the first screen. On a phone
-     each row of chips stays on one line and scrolls sideways. The padding keeps the
-     picked chip's ring from being cut off. */
-  .ms-strip, .ms-filter { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
-    padding: 3px; margin-inline: -3px; }
-  .ms-strip > *, .ms-filter > * { flex: none; white-space: nowrap; }
   .header-right { min-width: 0; max-width: 100%; }
-  .ms-strip { flex: 1 0 100%; min-width: 0; }   /* a row of its own, as wide as the screen */
+  .board-tools > .card-find, .board-tools > .ms-filter { flex: 1 1 100%; }
+  .ms-filter select { flex: 1 1 0; width: 0; max-width: none; }   /* as wide as the row, never past it */
 }
 /* A small phone is 360px wide: dropping the tab icons fits four tabs, and the
    waiting badge, on the first row. */
