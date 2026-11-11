@@ -48,7 +48,7 @@ test('renders every tab, the cards and the header summary', () => {
   assert.match(html, /<span class="badge" aria-label="2 waiting on you">2<\/span>/);
   assert.match(html, /Working on <b class="ms-ink ms-c1">M1<\/b> The page/);
   assert.doesNotMatch(html, /class="ms-strip"/, 'no row of milestone chips in the header (#217)');
-  assert.match(html, /Updated 30 Sep, 15:04/);
+  assert.match(html, /<span class="updated-word">Updated <\/span>30 Sep, 15:04/);
   assert.match(html, /No releases yet/);
   assert.match(html, /<h2 class="md-sec h-icon"><svg[^]*?<\/svg>Decisions<\/h2>/);
 });

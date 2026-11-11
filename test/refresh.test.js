@@ -208,3 +208,30 @@ test("on a phone a long lane shows its first 5 cards and a Show all button, so D
   assert.equal(seen.looks, 5, 'on a phone Waiting on you, first in the stack, is limited too');
   assert.ok(seen.done < 4 * 780, `Done's heading is near the top, not 90 cards down: at ${Math.round(seen.done)}px`);
 });
+
+test('on a 360px phone the tabs are one row that swipes, the header is short, and the first card is in the top half (#227)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-head-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n## Up next\n- #1 A card · M1 · 2 pts\n- #3 Another · M2 · 2 pts\n## Doing\n## Needs your look\n- #2 Look at it · M1 · live 2026-10-01\n## Needs your decision\n## Done\n');
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — Starts, respawns and the drones seen · in progress\nshort: Starts\n### M2 — Two · not started\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 360, height: 780, deviceScaleFactor: 1, mobile: true });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const expression = `(() => {
+      const nav = document.querySelector('.dk-nav'), tabs = [...nav.querySelectorAll('a')];
+      const title = document.querySelector('.header-title').getBoundingClientRect();
+      const theme = document.querySelector('.header-right').getBoundingClientRect();
+      return { rows: new Set(tabs.map((a) => Math.round(a.getBoundingClientRect().top))).size, tabs: tabs.length,
+        swipes: getComputedStyle(nav).overflowX, pageWide: document.documentElement.scrollWidth,
+        beside: theme.top < title.bottom, firstCard: document.querySelector('.lane-body .card-x').getBoundingClientRect().top };
+    })()`;
+    return (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+  });
+  assert.equal(seen.tabs, 7);
+  assert.equal(seen.rows, 1, 'the tabs are one row');
+  assert.equal(seen.swipes, 'auto', 'which swipes sideways, so every tab is reachable');
+  assert.ok(seen.pageWide <= 360, `the page itself does not scroll sideways: ${seen.pageWide}px`);
+  assert.ok(seen.beside, 'Updated, ? and the theme button sit beside the title');
+  assert.ok(seen.firstCard < 390, `the first card starts in the top half: at ${Math.round(seen.firstCard)}px`);
+});

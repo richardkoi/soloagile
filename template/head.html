@@ -504,15 +504,25 @@ body:has(#settings:target) .tab-settings { display: block; }
   :root { --container-pad: var(--space-sm); --header-pad-y: var(--space-sm); --header-pad-x: var(--space-md); }
   .header { position: static; }   /* a two-row sticky header would eat a phone screen */
   .header-title { font-size: var(--font-xl); }
-  .dk-nav { gap: 4px; }
-  .dk-nav a { padding: 6px 8px; }   /* six tabs take two rows on a phone, so none is hidden */
+  /* A short header (#227): the title, with ? and the theme button beside it and the time
+     under those; then the subtitle; then the tabs in one row that swipes sideways, its
+     right edge fading while more tabs wait past it. */
+  .header { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title right" "nav nav"; gap: var(--space-sm); }
+  .header-left { display: contents; }
+  .header-left > div { grid-area: title; min-width: 0; }
+  .header-right { grid-area: right; display: grid; grid-template-columns: auto auto; justify-items: end; align-items: center; gap: 4px var(--space-sm); }
+  .header-right .updated { grid-column: 1 / -1; grid-row: 2; white-space: nowrap; }
+  .updated-word, .theme-name { display: none; }
+  .dk-nav { grid-area: nav; flex-wrap: nowrap; overflow-x: auto; gap: 4px; scrollbar-width: none; overscroll-behavior-x: contain;
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+  .dk-nav::-webkit-scrollbar { display: none; }
+  .dk-nav a { padding: 6px 8px; flex-shrink: 0; }
   .panel-x, .card-modal { padding: var(--space-md); }
   .header-right { min-width: 0; max-width: 100%; }
   .board-tools > .card-find, .board-tools > .ms-filter { flex: 1 1 100%; }
   .ms-filter select { flex: 1 1 0; width: 0; max-width: none; }   /* as wide as the row, never past it */
 }
-/* A small phone is 360px wide: dropping the tab icons fits four tabs, and the
-   waiting badge, on the first row. */
+/* A small phone is 360px wide: dropping the tab icons fits more tabs in view. */
 @media (max-width: 440px) {
   .dk-nav a .i { display: none; }
   .dk-nav a { padding: 6px; }

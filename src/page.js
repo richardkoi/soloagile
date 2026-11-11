@@ -462,7 +462,7 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
     name: esc(plan.title ?? name),
     now,
     nav: renderNav(waiting),
-    built: `${icon('clock')}Updated ${esc(stamp(builtAt))}`,
+    built: `${icon('clock')}<span class="updated-word">Updated </span>${esc(stamp(builtAt))}`, // a phone leaves out the word (#227)
     stamp: builtAt.toISOString(),
     stampUrl,
     version: VERSION,
