@@ -76,6 +76,11 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   or Done prints `What's left: 3 in Up next and 1 in Doing · likely … · surely …`, and any
   card command prints it too when a Doing card has run past the top of its range; away
   mode says the line after each card.
+  The Reports tab ends with "Are the guesses learning?" (#211): by week, how many built
+  cards took a time inside their range (a card from before ranges is judged by the range
+  it would have been given), and how often the cards' own guesses and simply guessing the
+  median came within half to double; then the last 8 busy days of 4 or more cards, each
+  day's likely and surely beside the busy time it took.
   Once a guessed card is built, its face says under the foot how close it came, `guessed
   40 min, took 52 min`, and the time-to-build report says how many guessed cards took
   between half and double their guess, with up to four weeks of it and whether that is
@@ -647,6 +652,7 @@ soloagile/
   src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md; --remove takes one out (tested)
   src/usage.js            soloagile usage: the week's and the 5 hours' usage from a usage address, for away mode (tested)
   src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples (tested)
+  src/learning.js         the Reports tab's "Are the guesses learning?" (tested)
   src/guess.js            soloagile guess: a new card's time range from its finished cards; card add and the session start use it (tested)
   src/next.js             soloagile next: the board in a few lines and the one next move; the catchup skill loads it (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)

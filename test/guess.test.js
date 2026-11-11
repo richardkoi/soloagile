@@ -115,3 +115,19 @@ test('the what-is-left replay guesses the rest of each busy day after each card 
   const events = parseHistory([...day(1, 3), ...day(2, 3), ...day(3, 4), ...day(4, 4)].join('\n'));
   assert.deepEqual(replayLeft(events), { held: 3, of: 3, under: 3 });
 });
+
+test('the learning report: inside range by week, guesses beside the median, and each day', async () => {
+  const { learningReport } = await import('../src/learning.js');
+  const { cardRows, dayRows } = await import('../src/guess.js');
+  const day = (d, n) => spells(Array.from({ length: n }, (_, i) => [d * 10 + i, i * 30, i * 30 + 30]), d);
+  const events = parseHistory([...day(1, 3), ...day(2, 3), ...day(3, 4), ...day(4, 4)].join('\n'));
+  const rows = cardRows(events);
+  assert.equal(rows.length, 14);
+  assert.deepEqual(rows.filter((r) => r.low !== null).map((r) => [r.low, r.high, r.median, r.minutes])[0], [30, 30, 30, 30]);
+  assert.deepEqual(dayRows(events).map((d) => [d.cards, d.likely, d.surely, d.took]), [[4, 120, 120, 120]]);
+  const html = learningReport(events);
+  assert.match(html, /Are the guesses learning\?/);
+  assert.match(html, /No card carries a range yet; replayed on the past, 8 of 8 cards \(100%\)/);
+  assert.match(html, /1 of 1 took no longer than 'surely'/);
+  assert.equal(learningReport([]), '');
+});

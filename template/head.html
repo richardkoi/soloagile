@@ -485,6 +485,8 @@ body:has(#settings:target) .tab-settings { display: block; }
 .chart-table summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-sm); }
 .chart-table table { border-collapse: collapse; margin-top: var(--space-sm); font-size: var(--font-sm); font-variant-numeric: tabular-nums; }
 .chart-table th, .chart-table td { padding: 4px var(--space-md) 4px 0; text-align: right; border-bottom: 1px solid var(--border-muted); }
+.chart-table th, .chart-table td { white-space: nowrap; }
+.chart-table { overflow-x: auto; }
 .chart-table th:first-child { text-align: left; }
 .chart-table thead th { color: var(--text-muted); font-weight: var(--weight-semibold); }
 

@@ -1,5 +1,6 @@
 // Turns a project's pm/*.md text into the finished page HTML (no file I/O here,
 // so tests can render without touching disk).
+import { learningReport } from './learning.js';
 import { batchFrom, batchText, cardsLeft, shares } from './guess.js';
 import { Marked, marked } from '../vendor/marked.esm.js';
 import { archivedDetails, doneCutoff } from './archive.js';
@@ -455,7 +456,7 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
     filter,
     key: KEY,
     plan: md.plan.trim() ? renderPlanTab(md.plan, plan, board, batchOf) : empty('plan'),
-    reports: renderReports({ history: md.history ?? '', plan, builtAt }),
+    reports: renderReports({ history: md.history ?? '', plan, builtAt }) + learningReport(events),
     releases: md.releases.trim() ? renderReleases(md.releases) : empty('releases'),
     docs:
       (md.overview.trim() ? iconHeadings(block(md.overview), OVERVIEW_ICONS) : empty('overview')) +

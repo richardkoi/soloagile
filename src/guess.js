@@ -297,3 +297,39 @@ export function replayLeft(events) {
   }
   return { held, of, under };
 }
+
+// ---- The rows behind the report (#211) --------------------------------------------------
+
+// Each counted built card, oldest first, with what it would have been given and what it
+// carried: { id, end, minutes, low, high, median, guess, range }. low/high are the range
+// from the cards finished before it started (null with too few); guess and range are what
+// its own card line carried, from the history (null when it had none).
+export function cardRows(events) {
+  const carried = new Map();
+  for (const e of events) {
+    const c = carried.get(e.id) ?? { guess: null, range: null };
+    if (e.guess != null) Object.assign(c, { guess: e.guess, range: e.range ?? null });
+    carried.set(e.id, c);
+  }
+  const cards = builtCards(events);
+  return cards.filter(counts).map((c) => {
+    const r = rangeOf(cards.filter((p) => p.end < c.start));
+    return { id: c.id, end: c.end, minutes: c.minutes, low: r?.low ?? null, high: r?.high ?? null, median: r?.mid ?? null, ...carried.get(c.id) };
+  });
+}
+
+// Each day with 4 or more built cards, guessed as a batch from the days before:
+// { day: Date, cards, likely, surely, took }, oldest first; days with too little before are left out.
+export function dayRows(events) {
+  const list = shares(events);
+  const days = new Map();
+  for (const s of list) days.set(s.day, [...(days.get(s.day) ?? []), s]);
+  const rows = [];
+  for (const cards of days.values()) {
+    if (cards.length < 4) continue;
+    const first = Math.min(...cards.map((c) => c.start));
+    const g = batchFrom(list.filter((s) => s.end < first), cards.length);
+    if (g) rows.push({ day: new Date(cards[0].end), cards: cards.length, likely: g.likely, surely: g.surely, took: Math.round(cards.reduce((t, c) => t + c.share, 0)) });
+  }
+  return rows;
+}
