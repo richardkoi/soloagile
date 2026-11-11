@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseCardLine } from '../src/board.js';
 import { addCard } from '../src/card.js';
-import { builtCards, guessRange, guessSays, rangeOf, replayRanges } from '../src/guess.js';
+import { batchGuess, batchText, builtCards, byWhen, cardsLeft, guessRange, guessSays, rangeOf, replayBatches, replayRanges, shares } from '../src/guess.js';
 import { formatEvent, parseHistory } from '../src/history.js';
 
 // A card that spent `minutes` in Doing, then reached the user's look, one after another.
@@ -55,4 +55,45 @@ test('card add with no --guess takes the middle and the range from the past', ()
   assert.match(byHand.board, /- #1 New card · M1 · 3 pts · ~90 min\n/);
   const question = addCard(BOARD, PLAN, { title: 'Which?', milestone: 'M1', lane: 'decision', options: ['a', 'b'], today: '2026-11-11', past });
   assert.doesNotMatch(question.board, /min/);
+});
+
+// Cards with given Doing spells, in minutes from a start; each reaches the look at its end.
+function spells(cards, day = 1) {
+  const at = (m) => new Date(Date.UTC(2026, 9, day, 8, m)).toISOString().slice(0, 16).replace('T', ' ');
+  const lines = cards.flatMap(([id, from, to]) => [
+    [from, `- ${at(from)} · Doing · #${id} Card ${id} · M1 · 2 pts · develop`],
+    [to, `- ${at(to)} · Needs your look · #${id} Card ${id} · M1 · 2 pts`],
+  ]);
+  return lines.sort((a, b) => a[0] - b[0]).map((l) => l[1]);
+}
+
+test('two cards built side by side share the busy time between them', () => {
+  const list = shares(parseHistory(spells([[1, 0, 60], [2, 30, 90]]).join('\n')));
+  assert.deepEqual(list.map((s) => [s.id, Math.round(s.share), Math.round(s.together * 10) / 10]), [[1, 45, 1.5], [2, 45, 1.5]]);
+});
+
+test('a batch guess is likely then surely, learned from past days, and needs three of them', () => {
+  const day = (d, n) => spells(Array.from({ length: n }, (_, i) => [d * 10 + i, i * 30, i * 30 + 30]), d);
+  const three = parseHistory([...day(1, 3), ...day(2, 3)].join('\n'));
+  assert.equal(batchGuess(three, 4), null);
+  const events = parseHistory([...day(1, 3), ...day(2, 3), ...day(3, 4), ...day(4, 4)].join('\n'));
+  assert.deepEqual(batchGuess(events, 4), { likely: 120, surely: 120, days: 4 });
+  assert.equal(batchText({ likely: 210, surely: 300 }), 'likely 3.5 h · surely 5 h');
+  assert.deepEqual(replayBatches(events), { held: 1, of: 1, under: 1 });
+});
+
+test('the end of a batch says the day when it is not today', () => {
+  const from = new Date(2026, 10, 11, 16, 0);
+  assert.equal(byWhen(from, 30), '16:30');
+  assert.equal(byWhen(from, 24 * 60), 'Thu 16:00');
+});
+
+test('a milestone counts its cards still to build, not its finished ones or questions', () => {
+  const board = { columns: [
+    { name: 'Up next', cards: [{ milestone: 'M2', points: 3 }, { milestone: 'M1', points: 2 }] },
+    { name: 'Doing', cards: [{ milestone: 'M2', points: 5 }] },
+    { name: 'Needs your decision', cards: [{ milestone: 'M2', points: null }] },
+    { name: 'Done', cards: [{ milestone: 'M2', points: 1 }] },
+  ] };
+  assert.equal(cardsLeft(board, 'M2'), 2);
 });

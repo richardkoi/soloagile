@@ -22,7 +22,8 @@ to commit them first: a helper starts from the last commit, so it won't see them
 that are ready: a "done when", and a chosen approach if they are 3 points or more. Read
 each card and the code to work out which files it will change. Two cards that would
 change the same file go to the same helper, one after the other, or wait for a later
-round. Four helpers at most. Say in one line which cards go together.
+round. Four helpers at most. Say in one line which cards go together, and how long the run
+should take: `soloagile guess --batch <cards> --helpers <helpers>`.
 
 **2. Note who owns what.** On each card: `soloagile card note <n> "helper: owns <files>"`,
 and move it to Doing. Only you change the board: helpers never touch `pm/`.

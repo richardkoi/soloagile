@@ -61,6 +61,17 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   shows the middle only; its pop-up says `likely 20–65 min (6 in 10 cards like it land
   here)`. `soloagile guess` prints the range a new card would get, and `--replay` checks it
   on the project's history, each card guessed only from cards finished before it started.
+  A batch of cards gets a guess too (#209): `likely 3.5 h (by 16:30) · surely 5 h (by
+  18:00)`, the 50th and 85th percentile of 2,000 made-up runs. Card times overlap when
+  helpers build side by side, so each built card's share of busy time is used, not its
+  time in Doing: each minute in Doing is split between the cards in Doing then. A made-up
+  run picks one of the last 20 days with 3 or more built cards and draws the batch's cards
+  from that day's shares. Up next's head shows it for all its cards, with the end time
+  counted when the page opens; each open milestone on the Plan tab says `3 cards left ·
+  likely 13 min · surely 22 min`; the session start and catchup say it for Up next; away
+  and parallel say it at a run's start. `soloagile guess --batch next|M3|<n> [--helpers N]`
+  prints it (helpers 1 learns only from days built one at a time, 2 or more from the
+  rest), and `--replay` checks it on every past day with 4 or more built cards.
   Once a guessed card is built, its face says under the foot how close it came, `guessed
   40 min, took 52 min`, and the time-to-build report says how many guessed cards took
   between half and double their guess, with up to four weeks of it and whether that is

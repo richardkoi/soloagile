@@ -19,6 +19,7 @@
 //        soloagile usage            the week's usage, for away mode (src/usage.js)
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
 //        soloagile guess [repo] [--replay]  a new card's time range from the finished cards
+//          --batch next|M3|<n> [--helpers N]   a batch's time instead: likely and surely, and when
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
 //          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box;
@@ -48,7 +49,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
-import { guessRange, guessSays, readGuess, replayRanges } from '../src/guess.js';
+import { batchGuess, batchText, cardsLeft, guessRange, guessSays, readGuess, replayBatches, replayRanges } from '../src/guess.js';
 import { addRuleTo, removeRuleFrom } from '../src/rules.js';
 import { readUsage } from '../src/usage.js';
 import { backupCommand, cleanupProject, clearCardShots, markShots } from '../src/cleanup.js';
@@ -93,6 +94,7 @@ const COMMANDS = [
   ['usage', "the week's and the 5 hours' usage, from the address set as usageUrl; exits 3 when either reaches the stop"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
   ['guess [repo] [--replay]', "a new card's time range from the finished cards; --replay checks it on the past"],
+  ['guess --batch next|M3|<n>', 'a batch of cards: likely and surely, and when it would end'],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …] [--press …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
@@ -373,11 +375,26 @@ if (cmd === 'usage') {
 
 if (cmd === 'guess') {
   // A new card's build time as a range from this project's finished cards (#208).
-  const events = readGuess(process.argv.slice(3).find((a) => !a.startsWith('--')) ?? process.cwd());
-  console.log(guessSays(events));
-  if (process.argv.includes('--replay')) {
+  // --batch next|M3|<n> [--helpers N]: a batch's time instead (#209), in busy time.
+  const rest = process.argv.slice(3);
+  const flag = (f) => (rest.includes(f) ? rest[rest.indexOf(f) + 1] : undefined);
+  const which = flag('--batch');
+  const dir = rest.find((a, i) => !a.startsWith('--') && !['--batch', '--helpers'].includes(rest[i - 1])) ?? process.cwd();
+  const events = readGuess(dir);
+  if (rest.includes('--batch')) {
+    const boardFile = resolve(dir, 'pm', 'board.md');
+    const board = existsSync(boardFile) ? parseBoard(readFileSync(boardFile, 'utf8')) : { columns: [] };
+    const lane = (n) => board.columns.find((c) => c.name === n)?.cards ?? [];
+    const n = /^\d+$/.test(which ?? '') ? Number(which) : /^M\d+$/.test(which ?? '') ? cardsLeft(board, which) : lane('Up next').length;
+    const label = /^\d+$/.test(which ?? '') ? `${n} cards` : /^M\d+$/.test(which ?? '') ? `${which}: ${n} card${n === 1 ? '' : 's'} left` : `Up next: ${n} card${n === 1 ? '' : 's'}`;
+    const g = batchGuess(events, n, { helpers: Number(flag('--helpers') ?? 0) });
+    console.log(!n ? `${label}, nothing to guess.` : g ? `${label} · ${batchText(g, { clock: new Date() })}, learned from ${g.days} past days` : `${label}: too few past days of built cards to guess from yet.`);
+  } else console.log(guessSays(events));
+  if (rest.includes('--replay')) {
     const { inside, of } = replayRanges(events);
-    console.log(of ? `Replayed: ${inside} of ${of} built cards (${Math.round((100 * inside) / of)}%) took a time inside the range they would have been given.` : 'Replayed: too few built cards to check.');
+    console.log(of ? `Replayed cards: ${inside} of ${of} built cards (${Math.round((100 * inside) / of)}%) took a time inside the range they would have been given.` : 'Replayed cards: too few built cards to check.');
+    const b = replayBatches(events);
+    console.log(b.of ? `Replayed days: ${b.held} of ${b.of} days with 4 or more cards (${Math.round((100 * b.held) / b.of)}%) took no longer than their 'surely' guess; ${b.under} within 'likely'.` : 'Replayed days: too few busy days to check.');
   }
   process.exit(0);
 }

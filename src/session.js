@@ -12,7 +12,7 @@ import { buildAll, buildHome } from './home.js';
 import { isPmProject } from './hook.js';
 import { localDate } from './init.js';
 import { onHome, pageUrl, projectsFolderOf } from './settings.js';
-import { guessSays, readGuess } from './guess.js';
+import { batchGuess, batchText, guessSays, readGuess } from './guess.js';
 import { habitOn, habitStates, habitsText } from './habits.js';
 import { weeklyCleanup } from './cleanup.js';
 import { refreshHerdr } from './herdr.js';
@@ -80,9 +80,15 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
     ...section('Doing', cardsIn(board, 'Doing')),
     ...(behind ? [`Release: ${behind}; release them as a new version unless a card is still being built.`] : []),
   ];
+  // The whole of Up next as a batch (#209): catchup says it, so the user knows how long it is.
+  const events = readGuess(repo);
+  const queued = cardsIn(board, 'Up next').length;
+  const g = queued ? batchGuess(events, queued) : null;
+  const upNextGuess = g ? `Up next, all ${queued} card${queued === 1 ? '' : 's'}: ${batchText(g, { clock: new Date() })} of building, from ${g.days} past days (soloagile guess --batch).` : '';
   const tail = (examples) => [
     '',
-    guessSays(readGuess(repo)),
+    guessSays(events),
+    ...(upNextGuess ? [upNextGuess] : []),
     '',
     ...(habitsText(habitStates(repo)) ? [habitsText(habitStates(repo)), ''] : []),
     'When the user greets you or asks where things stand ("catch me up", "what\'s next"), run the soloagile:catchup skill.',

@@ -12,6 +12,7 @@ Ground truth before you read anything:
 - Recent commits: !`git log --oneline -15 --date=short --format='%ad %h %s' 2>/dev/null || echo "-"`
 - Containers up: !`docker ps --format '{{.Names}}\t{{.Status}}' 2>/dev/null | head -10 || echo "none"`
 - Board, in a few lines, and the next move: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" next 2>/dev/null || echo "no pm/board.md"`
+- How long Up next should take: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" guess --batch next 2>/dev/null || echo "-"`
 - Page: !`"${CLAUDE_PLUGIN_ROOT}/bin/soloagile" link 2>/dev/null || echo "-"`
 
 Read `NEXT_SESSION.md` in the project root. If there is no board above, read
@@ -34,8 +35,9 @@ Then give the user, and nothing more:
    then looks, one line each; `/soloagile:needs` asks them in full. Without a board:
    whatever the handoff flagged as needing an answer. Or "nothing".
 4. **What's next** — with a board: the summary's next move first, then the Doing cards
-   and the top of Up next, one line each with its #id. Without one: the handoff's
-   options. A numbered list, one sentence each.
+   and the top of Up next, one line each with its #id, then how long Up next should
+   take, from the line above. Without one: the handoff's options. A numbered list, one
+   sentence each.
 
 With a board, end with the page's link, from the Page line above.
 

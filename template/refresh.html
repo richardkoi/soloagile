@@ -1,4 +1,18 @@
 <script>
+/* A batch's guess on Up next (#209): the build wrote "likely 3.5 h · surely 5 h"; when it
+   would end, "(by 16:30)", is counted from the moment the page is opened. */
+(function () {
+  function hhmm(m) {
+    var now = new Date(), d = new Date(now.getTime() + m * 60000);
+    var t = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    return d.toDateString() === now.toDateString() ? t : d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ' + t;
+  }
+  function spoken(m) { return m < 90 ? Math.max(1, Math.round(m)) + ' min' : Math.round(m / 30) / 2 + ' h'; }
+  document.querySelectorAll('.lane-batch').forEach(function (el) {
+    var l = +el.getAttribute('data-likely'), s = +el.getAttribute('data-surely');
+    el.textContent = 'likely ' + spoken(l) + ' (by ' + hhmm(l) + ') · surely ' + spoken(s) + ' (by ' + hhmm(s) + ')';
+  });
+})();
 /* How long each waiting card has waited, counted again as the page opens: the build wrote
    it too, but a quiet project's page may be days old. */
 (function () {

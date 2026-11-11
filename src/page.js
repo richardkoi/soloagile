@@ -1,5 +1,6 @@
 // Turns a project's pm/*.md text into the finished page HTML (no file I/O here,
 // so tests can render without touching disk).
+import { batchFrom, batchText, cardsLeft, shares } from './guess.js';
 import { Marked, marked } from '../vendor/marked.esm.js';
 import { archivedDetails, doneCutoff } from './archive.js';
 import { COLUMNS, SCALE, SHORT_LINE, STAGES, guessText, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
@@ -183,7 +184,8 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
 
 // Lanes that fold, and the way their arrow points: towards the board's edge.
 const FOLDS = { ideas: 'chevron-left', done: 'chevron-right' };
-function renderLane(lane, cards, pictures, today, shorts) {
+// batchOf: n -> a batch's guess for n cards (src/guess.js), or null; Up next shows it (#209).
+function renderLane(lane, cards, pictures, today, shorts, batchOf = () => null) {
   const body = cards.length
     ? `<ul class="lane-body">${cards.map(({ card, column, later }, i) => renderCard(card, column, lane.key, `card-${lane.key}-${i}`, later, pictures, today, shorts)).join('\n')}</ul>`
     : '<p class="lane-empty">&mdash;</p>';
@@ -191,9 +193,12 @@ function renderLane(lane, cards, pictures, today, shorts) {
   const shown = cards.filter((c) => !c.later);
   const points = shown.reduce((sum, { card }) => sum + (card.points ?? 0), 0);
   // Ideas and Done can fold to a thin strip (#134); template/refresh.html remembers it.
+  const guess = lane.key === 'up-next' && shown.length ? batchOf(shown.length) : null;
+  // The page's script adds when it would end, "(by 16:30)", from the time it is opened.
+  const batch = guess ? `<span class="lane-batch" data-likely="${guess.likely}" data-surely="${guess.surely}">${esc(batchText(guess))}</span>` : '';
   const fold = FOLDS[lane.key] ? `<button type="button" class="lane-fold" aria-expanded="true" aria-label="Fold ${esc(lane.name)} to a strip" title="Fold or unfold">${icon(FOLDS[lane.key])}</button>` : '';
   return `<section class="lane lane-${lane.key}" aria-label="${esc(lane.name)}">
-<div class="lane-head"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : ''}${lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : ''}${fold}</div>
+<div class="lane-head"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : ''}${batch}${lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : ''}${fold}</div>
 ${body}
 </section>`;
 }
@@ -225,7 +230,7 @@ function renderFilter(cards, shorts) {
 // A Done card is one line on the board. Its detail lines are in the archive, so it still
 // opens in full. `finished` is that archive's text.
 // took: card number -> minutes it spent being built, from the history (buildTimes).
-function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took = new Map()) {
+function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took = new Map(), batchOf = () => null) {
   const today = ymd(builtAt);
   const kept = finished ? archivedDetails(finished) : new Map();
   const full = (card, column) => (column === 'Done' && !card.details.length && kept.has(card.id) ? { ...card, details: kept.get(card.id) } : card);
@@ -241,7 +246,7 @@ function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took 
     .map((c) => ({ name: c.name, hint: '', key: slug(c.name), icon: 'circle', from: [c.name] }));
   const lanes = [...LANES, ...extra];
   return {
-    html: lanes.map((lane) => renderLane(lane, cardsOf(lane.from), pictures, today, shorts)).join('\n'),
+    html: lanes.map((lane) => renderLane(lane, cardsOf(lane.from), pictures, today, shorts, batchOf)).join('\n'),
     filter: FIND_BOX + renderFilter(lanes.flatMap((lane) => cardsOf(lane.from)), shorts),
     waiting: cardsOf(LANES[0].from).filter((c) => !c.later).length,
   };
@@ -361,7 +366,8 @@ function renderProgress(plan) {
 
 // "### M1 — The page · in progress" and the text under it -> a fold-out: the milestone's
 // tag, name and status pill on the summary line, its text inside. Done ones start folded.
-function milestoneHeadings(html, plan, board) {
+// A milestone not done says how long its cards still to build should take (#209).
+function milestoneHeadings(html, plan, board, batchOf = () => null) {
   const current = currentMilestone(plan, board);
   return html.replace(
     /<h3>(M\d+) [—–-] (.+?) · (not started|in progress|done)(?: (\d{4}-\d{2}-\d{2}))?<\/h3>([\s\S]*?)(?=<h[23]>|$)/g,
@@ -370,15 +376,18 @@ function milestoneHeadings(html, plan, board) {
       const isCurrent = current?.id === id;
       const pill = `${s.label}${date ? ` ${shortDate({ label: null, value: date })}` : ''}`;
       const h3 = `<h3 class="ms-h ms-h-${slug(status)}">${milestoneTag(id)}<span>${title}</span><span class="st ${isCurrent ? 'st-open' : s.tone}">${pill}</span></h3>`;
-      return `<details class="ms-fold" id="plan-${id}"${status === 'done' ? '' : ' open'}><summary>${h3}</summary><div class="ms-body">${body}</div></details>`;
+      const left = status === 'done' ? 0 : cardsLeft(board, id);
+      const guess = left ? batchOf(left) : null;
+      const leftLine = guess ? `<p class="ms-left">${left} card${left === 1 ? '' : 's'} left · ${esc(batchText(guess))}</p>` : '';
+      return `<details class="ms-fold" id="plan-${id}"${status === 'done' ? '' : ' open'}><summary>${h3}</summary><div class="ms-body">${leftLine}${body}</div></details>`;
     },
   );
 }
 
-function renderPlanTab(md, plan, board) {
+function renderPlanTab(md, plan, board, batchOf) {
   // A milestone's "short:" line names its chip; the Plan tab already shows its full title.
   md = md.split('\n').filter((line) => !SHORT_LINE.test(line)).join('\n');
-  const html = milestoneHeadings(iconHeadings(block(md), { Goal: 'target', 'Out of scope': 'ban', Milestones: 'flag' }), plan, board);
+  const html = milestoneHeadings(iconHeadings(block(md), { Goal: 'target', 'Out of scope': 'ban', Milestones: 'flag' }), plan, board, batchOf);
   return renderProgress(plan) + html;
 }
 
@@ -427,8 +436,11 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
   const board = parseBoard(md.board);
   const plan = parsePlan(md.plan);
   const { pills, now } = renderMilestones(plan, board);
-  const took = new Map(buildTimes(parseHistory(md.history ?? '')).map((c) => [c.id, c.minutes]));
-  const { html: boardHtml, filter, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])), took);
+  const events = parseHistory(md.history ?? '');
+  const took = new Map(buildTimes(events).map((c) => [c.id, c.minutes]));
+  const list = shares(events);
+  const batchOf = (n) => batchFrom(list, n);
+  const { html: boardHtml, filter, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])), took, batchOf);
   const empty = (what) => `<p class="empty">No ${what} yet.</p>`;
   const parts = {
     name: esc(plan.title ?? name),
@@ -442,7 +454,7 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
     board: boardHtml,
     filter,
     key: KEY,
-    plan: md.plan.trim() ? renderPlanTab(md.plan, plan, board) : empty('plan'),
+    plan: md.plan.trim() ? renderPlanTab(md.plan, plan, board, batchOf) : empty('plan'),
     reports: renderReports({ history: md.history ?? '', plan, builtAt }),
     releases: md.releases.trim() ? renderReleases(md.releases) : empty('releases'),
     docs:

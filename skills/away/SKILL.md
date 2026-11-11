@@ -29,8 +29,9 @@ AskUserQuestion call, before any building:
 Record each answer as the needs skill does. A card whose design is still unanswered when
 the user leaves stays in Up next with its options, as a design card, and is skipped.
 
-**2. Say the plan in one line**: the cards you will build, in board order, and when you
-will stop. Then work without asking anything more.
+**2. Say the plan in one line**: the cards you will build, in board order, how long they
+should take (`soloagile guess --batch <n>`, n the number of cards: "likely 3 h (by 16:30) ·
+surely 5 h (by 18:00)"), and when you will stop. Then work without asking anything more.
 
 **3. Build Up next in order**, one card at a time, round the whole wheel: move it to
 Doing, build it, run the project's checks, write its `tested:` line and a `to look:` line,
