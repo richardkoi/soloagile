@@ -53,8 +53,8 @@ export const stamp = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.get
 
 // Lanes follow the My Board pattern: five in a row, one coloured rail. They
 // regroup board.md's six columns; decisions and looks share "Waiting on you".
-// This is the order a phone stacks them in. Five in a row, the CSS puts them in flow
-// order instead: Ideas, Up next, Doing, Waiting on you, Done (template/head.html).
+// This is the order a phone stacks them in. Five in a row, the CSS puts Done before Ideas,
+// so Ideas, the least urgent, is at the far edge (#228, template/head.html).
 const LANES = [
   { name: 'Waiting on you', hint: 'your look or answer', empty: 'Nothing waiting on you', key: 'waiting', icon: 'bell-ring', from: ['Needs your decision', 'Needs your look'] },
   { name: 'Doing', hint: 'Claude is on it', empty: "Claude isn't building anything", key: 'doing', icon: 'hammer', from: ['Doing'] },
@@ -203,8 +203,9 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${tookLine}${modal}</li>`;
 }
 
-// Lanes that fold, and the way their arrow points: towards the board's edge.
-const FOLDS = { ideas: 'chevron-left', done: 'chevron-right' };
+// Lanes that fold, and the way their arrow points: towards the board's right side, where
+// both sit five in a row (#228).
+const FOLDS = { ideas: 'chevron-right', done: 'chevron-right' };
 // batchOf: n -> a batch's guess for n cards (src/guess.js), or null; Up next shows it (#209).
 function renderLane(lane, cards, pictures, today, shorts, batchOf = () => null) {
   const body = cards.length

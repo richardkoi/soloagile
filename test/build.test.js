@@ -136,13 +136,13 @@ test('a design waiting for a yes is a Design card in Waiting on you, with its ba
   assert.match(html, /<span class="key-name">Design<\/span>/);
 });
 
-test('on the desktop the lanes run in flow order; narrower screens keep Waiting on you first', () => {
+test('on the desktop Waiting on you comes first and Ideas last; a phone keeps its own order (#228)', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   const lanes = [...html.matchAll(/<section class="lane lane-([a-z-]+)"/g)].map((m) => m[1]);
   assert.deepEqual(lanes, ['waiting', 'doing', 'up-next', 'ideas', 'done'], 'the order a phone shows');
   const wide = html.match(/@media \(min-width: 1101px\) \{\n([^@]*?)\n\}/)[1];
   const order = Object.fromEntries([...wide.matchAll(/\.lane-([a-z-]+) \{ order: (\d); \}/g)].map((m) => [m[1], Number(m[2])]));
-  assert.deepEqual(order, { ideas: 1, 'up-next': 2, doing: 3, waiting: 4, done: 5 });
+  assert.deepEqual(order, { waiting: 1, doing: 2, 'up-next': 3, done: 4, ideas: 5 });
 });
 
 test('on a phone the search box and the milestone menu each take the full width (#217)', () => {

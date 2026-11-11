@@ -133,3 +133,18 @@ test('at 1400px every lane heading is one height, so the first cards line up (#2
   assert.match(seen.batch, /likely/, 'Up next has its batch guess');
   assert.equal(new Set(seen.heads).size, 1, `every heading one height: ${seen.heads.join(", ")} ${seen.parts.join(" ")}`);
 });
+
+test('on desktop the lanes run Waiting on you, Doing, Up next, Done, Ideas; a phone keeps its order (#228)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = project('A card');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const order = (width) => withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 600 });
+    await new Promise((ok) => setTimeout(ok, 300));
+    // Lanes in the order they show: left to right, then top to bottom.
+    const expression = `[...document.querySelectorAll('.lane')].map((l) => ({ n: l.querySelector('.lane-name').textContent, r: l.getBoundingClientRect() }))
+      .sort((a, b) => a.r.top - b.r.top || a.r.left - b.r.left).map((l) => l.n).join(', ')`;
+    return (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+  });
+  assert.equal(await order(1400), 'Waiting on you, Doing, Up next, Done, Ideas');
+  assert.equal(await order(360), 'Waiting on you, Doing, Up next, Ideas, Done');
+});

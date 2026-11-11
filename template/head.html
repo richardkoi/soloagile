@@ -176,11 +176,12 @@ body:has(#settings:target) .tab-settings { display: block; }
 .lane-icon { display: inline-flex; align-self: center; color: var(--hue); }
 .lane-icon .i { width: 20px; height: 20px; }
 .lane-done { opacity: 0.75; }
-/* Five in a row, the lanes run in flow order, so a card moves left to right, the way its
-   stage bar fills. Narrower screens stack them in the page's own order, Waiting on you first. */
+/* Five in a row, Waiting on you comes first, as on a phone (#228): it is the lane the user
+   acts on. Then Doing, Up next, Done, and Ideas, the least urgent, at the far edge. Narrower
+   screens stack them in the page's own order: Waiting on you, Doing, Up next, Ideas, Done. */
 @media (min-width: 1101px) {
   .lane { order: 6; }
-  .lane-ideas { order: 1; } .lane-up-next { order: 2; } .lane-doing { order: 3; } .lane-waiting { order: 4; } .lane-done { order: 5; }
+  .lane-waiting { order: 1; } .lane-doing { order: 2; } .lane-up-next { order: 3; } .lane-done { order: 4; } .lane-ideas { order: 5; }
 }
 /* Ideas and Done fold (#134): the button sits at the heading's end. A folded lane keeps only
    its heading; five in a row, it becomes a thin strip at the board's edge, read sideways. */
@@ -192,9 +193,9 @@ body:has(#settings:target) .tab-settings { display: block; }
 .lane.folded > :not(.lane-head) { display: none; }
 .lane.folded { min-height: 0; }
 @media (min-width: 1101px) {
-  .lanes:has(.lane-ideas.folded) { grid-template-columns: 52px repeat(4, minmax(0, 1fr)); }
-  .lanes:has(.lane-done.folded) { grid-template-columns: repeat(4, minmax(0, 1fr)) 52px; }
-  .lanes:has(.lane-ideas.folded):has(.lane-done.folded) { grid-template-columns: 52px repeat(3, minmax(0, 1fr)) 52px; }
+  .lanes:has(.lane-ideas.folded) { grid-template-columns: repeat(4, minmax(0, 1fr)) 52px; }
+  .lanes:has(.lane-done.folded) { grid-template-columns: repeat(3, minmax(0, 1fr)) 52px minmax(0, 1fr); }
+  .lanes:has(.lane-ideas.folded):has(.lane-done.folded) { grid-template-columns: repeat(3, minmax(0, 1fr)) 52px 52px; }
   .lane.folded .lane-head { writing-mode: vertical-rl; border-bottom: 0; padding: var(--space-md) 0; }
   .lane.folded .lane-title { align-items: center; }
   .lane.folded .lane-sub, .lane.folded .lane-points { display: none; }
