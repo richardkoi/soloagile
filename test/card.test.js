@@ -257,3 +257,24 @@ test('cardCommits lists the commits that name a card, not a longer number (#172)
   assert.equal(cardCommits(log, 172), 'Commits:\n- 2026-10-29 aaa111 Two cards at once (#17, #172)\n- 2026-10-27 ccc333 Start #172\n');
   assert.equal(cardCommits(log, 9), 'Commits: none name this card\n');
 });
+
+test('move --top, --before and --after set a card\'s place in Up next, and the next move follows (#204)', async () => {
+  const { nextText } = await import('../src/next.js');
+  const three = BOARD.replace('- #8 Queued · M2 · 2 pts\n  done when: it is done\n', '- #8 Queued · M2 · 2 pts\n  done when: it is done\n- #10 Second · M2 · 1 pt\n  done when: two\n- #11 Third · M2 · 1 pt\n  done when: three\n').replace('## Doing\n- #7 In hand · M2 · 3 pts · develop\n  the short line\n', '## Doing\n');
+  const order = (b) => lane(b, 'Up next').map((c) => c.id);
+  const top = run(['move', '11', '--top'], three);
+  assert.deepEqual(order(top.board), [11, 8, 10]);
+  assert.equal(top.said, '#11 is first in Up next');
+  assert.ok(top.board.includes('## Up next\n- #11 Third · M2 · 1 pt\n  done when: three\n- #8'), 'its lines come with it');
+  assert.match(nextText(parseBoard(top.board), { name: 'Demo', today }), /Next move: start #11 Third/);
+  assert.deepEqual(order(run(['move', '8', '--after', '11'], three).board), [10, 11, 8]);
+  assert.deepEqual(order(run(['move', '#11', '--before', '#10'], three).board), [8, 11, 10]);
+  // An idea comes into Up next at a place when the lane is named.
+  const idea = three.replace('- #3 An idea with no milestone · 2 pts', '- #3 An idea · M2 · 2 pts');
+  assert.deepEqual(order(run(['move', '3', 'next', '--before', '10'], idea).board), [8, 3, 10, 11]);
+  refused(['move', '3', '--top'], /is in Ideas, not Up next; .*card move 3 next --top/, idea);
+  refused(['move', '11', 'doing', '--top'], /a place in Up next only/, three);
+  refused(['move', '11', '--before', '6'], /#6 is not in Up next \(it is in Done\)/, three);
+  refused(['move', '11', '--after', '11'], /next to itself/, three);
+  refused(['move', '11', '--top', '--after', '8'], /give one place/, three);
+});

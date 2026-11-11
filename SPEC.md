@@ -292,6 +292,12 @@ The six columns, always in this order and always present, even when empty:
     than two options, and a card with no milestone or no points. A card coming back from Done
     gets its text back. `decision --option "…" --option "…"` letters the options on as it
     moves, after any the card has.
+  - `soloagile card move <number> --top`, `--before <number>` or `--after <number>` sets a
+    card's place in Up next, whose order is the build order: the next move starts the first
+    card there that nothing holds. The lane may be left out for a card already in Up next;
+    `next --top` brings one in at that place. It refuses a place in any other lane, a
+    neighbour that isn't in Up next, and more than one place. In plain words, "put #12
+    first" or "#12 before #9" (#204).
   - `soloagile card note <number> "<line>"` adds a detail line, first with `--first`.
     `soloagile card set <number>` changes the milestone, points, guess, title or `done when:` line.
     `soloagile card show <number>` prints one card in full, finished or not; `soloagile card

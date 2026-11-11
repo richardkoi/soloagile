@@ -100,11 +100,31 @@ export function addCard(boardMd, planMd, { title, milestone, points = null, gues
   return { board: lines.join('\n'), id, milestone, said: `added #${id} to ${column}` };
 }
 
+// Where in Up next a card goes (#204): first, or just before or after another Up next card.
+// Returns the line to put it at, in `lines` with the card itself already taken out.
+function placeAt(lines, id, { top, before, after }) {
+  if ([top, before, after].filter(Boolean).length > 1) refuse('give one place: --top, --before <number> or --after <number>');
+  if (top) {
+    const head = lines.findIndex((l) => l.trim() === '## Up next');
+    const first = lines.findIndex((l, i) => i > head && (l.startsWith('## ') || /^- #\d/.test(l)));
+    return first >= 0 && /^- #\d/.test(lines[first]) ? first : null;
+  }
+  const other = numberOf(String(before ?? after));
+  if (other === id) refuse(`#${id} can't go next to itself`);
+  const beside = find(lines, other);
+  if (beside?.lane !== 'Up next') refuse(`#${other} is not in Up next${beside ? ` (it is in ${beside.lane})` : ''}; place #${id} beside a card that is`);
+  return before ? beside.at : beside.end;
+}
+
 // soloagile card move <number> <lane> [stage] [--design] [--from <date>] [--option "…"]…
-export function moveCard(boardMd, archiveMd, { id, lane, stage, design = false, from, options = [], today }) {
-  const column = laneOf(lane);
+//   [--top | --before <number> | --after <number>]: a place in Up next; the lane may be left out.
+export function moveCard(boardMd, archiveMd, { id, lane, stage, design = false, from, options = [], top = false, before, after, today }) {
+  const placed = top || before !== undefined || after !== undefined;
   const lines = boardMd.split('\n');
   const found = find(lines, id) ?? refuse(gone(archiveMd, id));
+  if (placed && lane === undefined && found.lane !== 'Up next') refuse(`#${id} is in ${found.lane}, not Up next; to bring it in at that place: soloagile card move ${id} next ${top ? '--top' : before !== undefined ? `--before ${before}` : `--after ${after}`}`);
+  const column = laneOf(lane ?? (placed ? 'next' : refuse(`say which lane: soloagile card move ${id} doing`)));
+  if (placed && column !== 'Up next') refuse('--top, --before and --after set a place in Up next only');
   const { card } = found;
   let details = found.details;
   // A card coming back from Done gets its text back from the archive.
@@ -149,7 +169,11 @@ export function moveCard(boardMd, archiveMd, { id, lane, stage, design = false, 
   if (column === 'Done') card.date = { label: null, value: today };
 
   lines.splice(found.at, found.end - found.at);
-  put(lines, column, [cardLine(card), ...details]);
+  const block = [cardLine(card), ...details];
+  const at = placed ? placeAt(lines, id, { top, before, after }) : null;
+  if (at === null) put(lines, column, block);
+  else lines.splice(at, 0, ...block);
+  if (placed) return { board: lines.join('\n'), column, said: `#${id} is ${top ? 'first' : before !== undefined ? `just before #${numberOf(String(before))}` : `just after #${numberOf(String(after))}`} in Up next` };
   const where = column === 'Doing' ? `Doing, at ${card.stage}` : card.date?.label ? `${column}, ${card.date.label} ${card.date.value}` : column;
   return { board: lines.join('\n'), column, said: `#${id} is in ${where}` };
 }
@@ -274,8 +298,8 @@ export function showCard(boardMd, archiveMd, { id }) {
 
 // The command line after "soloagile card": a verb, then words and --flags in any order.
 // Returns { verb, args } with every flag by name; --note and --option may repeat.
-const FLAGS = { '--milestone': 'milestone', '-m': 'milestone', '--points': 'points', '-p': 'points', '--lane': 'lane', '--done-when': 'doneWhen', '--note': 'notes', '--option': 'options', '--from': 'from', '--title': 'title', '--guess': 'guess' };
-const SWITCHES = { '--design': 'design', '--first': 'first' };
+const FLAGS = { '--milestone': 'milestone', '-m': 'milestone', '--points': 'points', '-p': 'points', '--lane': 'lane', '--done-when': 'doneWhen', '--note': 'notes', '--option': 'options', '--from': 'from', '--title': 'title', '--guess': 'guess', '--before': 'before', '--after': 'after' };
+const SWITCHES = { '--design': 'design', '--first': 'first', '--top': 'top' };
 export function parseCardArgs(argv) {
   const [verb, ...rest] = argv;
   const args = { words: [], notes: [], options: [] };
@@ -312,6 +336,7 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
       look --from 2026-10-20             a look that can't happen before that day
       decision --design                  a design waiting for a yes
       decision --option "…" --option "…" its options, lettered for you, in the same step
+  soloagile card move <number> --top | --before <n> | --after <n>   its place in Up next; the next move starts the first card there
   soloagile card note <number> "<line>" [--first]   add a detail line, such as "tested: …"
   soloagile card choose <number> <letter>           the user's pick: its options become one "chosen" line
   soloagile card reword <number> "<start>" "<new line>"   change the detail line (or the title) that starts so
@@ -351,7 +376,7 @@ export function runCard(argv, { board, plan, archive, today }) {
   const { verb, args } = parseCardArgs(argv);
   const [first, second, third] = args.words;
   if (verb === 'add') return addCard(board, plan, { ...args, title: first, today });
-  if (verb === 'move') return moveCard(board, archive, { ...args, id: numberOf(first), lane: second ?? refuse('say which lane: soloagile card move 12 doing'), stage: third, today });
+  if (verb === 'move') return moveCard(board, archive, { ...args, id: numberOf(first), lane: second, stage: third, today });
   if (verb === 'note') return noteCard(board, archive, { id: numberOf(first), line: second, first: args.first });
   if (verb === 'drop') return dropCard(board, archive, { id: numberOf(first), why: second, today });
   if (verb === 'reword') return rewordCard(board, archive, { id: numberOf(first), start: second, line: third });

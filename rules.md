@@ -9,7 +9,8 @@ in `pm/`. Follow these rules while you work here.
   and refuses a wrong move with the reason. `card add "<title>" --milestone M3 --points 3
   --guess 40 --done-when "…"` (`--lane` for another lane); `card move <n> doing|look|
   decision|done|next|ideas` (`doing test` sets a stage, `decision --option "…" --option "…"`
-  adds options); `card note <n> "tested: …"`;
+  adds options); `card move <n> --top|--before <m>|--after <m>` sets its place in Up next,
+  which is the build order ("put #12 first"); `card note <n> "tested: …"`;
   `card set`, `show`, `choose <n> b`, `reword`, `unnote`, `drop <n> "why"`. `soloagile card`
   lists every form. Edit `pm/board.md` by hand only for what it can't do.
 - Send card commands in the same turn as other work, never a turn of their own: each turn
