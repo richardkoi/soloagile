@@ -164,12 +164,14 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   let meta = c.date ? `<p class="card-meta">${icon('calendar')}${esc(shortDate(c.date))}${ageNote(c, column, today)}</p>` : '';
   // The foot: how far along on the left, how big on the right. A card with no stage, such
   // as a Done card, puts its date there instead, so the chip doesn't take a row alone.
-  const size = c.points !== null ? sizeTag(c.points, c.guess) : '';
+  // A built card says its guess on the took line below, so the chip doesn't say it again (#223).
+  const built = c.guess != null && c.took != null;
+  const size = c.points !== null ? sizeTag(c.points, built ? null : c.guess) : '';
   const left = wheel || (size ? meta : '');
   const foot = left || size ? `<div class="card-foot">${left}${size}</div>` : '';
   if (left === meta) meta = '';
   // Once built, a guessed card says how close the guess came, under its foot.
-  const tookLine = c.guess != null && c.took != null ? `<p class="card-took">guessed ${duration(c.guess)}, took ${duration(c.took)}</p>` : '';
+  const tookLine = built ? `<p class="card-took">guessed ${duration(c.guess)}, took ${duration(c.took)}</p>` : '';
   // The range a guess came with (#208) shows in the pop-up only; the chip keeps the middle (#207, Rich's pick b).
   const rangeLine = c.range ? `<p class="card-range">likely ${c.range[0]}–${c.range[1]} min (6 in 10 cards like it land here)</p>` : '';
   // data-ms and data-later are for the milestone filter, data-id for the search box (template/refresh.html).

@@ -404,6 +404,8 @@ test('a built card with a guess says under its foot how long it took', () => {
   const card = (t) => html.match(new RegExp(`<li class="card-x card-done"[^>]*>(?:(?!<\\/li>).)*${t}.*?<\\/li>`))[0];
   assert.match(card('Shipped'), /<\/div><p class="card-took">guessed 40 min, took 52 min<\/p><\/li>$/);
   assert.doesNotMatch(card('Not logged'), /card-took/, 'no build time in the log, no line');
+  assert.match(card('Shipped'), /<span class="tag pts pts-2">2 pts<\/span>/, 'the chip drops the guess the line already says (#223)');
+  assert.match(card('Not logged'), /2 pts<span class="guess"/, 'with no line, the chip keeps it');
 });
 
 test('a card with no stage, such as a Done card, puts its date in the foot beside the size chip', () => {
