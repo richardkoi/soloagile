@@ -199,10 +199,18 @@ function renderLane(lane, cards, pictures, today, shorts, batchOf = () => null) 
   // Ideas and Done can fold to a thin strip (#134); template/refresh.html remembers it.
   const guess = lane.key === 'up-next' && shown.length ? batchOf(shown.length) : null;
   // The page's script adds when it would end, "(by 16:30)", from the time it is opened.
-  const batch = guess ? `<span class="lane-batch" data-likely="${guess.likely}" data-surely="${guess.surely}">${esc(batchText(guess))}</span>` : '';
+  // Two lines, likely over surely, so it fits the heading's second row (#224).
+  const batch = guess ? `<span class="lane-batch" data-likely="${guess.likely}" data-surely="${guess.surely}">${batchText(guess).split(' · ').map((t) => `<span>${esc(t)}</span>`).join('')}</span>` : '';
+  // Every heading is two rows (#224): the name and count, then a hint (on Up next, its batch
+  // guess) and the points. The CSS gives the second row the same height in every lane.
+  const hint = batch || (lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : '');
+  // The points total sits at the hint row's right end: on the first row it pushed a long
+  // name like "Waiting on you" out of a 1400px window's lane.
+  const total = points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : '';
+  const sub = `<div class="lane-sub"><div class="lane-hints">${hint}</div>${total}</div>`;
   const fold = FOLDS[lane.key] ? `<button type="button" class="lane-fold" aria-expanded="true" aria-label="Fold ${esc(lane.name)} to a strip" title="Fold or unfold">${icon(FOLDS[lane.key])}</button>` : '';
   return `<section class="lane lane-${lane.key}" aria-label="${esc(lane.name)}">
-<div class="lane-head"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : ''}${batch}${lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : ''}${fold}</div>
+<div class="lane-head"><div class="lane-title"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${fold}</div>${sub}</div>
 ${body}
 </section>`;
 }

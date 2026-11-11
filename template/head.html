@@ -148,14 +148,22 @@ body:has(#settings:target) .tab-settings { display: block; }
 .lanes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-md); align-items: start; }
 .lane { background: var(--bg-inset); border: 1px solid var(--border-default); border-radius: var(--radius-lg);
   min-height: 120px; display: flex; flex-direction: column; min-width: 0; }
-.lane-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-sm);
-  padding: var(--space-md) var(--space-md) var(--space-sm); border-bottom: 1px solid var(--border-muted); }
+/* A heading is two rows (#224): the name and counts on one line, then the hint. Five in a
+   row, the hint row is two lines high in every lane, so the first cards line up. */
+.lane-head { padding: var(--space-md) var(--space-md) var(--space-sm); border-bottom: 2px solid var(--border-muted); }
+.lane-title { display: flex; flex-wrap: nowrap; align-items: baseline; gap: var(--space-sm); min-width: 0; }
+.lane-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lane-title > :not(.lane-name) { flex-shrink: 0; white-space: nowrap; }
+.lane-sub { display: flex; align-items: flex-start; gap: var(--space-sm); margin-top: 4px; font-size: var(--font-xs); line-height: 1.4; color: var(--text-faint); }
+.lane-hints { flex: 1; min-width: 0; }
+@media (min-width: 1101px) { .lane-sub { min-height: 2lh; } }
 .lane-name { font-size: var(--font-base); font-weight: var(--weight-bold); color: var(--text-primary);
   text-transform: uppercase; letter-spacing: 0.6px; }
 .lane-count { font-size: var(--font-base); color: var(--text-muted); }
-.lane-points { font-size: var(--font-xs); color: var(--text-muted); border: 1px solid var(--border-muted); border-radius: var(--radius-pill); padding: 0 8px; }
-.lane-hint { font-size: var(--font-sm); color: var(--text-faint); margin-left: auto; }
-.lane-batch { font-size: var(--font-xs); color: var(--text-muted); }
+.lane-points { margin-left: auto; color: var(--text-muted); white-space: nowrap; }
+.lane-hint { color: var(--text-faint); }
+.lane-batch { color: var(--text-muted); }
+.lane-batch > span { display: block; }
 .ms-left { margin: 0 0 8px; font-size: var(--font-sm); color: var(--text-muted); }
 .lane-body { list-style: none; padding: var(--space-sm); display: flex; flex-direction: column; gap: var(--space-sm); flex: 1; }
 .lane-empty { color: var(--text-faint); font-size: var(--font-sm); text-align: center; padding: var(--space-md) 0; }
@@ -181,16 +189,15 @@ body:has(#settings:target) .tab-settings { display: block; }
 .lane-fold:hover { color: var(--accent-link); border-color: var(--border-default); }
 .lane-fold .i { width: 18px; height: 18px; }
 .lane.folded .lane-fold .i { transform: rotate(180deg); }
-.lane-hint + .lane-fold { margin-left: 0; }
 .lane.folded > :not(.lane-head) { display: none; }
 .lane.folded { min-height: 0; }
 @media (min-width: 1101px) {
   .lanes:has(.lane-ideas.folded) { grid-template-columns: 52px repeat(4, minmax(0, 1fr)); }
   .lanes:has(.lane-done.folded) { grid-template-columns: repeat(4, minmax(0, 1fr)) 52px; }
   .lanes:has(.lane-ideas.folded):has(.lane-done.folded) { grid-template-columns: 52px repeat(3, minmax(0, 1fr)) 52px; }
-  .lane.folded .lane-head { writing-mode: vertical-rl; flex-wrap: nowrap; align-items: center; border-bottom: 0;
-    padding: var(--space-md) 0; gap: var(--space-sm); }
-  .lane.folded .lane-hint, .lane.folded .lane-points { display: none; }
+  .lane.folded .lane-head { writing-mode: vertical-rl; border-bottom: 0; padding: var(--space-md) 0; }
+  .lane.folded .lane-title { align-items: center; }
+  .lane.folded .lane-sub, .lane.folded .lane-points { display: none; }
   .lane.folded .lane-fold { margin: 0; order: -1; }
   .lane.folded .lane-icon { order: -1; }
 }

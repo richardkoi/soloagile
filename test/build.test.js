@@ -185,7 +185,7 @@ test('a card with no description has nothing to open', () => {
 test('Done shows the last 48 hours: today and the two days before', () => {
   const done = '## Done\n- #4 Today · M1 · 2026-09-30\n- #5 Two days back · M1 · 2026-09-28\n- #6 Three days back · M1 · 2026-09-27\n- #7 No date\n';
   const { html } = renderPage({ name: 'demo', md: { ...md, board: md.board.replace('## Done\n', done) }, builtAt, template });
-  assert.match(html, /<span class="lane-name">Done<\/span><span class="lane-count">3<\/span><span class="lane-hint">last 48 hours<\/span>/);
+  assert.match(html, /<span class="lane-name">Done<\/span><span class="lane-count">3<\/span>.*<div class="lane-sub"><div class="lane-hints"><span class="lane-hint">last 48 hours<\/span><\/div>/);
   assert.match(html, /Today/);
   assert.match(html, /Two days back/);
   assert.doesNotMatch(html, /Three days back/);
@@ -469,9 +469,9 @@ test('a search box finds a card by its words or number (#132)', () => {
 test("each lane's heading shows its total points, and a lane with none shows no total (#133)", () => {
   const board = '# Board\n<!-- next-id: 9 -->\n## Ideas\n- #1 A · M1 · 2 pts\n- #2 B · M1 · 3 pts\n## Up next\n- #3 C · M1\n## Doing\n- #4 D · M1 · 1 pt · develop\n## Needs your look\n## Needs your decision\n## Done\n';
   const { html } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
-  assert.match(html, /<span class="lane-name">Ideas<\/span><span class="lane-count">2<\/span><span class="lane-points">5 pts<\/span>/);
-  assert.match(html, /<span class="lane-name">Doing<\/span><span class="lane-count">1<\/span><span class="lane-points">1 pt<\/span>/);
-  assert.match(html, /<span class="lane-name">Up next<\/span><span class="lane-count">1<\/span>(?!<span class="lane-points">)/);
+  assert.match(html, /<span class="lane-name">Ideas<\/span><span class="lane-count">2<\/span>.*?<div class="lane-sub">.*?<span class="lane-points">5 pts<\/span><\/div>/);
+  assert.match(html, /<span class="lane-name">Doing<\/span><span class="lane-count">1<\/span>.*?<span class="lane-points">1 pt<\/span><\/div>/);
+  assert.match(html, /<span class="lane-name">Up next<\/span><span class="lane-count">1<\/span><\/div><div class="lane-sub"><div class="lane-hints">[^]*?<\/div><\/div>\n/);
 });
 
 test('Ideas and Done have a fold button, and the page remembers which are folded (#134)', () => {

@@ -110,3 +110,26 @@ test("a card's milestone chip keeps the short name's whole words that fit, else 
   assert.equal(huge.shown, '', 'one word too long: the number alone');
   assert.equal(long.title, 'M1 Starts, respawns and the drones seen', 'the whole name on hover');
 });
+
+test('at 1400px every lane heading is one height, so the first cards line up (#224)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-heads-'));
+  mkdirSync(join(repo, 'pm'));
+  const cards = (from, n, col) => Array.from({ length: n }, (_, i) => `- #${from + i} ${col} card ${i} · M1 · 2 pts · ~40 min · 2026-10-01`).join('\n');
+  writeFileSync(join(repo, 'pm', 'board.md'), `# Board\n<!-- next-id: 60 -->\n## Ideas\n${cards(1, 3, 'Idea')}\n## Up next\n${cards(10, 30, 'Next')}\n## Doing\n${cards(45, 1, 'Doing')}\n## Needs your look\n- #50 Look card · M1 · 2 pts · live 2026-10-01\n## Needs your decision\n## Done\n${cards(51, 2, 'Done')}\n`);
+  // Four past days of three cards, so Up next has a batch guess: 30 cards run to days ("by Fri").
+  const history = [1, 2, 3, 4].flatMap((d) => [0, 1, 2].flatMap((i) => [
+    `- 2026-09-0${d} ${String(8 + i).padStart(2, '0')}:00 · Doing · #${100 + d * 10 + i} Old · M1 · 2 pts · develop`,
+    `- 2026-09-0${d} ${String(8 + i).padStart(2, '0')}:50 · Needs your look · #${100 + d * 10 + i} Old · M1 · 2 pts`,
+  ])).join('\n');
+  writeFileSync(join(repo, 'pm', 'history.md'), `# History\n${history}\n`);
+  const { out } = buildProject(repo, new Date(2026, 9, 1, 12, 0));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const expression = `({ heads: [...document.querySelectorAll('.lane-head')].map((h) => Math.round(h.getBoundingClientRect().height)), parts: [...document.querySelectorAll('.lane-head')].map((h) => h.className + ':' + [...h.children].map((c) => c.className + '=' + Math.round(c.getBoundingClientRect().height)).join('/')),
+      batch: document.querySelector('.lane-batch')?.innerText ?? '' })`;
+    return (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+  });
+  assert.match(seen.batch, /likely/, 'Up next has its batch guess');
+  assert.equal(new Set(seen.heads).size, 1, `every heading one height: ${seen.heads.join(", ")} ${seen.parts.join(" ")}`);
+});
