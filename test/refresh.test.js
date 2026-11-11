@@ -83,3 +83,30 @@ test('a page served over http refreshes after a card read during the rebuild is 
     server.close();
   }
 });
+
+test("a card's milestone chip keeps the short name's whole words that fit, else the number alone (#221)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-chip-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n## Up next\n- #1 Long · M1 · 2 pts\n- #2 Short · M2 · 2 pts\n- #3 Huge · M3 · 2 pts\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — One · not started\nshort: Starts, respawns and the drones seen\n### M2 — Two · not started\nshort: Tiny\n### M3 — Three · not started\nshort: Supercalifragilisticexpialidocious\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const chips = await withPage(pathToFileURL(out).href, async (page) => {
+    // Five lanes in a row at 1400px, as on weatherglider's shots: each lane about 250px wide.
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const expression = `[...document.querySelectorAll('.lane-body > .card-x > .card-top .tag-proj')].map((c) => {
+      const s = c.querySelector('.ms-short');
+      return { shown: s.hidden ? '' : s.textContent, fits: s.hidden || s.getBoundingClientRect().right <= c.getBoundingClientRect().right - parseFloat(getComputedStyle(c).paddingRight) - parseFloat(getComputedStyle(c).borderRightWidth) + 0.01, title: c.title };
+    })`;
+    return (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+  });
+  const [long, short, huge] = chips;
+  assert.ok(long.fits && short.fits && huge.fits, 'no chip is cut off');
+  assert.ok(long.shown && long.shown.length < 30, `cut short: "${long.shown}"`);
+  assert.match('Starts, respawns and the drones seen', new RegExp(`^${long.shown}[, ]`), 'it stops at a whole word');
+  assert.doesNotMatch(long.shown, /,$/, 'and not on a comma');
+  assert.doesNotMatch(long.shown, / (and|the)$/, 'nor on a joining word');
+  assert.equal(short.shown, 'Tiny', 'a name that fits stays whole');
+  assert.equal(huge.shown, '', 'one word too long: the number alone');
+  assert.equal(long.title, 'M1 Starts, respawns and the drones seen', 'the whole name on hover');
+});

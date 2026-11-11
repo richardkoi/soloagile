@@ -130,6 +130,39 @@
    because tabs are the URL's #hash. Checks pause while the browser tab is hidden. A reload
    would shut the card being read, so it waits until that card is closed. */
 (function () {
+  // A milestone chip on a card's face (#221): the short name keeps only the whole words that
+  // fit, or goes, leaving the number; the whole name stays in the chip's hover tip and in
+  // the card's pop-up. A ResizeObserver fits each card again when its lane changes width,
+  // including when the Board tab is first shown.
+  if (!window.ResizeObserver) return;
+  function fit(top) {
+    var chip = top.querySelector('.tag-proj'), s = chip && chip.querySelector('.ms-short');
+    if (!s) return;
+    var full = s.getAttribute('data-full');
+    if (full === null) { full = s.textContent; s.setAttribute('data-full', full); }
+    var words = full.split(' ');
+    s.hidden = false;
+    s.textContent = full;
+    // The name is cut when its text runs past the chip's inner edge. (The chip's scrollWidth
+    // misses this: it leaves out the right padding the text runs into. The border counts too.)
+    var style = getComputedStyle(chip);
+    var edge = (parseFloat(style.paddingRight) || 0) + (parseFloat(style.borderRightWidth) || 0);
+    function cut() { return s.getBoundingClientRect().right > chip.getBoundingClientRect().right - edge + 0.01; }
+    while (words.length && cut()) {
+      words.pop();
+      // Don't end on a joining word: "Rest of the" reads as "Rest".
+      while (words.length && /^(and|or|of|the|a|an|to|for|in|on|with|from|by|at)$/i.test(words[words.length - 1])) words.pop();
+      s.textContent = words.join(' ').replace(/[,;:]$/, '');
+    }
+    if (!words.length) s.hidden = true;
+  }
+  var watch = new ResizeObserver(function (seen) { seen.forEach(function (e) { fit(e.target); }); });
+  var tops = document.querySelectorAll('.lane-body > .card-x > .card-top');
+  tops.forEach(function (t) { watch.observe(t); });
+  // A font that arrives late changes the text's width but not the card's, so fit again then.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { tops.forEach(fit); });
+})();
+(function () {
   function reload() {
     if (document.querySelector('.card-modal:popover-open')) return;
     location.reload();

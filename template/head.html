@@ -214,6 +214,9 @@ body:has(#settings:target) .tab-settings { display: block; }
 .card-top { display: flex; align-items: center; gap: var(--space-xs); margin-bottom: 5px; }
 .card-top > * { flex-shrink: 0; }
 .card-top > .tag-proj { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* In the pop-up there is room: the whole name shows, wrapping if it must (#221). */
+.card-modal .card-top > .tag-proj { white-space: normal; }
+.ms-short[hidden] { display: none; }
 .card-id { font-family: var(--font-mono); font-size: var(--font-xs); color: var(--text-muted); margin-left: auto; }
 /* The foot: the stage on the left, the size chip on the right. */
 .card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); flex-wrap: wrap; margin-top: 8px; }
