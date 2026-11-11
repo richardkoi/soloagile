@@ -399,15 +399,17 @@ test("a card's guessed build time shares the size chip with its points", () => {
   assert.match(html, /\.card-foot \{/);
 });
 
-test('a built card with a guess says under its foot how long it took', () => {
-  const board = { ...md, board: md.board.replace('## Done\n', '## Done\n- #20 Shipped · M1 · 2 pts · ~40 min · 2026-09-30\n- #21 Not logged · M1 · 2 pts · ~40 min · 2026-09-30\n') };
+test('a built card says in its chip how long it took, and its pop-up says the guess too (#229)', () => {
+  const board = { ...md, board: md.board.replace('## Done\n', '## Done\n- #20 Shipped · M1 · 2 pts · ~40 min · 2026-09-30\n  a line\n- #21 Not logged · M1 · 2 pts · ~40 min · 2026-09-30\n') };
   const history = '- 2026-09-30 09:00 · Doing · #20 Shipped · M1 · 2 pts · ~40 min · develop\n- 2026-09-30 09:52 · Needs your look · #20 Shipped · M1 · 2 pts · ~40 min\n';
   const { html } = renderPage({ name: 'demo', md: { ...board, history }, builtAt, template });
   const card = (t) => html.match(new RegExp(`<li class="card-x card-done"[^>]*>(?:(?!<\\/li>).)*${t}.*?<\\/li>`))[0];
-  assert.match(card('Shipped'), /<\/div><p class="card-took">guessed 40 min, took 52 min<\/p><\/li>$/);
-  assert.doesNotMatch(card('Not logged'), /card-took/, 'no build time in the log, no line');
-  assert.match(card('Shipped'), /<span class="tag pts pts-2">2 pts<\/span>/, 'the chip drops the guess the line already says (#223)');
-  assert.match(card('Not logged'), /2 pts<span class="guess"/, 'with no line, the chip keeps it');
+  const [face, modal] = card('Shipped').split('<div class="card-modal"');
+  assert.match(face, /<span class="tag pts pts-2">2 pts<span class="guess" title="Guessed 40 min">took 52 min<\/span><\/span>/, 'the chip says what it took, the guess on hover (#229)');
+  assert.doesNotMatch(face, /card-took/, 'no extra row on the face');
+  assert.match(modal, /<p class="card-took">guessed 40 min, took 52 min<\/p>/, 'the pop-up says both');
+  assert.doesNotMatch(card('Not logged'), /card-took|took/, 'no build time in the log, no line');
+  assert.match(card('Not logged'), /2 pts<span class="guess" title="Guessed build time">~40 min<\/span>/, 'not yet built, the chip keeps the guess');
 });
 
 test('a card with no stage, such as a Done card, puts its date in the foot beside the size chip', () => {
@@ -536,4 +538,11 @@ test("a card's pop-up starts each detail line with its label in bold, and lists 
   assert.match(modal, /<li>see <a target="_blank" rel="noopener" href="https:\/\/example.com\/x">/, 'a link is not a label');
   assert.match(modal, /<li>a plain line with no label<\/li>/);
   assert.match(html, /\.detail-label \{/);
+});
+
+test('the page says every time one way: minutes under 90, then hours in halves (#229)', () => {
+  const board = withCards('- #7 Long guess · M1 · 8 pts · ~100 min (60-200 min)\n  a line\n');
+  const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
+  assert.match(html, /8 pts<span class="guess" title="Guessed build time">~1\.5 h<\/span>/);
+  assert.match(html, /<p class="card-range">usually 60 min to 3\.5 h for a card like this<\/p>/);
 });

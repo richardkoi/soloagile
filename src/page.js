@@ -1,14 +1,14 @@
 // Turns a project's pm/*.md text into the finished page HTML (no file I/O here,
 // so tests can render without touching disk).
 import { learningReport } from './learning.js';
-import { batchFrom, batchText, cardsLeft, shares } from './guess.js';
+import { batchFrom, batchText, cardsLeft, shares, spoken } from './guess.js';
 import { Marked, marked } from '../vendor/marked.esm.js';
 import { archivedDetails, doneCutoff } from './archive.js';
-import { COLUMNS, SCALE, SHORT_LINE, STAGES, guessText, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
+import { COLUMNS, SCALE, SHORT_LINE, STAGES, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
 import { icon } from './icons.js';
 import { parseHistory } from './history.js';
 import { renderSettings } from './habits.js';
-import { buildTimes, duration, renderReports } from './reports.js';
+import { buildTimes, renderReports } from './reports.js';
 import { VERSION } from './version.js';
 
 export const esc = (s) =>
@@ -83,8 +83,13 @@ export const milestoneInk = (id) => `<b class="${withMs('ms-ink', id)}">${esc(id
 // The size chip sits at the right of the card's foot: the story points, and the guessed
 // build time after a rule when the card has one. The pts-<n> class colours the chip, from
 // green at 1 to red at 13.
-const sizeTag = (n, guess) =>
-  `<span class="tag pts pts-${n}">${n} ${n === 1 ? 'pt' : 'pts'}${guess != null ? `<span class="guess" title="Guessed build time">${guessText(guess)}</span>` : ''}</span>`;
+// Once built, the chip says what the card took instead, with the guess on hover (#229).
+// Times read one way across the page: spoken (src/guess.js).
+const sizeTag = (n, guess, took = null) => {
+  const time = took != null ? `<span class="guess" title="Guessed ${spoken(guess)}">took ${spoken(took)}</span>`
+    : guess != null ? `<span class="guess" title="Guessed build time">~${spoken(guess)}</span>` : '';
+  return `<span class="tag pts pts-${n}">${n} ${n === 1 ? 'pt' : 'pts'}${time}</span>`;
+};
 
 // The wheel: six blocks, filled up to the card's stage, with the stage's name beside them.
 function stageBar(stage, name = `${stage[0].toUpperCase()}${stage.slice(1)}`) {
@@ -181,26 +186,26 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   let meta = c.date ? `<p class="card-meta">${icon('calendar')}${esc(shortDate(c.date))}${ageNote(c, column, today)}</p>` : '';
   // The foot: how far along on the left, how big on the right. A card with no stage, such
   // as a Done card, puts its date there instead, so the chip doesn't take a row alone.
-  // A built card says its guess on the took line below, so the chip doesn't say it again (#223).
+  // A built card's chip says what it took (#223, #229); the pop-up says the guess beside it.
   const built = c.guess != null && c.took != null;
-  const size = c.points !== null ? sizeTag(c.points, built ? null : c.guess) : '';
+  const size = c.points !== null ? sizeTag(c.points, c.guess, built ? c.took : null) : '';
   const left = wheel || (size ? meta : '');
   const foot = left || size ? `<div class="card-foot">${left}${size}</div>` : '';
   if (left === meta) meta = '';
   // Once built, a guessed card says how close the guess came, under its foot.
-  const tookLine = built ? `<p class="card-took">guessed ${duration(c.guess)}, took ${duration(c.took)}</p>` : '';
+  const tookLine = built ? `<p class="card-took">guessed ${spoken(c.guess)}, took ${spoken(c.took)}</p>` : '';
   // The range a guess came with (#208) shows in the pop-up only; the chip keeps the middle (#207, Rich's pick b).
-  const rangeLine = c.range ? `<p class="card-range">likely ${c.range[0]}–${c.range[1]} min (6 in 10 cards like it land here)</p>` : '';
+  const rangeLine = c.range ? `<p class="card-range">usually ${spoken(c.range[0])} to ${spoken(c.range[1])} for a card like this</p>` : '';
   // data-ms and data-later are for the milestone filter, data-id for the search box (template/refresh.html).
   const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${c.id !== null ? ` data-id="${c.id}"` : ''}${later ? ' data-later' : ''}>`;
   if (!c.details.length) {
-    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${tookLine}${picturePage(c, pictures)}</li>`;
+    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${picturePage(c, pictures)}</li>`;
   }
   const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
   const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(detailLine(d))}${optionPicture(c, d, pictures)}</li>`).join('');
   const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${rangeLine}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></div>`;
-  return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${tookLine}${modal}</li>`;
+  return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
 }
 
 // Lanes that fold, and the way their arrow points: towards the board's right side, where

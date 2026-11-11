@@ -219,7 +219,8 @@ export const batchText = (g, { clock = null } = {}) => {
   const at = (m) => (clock ? ` (by ${byWhen(clock, m)})` : '');
   return `likely ${spoken(g.likely)}${at(g.likely)} · surely ${spoken(g.surely)}${at(g.surely)}`;
 };
-const spoken = (m) => (m < 90 ? `${Math.max(1, Math.round(m))} min` : `${Math.round(m / 30) / 2} h`);
+// The one way the page says a time (#229): minutes under 90, then hours in halves.
+export const spoken = (m) => (m < 90 ? `${Math.max(1, Math.round(m))} min` : `${Math.round(m / 30) / 2} h`);
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 // "16:30" today; "Thu 16:30" on another day.
 export function byWhen(from, minutes) {
