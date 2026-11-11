@@ -298,6 +298,12 @@ The six columns, always in this order and always present, even when empty:
     `next --top` brings one in at that place. It refuses a place in any other lane, a
     neighbour that isn't in Up next, and more than one place. In plain words, "put #12
     first" or "#12 before #9" (#204).
+  - `soloagile milestone move M<n> --top`, `--before M<m>` or `--after M<m>` moves the
+    milestone's whole section in `plan.md`, whose order is the order milestones are built
+    in, and the page's plan shows it. Up next is then grouped by milestone in that order,
+    each card keeping its place inside its group, and `card add` puts a new Up next card at
+    the end of its milestone's group. A card placed with `card move --top` across
+    milestones stays there until the next `milestone move` (#205).
   - `soloagile card note <number> "<line>"` adds a detail line, first with `--first`.
     `soloagile card set <number>` changes the milestone, points, guess, title or `done when:` line.
     `soloagile card show <number>` prints one card in full, finished or not; `soloagile card
@@ -625,7 +631,7 @@ soloagile/
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end
   src/board.js            reads board.md into columns (tested)
-  src/card.js             soloagile card: add, move, note, choose, reword, unnote, drop, set and show, each checked before it is written (tested)
+  src/card.js             soloagile card: add, move, note, choose, reword, unnote, drop, set and show, each checked before it is written; soloagile milestone move (tested)
   src/archive.js          finished-cards.md: finished cards' text, kept off the board (tested)
   src/history.js          writes history.md: every card move, with its time (tested)
   src/reports.js          the Reports tab: charts worked out from history.md (tested)

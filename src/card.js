@@ -96,7 +96,11 @@ export function addCard(boardMd, planMd, { title, milestone, points = null, gues
     date: column === 'Needs your decision' ? { label: 'asked', value: today } : null,
   };
   const details = [...notes, ...options.map((o, i) => `${String.fromCharCode(97 + i)}) ${o}`), doneWhen?.trim() && `done when: ${doneWhen.trim()}`].filter(Boolean);
-  put(lines, column, [cardLine(card), ...details.map((d) => `  ${d}`)]);
+  const block = [cardLine(card), ...details.map((d) => `  ${d}`)];
+  // A new Up next card goes at the end of its milestone's group (#205).
+  const spot = column === 'Up next' ? groupSpot(lines, planMd, milestone) : null;
+  if (spot === null) put(lines, column, block);
+  else lines.splice(spot, 0, ...block);
   return { board: lines.join('\n'), id, milestone, said: `added #${id} to ${column}` };
 }
 
@@ -386,3 +390,95 @@ export function runCard(argv, { board, plan, archive, today }) {
   if (verb === 'show') return { print: showCard(board, archive, { id: numberOf(first) }) };
   return refuse(verb ? `there is no "card ${verb}"` : 'say what to do with a card');
 }
+
+// ---- The order of milestones (#205) -------------------------------------------------------
+// Milestones are built in the order pm/plan.md lists them, and Up next follows: its cards
+// are grouped by milestone in that order, each keeping its place inside its group.
+
+// The plan's milestones in order, as a map from id to rank.
+const ranks = (planMd) => new Map(parsePlan(planMd).milestones.map((m, i) => [m.id, i]));
+
+// Where a new Up next card of `milestone` goes: after the last card of its milestone, or
+// before the first card of a milestone that comes later. null means the foot of the lane.
+function groupSpot(lines, planMd, milestone) {
+  const rank = ranks(planMd);
+  const head = lines.findIndex((l) => l.trim() === '## Up next');
+  let spot = null;
+  for (let i = head + 1; i < lines.length && !lines[i].startsWith('## '); i++) {
+    if (!/^- #\d/.test(lines[i])) continue;
+    const found = find(lines, parseCardLine(lines[i].slice(2)).id);
+    const other = found.card.milestone;
+    if (other === milestone) spot = found.end;
+    else if (spot === null && (rank.get(other) ?? Infinity) > (rank.get(milestone) ?? Infinity)) return found.at;
+  }
+  return spot;
+}
+
+// Up next, grouped by milestone in the plan's order; inside a group, cards keep their order.
+export function orderUpNext(boardMd, planMd) {
+  const lines = boardMd.split('\n');
+  const head = lines.findIndex((l) => l.trim() === '## Up next');
+  if (head < 0) return boardMd;
+  let end = lines.findIndex((l, i) => i > head && l.startsWith('## '));
+  if (end < 0) end = lines.length;
+  const blocks = [];
+  let i = head + 1;
+  while (i < end && !/^- #\d/.test(lines[i])) i++;
+  const start = i;
+  let last = start;
+  while (i < end) {
+    if (!/^- #\d/.test(lines[i])) {
+      i++;
+      continue;
+    }
+    const found = find(lines, parseCardLine(lines[i].slice(2)).id);
+    blocks.push({ milestone: found.card.milestone, lines: lines.slice(found.at, found.end) });
+    i = last = found.end;
+  }
+  const rank = ranks(planMd);
+  const sorted = blocks.map((b, n) => ({ ...b, n })).sort((a, b) => (rank.get(a.milestone) ?? Infinity) - (rank.get(b.milestone) ?? Infinity) || a.n - b.n);
+  lines.splice(start, last - start, ...sorted.flatMap((b) => b.lines));
+  return lines.join('\n');
+}
+
+// soloagile milestone move M<n> --top | --before M<m> | --after M<m>: moves the milestone's
+// whole section in pm/plan.md, then groups Up next in the new order.
+export function moveMilestone(planMd, boardMd, { id, top = false, before, after }) {
+  if (!/^M\d+$/.test(id ?? '')) refuse('say which milestone: soloagile milestone move M24 --top');
+  if ([top, before, after].filter(Boolean).length !== 1) refuse('give one place: --top, --before M<n> or --after M<n>');
+  const other = before ?? after;
+  if (other === id) refuse(`${id} can't go next to itself`);
+  const lines = planMd.split('\n');
+  const isHead = (l) => /^### M\d+\b/.test(l);
+  const idOf = (l) => l.match(/^### (M\d+)\b/)[1];
+  const first = lines.findIndex(isHead);
+  if (first < 0) refuse('pm/plan.md has no milestones');
+  let end = lines.findIndex((l, i) => i > first && /^## /.test(l));
+  if (end < 0) end = lines.length;
+  // Each milestone's section, without the blank lines after it; they are put back as one.
+  const sections = [];
+  for (let i = first; i < end; i++) {
+    if (isHead(lines[i])) sections.push({ id: idOf(lines[i]), lines: [] });
+    sections.at(-1).lines.push(lines[i]);
+  }
+  for (const s of sections) while (s.lines.length && !s.lines.at(-1).trim()) s.lines.pop();
+  const known = sections.map((s) => s.id);
+  const from = known.indexOf(id);
+  if (from < 0) refuse(`pm/plan.md has no ${id} (it has ${known.join(', ')})`);
+  if (other && !known.includes(other)) refuse(`pm/plan.md has no ${other} (it has ${known.join(', ')})`);
+  const [moving] = sections.splice(from, 1);
+  const to = top ? 0 : sections.findIndex((s) => s.id === other) + (after ? 1 : 0);
+  sections.splice(to, 0, moving);
+  // The blank lines that ended the milestones stay as they were.
+  let blanks = 0;
+  while (end - 1 - blanks > first && !lines[end - 1 - blanks].trim()) blanks++;
+  const tail = Array(blanks).fill('');
+  lines.splice(first, end - first, ...sections.flatMap((s, n) => (n ? ['', ...s.lines] : s.lines)), ...tail);
+  const plan = lines.join('\n');
+  const where = top ? 'first' : `just ${before ? 'before' : 'after'} ${other}`;
+  return { plan, board: orderUpNext(boardMd, plan), said: `${id} is ${where} in pm/plan.md; Up next follows the new order` };
+}
+
+export const MILESTONE_USAGE = `soloagile milestone, run in the project's folder:
+  soloagile milestone move M<n> --top | --before M<m> | --after M<m>
+      moves the milestone in pm/plan.md; Up next is grouped by milestone in that order`;

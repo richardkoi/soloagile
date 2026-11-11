@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './isolate.js';
-import { parseBoard } from '../src/board.js';
+import { parseBoard, parsePlan } from '../src/board.js';
 import { Refused, addDecision, runCard, cardCommits } from '../src/card.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
@@ -277,4 +277,32 @@ test('move --top, --before and --after set a card\'s place in Up next, and the n
   refused(['move', '11', '--before', '6'], /#6 is not in Up next \(it is in Done\)/, three);
   refused(['move', '11', '--after', '11'], /next to itself/, three);
   refused(['move', '11', '--top', '--after', '8'], /give one place/, three);
+});
+
+test('milestone move reorders pm/plan.md, Up next follows, and a new card joins its milestone\'s group (#205)', async () => {
+  const { moveMilestone, orderUpNext } = await import('../src/card.js');
+  const plan = '# Demo\n\n## Milestones\n\n### M1 — One · not started\nshort: One\nCards: #1\n\n### M2 — Two · not started\nshort: Two\n\nDone when: two.\n\n\n### M3 — Three · not started\nshort: Three\n\n## Notes\nkept\n';
+  const board = '# Board\n<!-- next-id: 9 -->\n\n## Ideas\n\n## Up next\n- #1 a · M1 · 1 pt\n  done when: a\n- #2 b · M3 · 1 pt\n  done when: b\n- #3 c · M2 · 1 pt\n  done when: c\n- #4 d · M1 · 1 pt\n  done when: d\n\n## Doing\n\n## Needs your look\n\n## Needs your decision\n\n## Done\n';
+  const order = (b) => lane(b, 'Up next').map((c) => c.id);
+  const heads = (p) => [...p.matchAll(/^### (M\d+)/gm)].map((m) => m[1]);
+  assert.deepEqual(order(orderUpNext(board, plan)), [1, 4, 3, 2], 'grouped by the plan\'s order, each keeping its place in its group');
+  const top = moveMilestone(plan, board, { id: 'M3', top: true });
+  assert.deepEqual(heads(top.plan), ['M3', 'M1', 'M2']);
+  assert.ok(top.plan.includes('### M3 — Three · not started\nshort: Three\n\n### M1 — One'), 'the section moves whole');
+  assert.ok(top.plan.endsWith('Done when: two.\n\n## Notes\nkept\n'), 'what follows the milestones is kept');
+  assert.deepEqual(order(top.board), [2, 1, 4, 3]);
+  assert.equal(top.said, 'M3 is first in pm/plan.md; Up next follows the new order');
+  assert.deepEqual(heads(moveMilestone(plan, board, { id: 'M1', after: 'M2' }).plan), ['M2', 'M1', 'M3']);
+  assert.deepEqual(heads(moveMilestone(plan, board, { id: 'M3', before: 'M2' }).plan), ['M1', 'M3', 'M2']);
+  assert.deepEqual(parsePlan(top.plan).milestones.map((m) => m.short), ['Three', 'One', 'Two']);
+  for (const [opts, why] of [[{ id: 'M9', top: true }, /no M9 \(it has M1, M2, M3\)/], [{ id: 'M1' }, /give one place/], [{ id: 'M1', after: 'M1' }, /next to itself/], [{ id: 'M1', before: 'M7' }, /no M7/]]) {
+    assert.throws(() => moveMilestone(plan, board, opts), (e) => e instanceof Refused && why.test(e.message));
+  }
+  // card add: the end of its milestone's group, or before the first later milestone.
+  const add = (b, m) => runCard(['add', 'new', '--milestone', m, '--points', '1', '--done-when', 'x'], { board: b, plan, archive: '', today }).board;
+  const grouped = orderUpNext(board, plan);
+  assert.deepEqual(order(add(grouped, 'M1')), [1, 4, 9, 3, 2]);
+  assert.deepEqual(order(add(grouped, 'M2')), [1, 4, 3, 9, 2]);
+  assert.deepEqual(order(add(grouped.replace('- #3 c · M2 · 1 pt\n  done when: c\n', ''), 'M2')), [1, 4, 9, 2], 'no M2 card yet: before the first later one');
+  assert.deepEqual(order(add(grouped, 'M3')), [1, 4, 3, 2, 9], 'the last milestone: the foot');
 });

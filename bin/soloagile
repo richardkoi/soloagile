@@ -5,6 +5,7 @@
 //        soloagile home             build the home page that lists every project's page
 //        soloagile build-all        rebuild every project's page in the projects folder, then the home page
 //        soloagile card add|move|note|set|show …   change a card, checked before it is written (`soloagile card` lists them)
+//        soloagile milestone move M<n> --top|--before|--after M<m>   the order milestones are built in
 //        soloagile archive [repo]   move finished cards' text to pm/finished-cards.md, then build
 //        soloagile board [repo] [--json]   print the board without its finished cards; --json for other tools
 //        soloagile finished <milestone or card number>…   print finished cards in full
@@ -35,7 +36,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { archiveProject, finishedCards, openBoard, readArchive } from '../src/archive.js';
 import { buildProject } from '../src/build.js';
 import { boardJson, cardPictures } from '../src/json.js';
-import { CARD_USAGE, MILESTONE_CARDS, Refused, addDecision, cardCommits, milestoneCount, runCard } from '../src/card.js';
+import { CARD_USAGE, MILESTONE_CARDS, MILESTONE_USAGE, Refused, addDecision, cardCommits, milestoneCount, moveMilestone, runCard } from '../src/card.js';
 import { addPicture } from '../src/design.js';
 import { isPmProject, runHook } from '../src/hook.js';
 import { buildAll, buildHome } from '../src/home.js';
@@ -75,6 +76,7 @@ const COMMANDS = [
   ['home', "build the home page that lists every project's page"],
   ['build-all', "rebuild every project's page in the projects folder, then the home page"],
   ['card add|move|note|set|show …', 'change a card, checked before it is written; `soloagile card` says how'],
+  ['milestone move M<n> --top|--before M<m>|--after M<m>', 'change the order milestones are built in; Up next follows it'],
   ['archive [repo]', "move finished cards' text to pm/finished-cards.md, then build"],
   ['board [repo] [--json]', 'print the board without its finished cards; --json gives it in one fixed shape for other tools'],
   ['next [repo]', 'the board in a few lines, and the one move to make next'],
@@ -398,6 +400,33 @@ function sayArchived({ moved, left }) {
   const said = [moved.length && `${n(moved, 'finished card is', 'finished cards are')} in pm/finished-cards.md`, left.length && `${n(left, 'card', 'cards')} left the board after 48 hours`].filter(Boolean);
   if (said.length) console.log(`soloagile: ${said.join('; ')}`);
   return said.length;
+}
+
+if (cmd === 'milestone') {
+  // Run in the project's folder: moves a milestone in pm/plan.md, then groups Up next (#205).
+  const [verb, id, ...rest] = process.argv.slice(3);
+  if (verb !== 'move') {
+    console.log(MILESTONE_USAGE);
+    process.exit(verb && verb !== 'help' && verb !== '--help' ? 1 : 0);
+  }
+  const here = process.cwd();
+  const at = (f) => resolve(here, 'pm', f);
+  const opts = { id, top: rest.includes('--top') };
+  for (const flag of ['--before', '--after']) if (rest.includes(flag)) opts[flag.slice(2)] = rest[rest.indexOf(flag) + 1];
+  try {
+    if (!existsSync(at('plan.md')) || !existsSync(at('board.md'))) throw new Refused(`no pm/plan.md and pm/board.md in ${here}; run this in the project's folder`);
+    const unknown = rest.filter((a, i) => a.startsWith('--') && !['--top', '--before', '--after'].includes(a) && !['--before', '--after'].includes(rest[i - 1]));
+    if (unknown.length) throw new Refused(`there is no ${unknown[0]} here; see \`soloagile milestone\``);
+    const r = moveMilestone(readFileSync(at('plan.md'), 'utf8'), readFileSync(at('board.md'), 'utf8'), opts);
+    writeFileSync(at('plan.md'), r.plan);
+    writeFileSync(at('board.md'), r.board);
+    console.log(`soloagile: ${r.said}`);
+    buildAndSay(here);
+  } catch (err) {
+    console.error(`soloagile: ${err instanceof Refused ? 'refused: ' : ''}${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
 }
 
 if (cmd === 'card') {

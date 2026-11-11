@@ -10,7 +10,8 @@ in `pm/`. Follow these rules while you work here.
   --guess 40 --done-when "…"` (`--lane` for another lane); `card move <n> doing|look|
   decision|done|next|ideas` (`doing test` sets a stage, `decision --option "…" --option "…"`
   adds options); `card move <n> --top|--before <m>|--after <m>` sets its place in Up next,
-  which is the build order ("put #12 first"); `card note <n> "tested: …"`;
+  which is the build order ("put #12 first"); `milestone move M3 --top|--before|--after M2`
+  orders the milestones, and Up next follows; `card note <n> "tested: …"`;
   `card set`, `show`, `choose <n> b`, `reword`, `unnote`, `drop <n> "why"`. `soloagile card`
   lists every form. Edit `pm/board.md` by hand only for what it can't do.
 - Send card commands in the same turn as other work, never a turn of their own: each turn
