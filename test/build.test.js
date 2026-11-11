@@ -248,10 +248,12 @@ test('each link gets an icon for where it points', () => {
   assert.match(html, /<li class="link-row"><svg[^]*?<\/svg><a target="_blank" rel="noopener" href="https:\/\/example.com">Site<\/a><span class="link-note">added 2026-09-30<\/span><\/li>/);
 });
 
-test('an empty lane shows a dash, and no badge when nothing waits', () => {
+test('an empty lane says so in words, and no badge when nothing waits (#226)', () => {
   const calm = { ...md, board: md.board.replace(/^- #[23] .*\n/gm, '') };
   const { html } = renderPage({ name: 'demo', md: calm, builtAt, template });
-  assert.match(html, /<span class="lane-name">Waiting on you<\/span><span class="lane-count">0<\/span>.*\n<p class="lane-empty">&mdash;<\/p>/);
+  assert.match(html, /<span class="lane-name">Waiting on you<\/span><span class="lane-count">0<\/span>.*\n<p class="lane-empty">Nothing waiting on you<\/p>/);
+  assert.match(html, /<p class="lane-empty">Claude isn&#39;t building anything<\/p>/);
+  assert.doesNotMatch(html, /lane-empty">&mdash;/, 'no dash: it meant nothing on its own');
   assert.doesNotMatch(html, /class="badge"/);
 });
 

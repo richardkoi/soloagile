@@ -52,7 +52,7 @@
       if (!shown && !none) {
         none = document.createElement('p');
         none.className = 'lane-empty ms-none';
-        none.innerHTML = '&mdash;';
+        none.textContent = 'None from this milestone';
         body.after(none);
       }
       if (none) none.hidden = shown > 0;

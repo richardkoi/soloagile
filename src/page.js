@@ -56,11 +56,11 @@ export const stamp = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.get
 // This is the order a phone stacks them in. Five in a row, the CSS puts them in flow
 // order instead: Ideas, Up next, Doing, Waiting on you, Done (template/head.html).
 const LANES = [
-  { name: 'Waiting on you', hint: 'your look or answer', key: 'waiting', icon: 'bell-ring', from: ['Needs your decision', 'Needs your look'] },
-  { name: 'Doing', hint: 'Claude is on it', key: 'doing', icon: 'hammer', from: ['Doing'] },
-  { name: 'Up next', hint: 'queued', key: 'up-next', icon: 'list-todo', from: ['Up next'] },
-  { name: 'Ideas', hint: 'not planned yet', key: 'ideas', icon: 'lightbulb', from: ['Ideas'] },
-  { name: 'Done', hint: 'last 48 hours', key: 'done', icon: 'circle-check', from: ['Done'] },
+  { name: 'Waiting on you', hint: 'your look or answer', empty: 'Nothing waiting on you', key: 'waiting', icon: 'bell-ring', from: ['Needs your decision', 'Needs your look'] },
+  { name: 'Doing', hint: 'Claude is on it', empty: "Claude isn't building anything", key: 'doing', icon: 'hammer', from: ['Doing'] },
+  { name: 'Up next', hint: 'queued', empty: 'Nothing queued', key: 'up-next', icon: 'list-todo', from: ['Up next'] },
+  { name: 'Ideas', hint: 'not planned yet', empty: 'No ideas yet', key: 'ideas', icon: 'lightbulb', from: ['Ideas'] },
+  { name: 'Done', hint: 'last 48 hours', empty: 'Nothing finished in the last 48 hours', key: 'done', icon: 'circle-check', from: ['Done'] },
 ];
 export const KIND = {
   'Needs your decision': { label: 'Decide', pill: 'st-hold', icon: 'circle-help' },
@@ -192,7 +192,7 @@ const FOLDS = { ideas: 'chevron-left', done: 'chevron-right' };
 function renderLane(lane, cards, pictures, today, shorts, batchOf = () => null) {
   const body = cards.length
     ? `<ul class="lane-body">${cards.map(({ card, column, later }, i) => renderCard(card, column, lane.key, `card-${lane.key}-${i}`, later, pictures, today, shorts)).join('\n')}</ul>`
-    : '<p class="lane-empty">&mdash;</p>';
+    : `<p class="lane-empty">${esc(lane.empty ?? 'No cards')}</p>`; // in words, not a dash (#226)
   // The lane's count and its total points (#133) leave out looks that can't happen yet.
   const shown = cards.filter((c) => !c.later);
   const points = shown.reduce((sum, { card }) => sum + (card.points ?? 0), 0);
@@ -273,7 +273,6 @@ const KEY = `<section class="key" aria-labelledby="key-h">
 <div class="key-row"><span>${stageBar('develop', '')}</span><span class="key-name">Stage</span><span class="key-def">How far round the wheel: Plan, Design, Develop, Test, Release, Feedback. Shown once a card is under way; Ideas and Up next are all at Plan.</span></div>
 <div class="key-row"><span class="card-id">#7</span><span class="key-name">Card number</span><span class="key-def">Answer with it, e.g. "#7 yes".</span></div>
 <div class="key-row"><span class="card-id">&hellip;</span><span class="key-name">Short line</span><span class="key-def">Click the card for its full description.</span></div>
-<div class="key-row"><span class="lane-empty">&mdash;</span><span class="key-name">Not shown</span><span class="key-def">Work from earlier releases. See Releases.</span></div>
 </div>
 </section>`;
 
