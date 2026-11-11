@@ -71,6 +71,7 @@ export function boardJson({ boardMd, planMd = '', archiveMd = '', name, today, p
       milestone: c.milestone,
       points: c.points,
       guess: c.guess,
+      range: c.range,
       stage: stageOf(c, column),
       date: c.date,
       details: c.details,

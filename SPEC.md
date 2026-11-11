@@ -49,17 +49,22 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
 - **Cards carry story points**, Claude's quick guess at a card's size, made when the
   card is created. The chip is coloured by size, in six steps from green at 1 to red at
   13; the number is always there too, so the colour is never the only signal.
-- **A card can carry a guessed build time** beside its points: how long Claude expects
-  it to spend in Doing. It is written after the points, `· 3 pts · ~40 min`, in minutes
-  under 2 hours and in hours to the half above (`~2.5 h`). `soloagile card add` and `set`
-  take `--guess 40` or `--guess 1.5h`. A question has none. Every new work card gets
-  one, made from the project's own past: the session start gives Claude a table, one line
-  per size, with its usual time in Doing and the two finished cards closest to it as
-  examples. `soloagile sizes` prints it again. Cards that went through Doing in under 3
-  minutes are left out, as in the time-to-build report. Once a guessed card is built, its
-  face says under the foot how close it came, `guessed 40 min, took 52 min`, and the
-  time-to-build report says how many guessed cards took between half and double their
-  guess, with up to four weeks of it and whether that is getting better.
+- **A card can carry a guessed build time** beside its points: how long it is expected
+  to spend in Doing. Points are a card's size only; the time is learned apart from them
+  (M29). It is written after the points, `· 3 pts · ~40 min`, in minutes under 2 hours and
+  in hours to the half above (`~2.5 h`). `soloagile card add` gives every new work card
+  one by itself, from the project's own past: the middle of its last 150 finished cards'
+  times, with the 20th to 80th percentile as its range, written `~35 min (20-65 min)`.
+  Cards in Doing under 3 minutes or over 10 hours are left out (moved through, or left
+  there). With fewer than 5 such cards there is no range, and Claude guesses. `--guess 40`
+  or `--guess 1.5h` sets one by hand, with no range. A question has none. The card's chip
+  shows the middle only; its pop-up says `likely 20–65 min (6 in 10 cards like it land
+  here)`. `soloagile guess` prints the range a new card would get, and `--replay` checks it
+  on the project's history, each card guessed only from cards finished before it started.
+  Once a guessed card is built, its face says under the foot how close it came, `guessed
+  40 min, took 52 min`, and the time-to-build report says how many guessed cards took
+  between half and double their guess, with up to four weeks of it and whether that is
+  getting better.
 - **Habits are switches for ways of working**, listed in `src/habits.js`. Each is on until
   switched off: for every project under `"habits"` in `~/.soloagile/settings.json`, or for one
   under `"habits"` in its `pm/settings.json`, which wins. The page's Settings tab shows each
@@ -626,7 +631,8 @@ soloagile/
   src/cleanup.js          soloagile cleanup and backup, and the weekly run at session start (tested)
   src/rules.js            soloagile rule: a numbered standing rule in the project's CLAUDE.md; --remove takes one out (tested)
   src/usage.js            soloagile usage: the week's and the 5 hours' usage from a usage address, for away mode (tested)
-  src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples; the session start gives it to Claude (tested)
+  src/sizes.js            soloagile sizes: each size's usual build time from pm/history.md, with examples (tested)
+  src/guess.js            soloagile guess: a new card's time range from its finished cards; card add and the session start use it (tested)
   src/next.js             soloagile next: the board in a few lines and the one next move; the catchup skill loads it (tested)
   src/settings.js         where things are: worked out, or read from ~/.soloagile/settings.json (tested)
   src/session.js          the session hooks: start summary, handoff commit at the end

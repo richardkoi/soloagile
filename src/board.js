@@ -7,7 +7,7 @@ export const COLUMNS = ['Ideas', 'Up next', 'Doing', 'Needs your look', 'Needs y
 const DATE = /^(?:([a-z]+) )?(\d{4}-\d{2}-\d{2})$/; // "2026-09-30" or "built 2026-09-30"
 const MILESTONE = /^M\d+$/;
 const POINTS = /^(\d+) pts?$/; // "3 pts" or "1 pt"
-const GUESS = /^~(\d+(?:\.\d+)?) (min|h)$/; // "~40 min" or "~2.5 h"
+const GUESS = /^~(\d+(?:\.\d+)?) (min|h)(?: \((\d+)-(\d+) min\))?$/; // "~40 min", "~2.5 h", or with its range: "~35 min (20-65 min)"
 // Story points: Claude's quick guess at a card's size. 13 means "too big, split it".
 export const SCALE = [1, 2, 3, 5, 8, 13];
 // The wheel every card goes round, in order (SPEC.md, "The wheel").
@@ -17,16 +17,21 @@ const DOING_STAGES = STAGES.slice(1, 5);
 
 // A guessed build time, in minutes, as a card writes it: "~40 min" under 2 hours, else
 // hours to the half: "~2.5 h".
-export const guessText = (minutes) => (minutes < 120 ? `~${Math.round(minutes)} min` : `~${Math.round(minutes / 30) / 2} h`);
+// A guess made by `card add` from the project's past (#208) carries its range, always in
+// minutes so it parses back exactly: "~35 min (20-65 min)". The page's chip shows only the middle.
+export const guessText = (minutes, range = null) =>
+  (minutes < 120 ? `~${Math.round(minutes)} min` : `~${Math.round(minutes / 30) / 2} h`) + (range ? ` (${range[0]}-${range[1]} min)` : '');
 
 // "#5 Board parser · M1 · 3 pts · ~40 min · test · built 2026-09-30"
-//   -> { id, title, milestone, points, guess, stage, date, details }. guess is in minutes.
+//   -> { id, title, milestone, points, guess, range, stage, date, details }. guess is in
+//   minutes; range is [low, high] in minutes when the guess carries one, else null.
 // Meta segments are peeled off the right, so a title may itself contain " · ".
 export function parseCardLine(text) {
   const parts = text.split(' · ');
   let milestone = null;
   let points = null;
   let guess = null;
+  let range = null;
   let stage = null;
   let date = null;
   while (parts.length > 1) {
@@ -42,6 +47,7 @@ export function parseCardLine(text) {
       points = Number(p[1]);
     } else if (g && guess === null) {
       guess = Number(g[1]) * (g[2] === 'h' ? 60 : 1);
+      if (g[3]) range = [Number(g[3]), Number(g[4])];
     } else if (STAGES.includes(last) && !stage) {
       stage = last;
     } else {
@@ -57,6 +63,7 @@ export function parseCardLine(text) {
     milestone,
     points,
     guess,
+    range,
     stage,
     date,
     details: [],

@@ -12,7 +12,7 @@ import { buildAll, buildHome } from './home.js';
 import { isPmProject } from './hook.js';
 import { localDate } from './init.js';
 import { onHome, pageUrl, projectsFolderOf } from './settings.js';
-import { readSizes } from './sizes.js';
+import { guessSays, readGuess } from './guess.js';
 import { habitOn, habitStates, habitsText } from './habits.js';
 import { weeklyCleanup } from './cleanup.js';
 import { refreshHerdr } from './herdr.js';
@@ -82,7 +82,7 @@ export function startSummary(repo, { url = pageUrl(repo), today = localDate() } 
   ];
   const tail = (examples) => [
     '',
-    readSizes(repo, { examples }),
+    guessSays(readGuess(repo)),
     '',
     ...(habitsText(habitStates(repo)) ? [habitsText(habitStates(repo)), ''] : []),
     'When the user greets you or asks where things stand ("catch me up", "what\'s next"), run the soloagile:catchup skill.',

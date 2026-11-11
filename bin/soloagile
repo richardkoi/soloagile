@@ -18,6 +18,7 @@
 //        soloagile rule --remove <n>   take rule n out and renumber the rest
 //        soloagile usage            the week's usage, for away mode (src/usage.js)
 //        soloagile sizes [repo]     each size's usual build time, with finished cards as examples
+//        soloagile guess [repo] [--replay]  a new card's time range from the finished cards
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
 //          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box;
@@ -47,6 +48,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
+import { guessRange, guessSays, readGuess, replayRanges } from '../src/guess.js';
 import { addRuleTo, removeRuleFrom } from '../src/rules.js';
 import { readUsage } from '../src/usage.js';
 import { backupCommand, cleanupProject, clearCardShots, markShots } from '../src/cleanup.js';
@@ -90,6 +92,7 @@ const COMMANDS = [
   ['rule --remove <n>', 'take standing rule n out of CLAUDE.md and renumber the rest'],
   ['usage', "the week's and the 5 hours' usage, from the address set as usageUrl; exits 3 when either reaches the stop"],
   ['sizes [repo]', "each size's usual build time, with finished cards as examples"],
+  ['guess [repo] [--replay]', "a new card's time range from the finished cards; --replay checks it on the past"],
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …] [--press …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
@@ -368,6 +371,17 @@ if (cmd === 'usage') {
   process.exit(u.stop ? 3 : 0);
 }
 
+if (cmd === 'guess') {
+  // A new card's build time as a range from this project's finished cards (#208).
+  const events = readGuess(process.argv.slice(3).find((a) => !a.startsWith('--')) ?? process.cwd());
+  console.log(guessSays(events));
+  if (process.argv.includes('--replay')) {
+    const { inside, of } = replayRanges(events);
+    console.log(of ? `Replayed: ${inside} of ${of} built cards (${Math.round((100 * inside) / of)}%) took a time inside the range they would have been given.` : 'Replayed: too few built cards to check.');
+  }
+  process.exit(0);
+}
+
 if (cmd === 'sizes') {
   // What a new card's --guess is made from: this project's own finished cards.
   console.log(readSizes(repo));
@@ -443,7 +457,7 @@ if (cmd === 'card') {
     if (!existsSync(file)) throw new Refused(`no pm/board.md in ${here}; run this in the project's folder`);
     // A bare number shows the card in full, then the commits that name it.
     const bare = /^#?\d+$/.test(argv[0]);
-    const r = runCard(bare ? ['show', argv[0].replace('#', '')] : argv, { board: read('board.md'), plan: read('plan.md'), archive: readArchive(here), today: localDate() });
+    const r = runCard(bare ? ['show', argv[0].replace('#', '')] : argv, { board: read('board.md'), plan: read('plan.md'), archive: readArchive(here), today: localDate(), past: argv[0] === 'add' ? guessRange(readGuess(here)) : null });
     if (r.print) {
       process.stdout.write(r.print);
       if (bare) {

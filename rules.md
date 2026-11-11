@@ -23,8 +23,9 @@ in `pm/`. Follow these rules while you work here.
 - `soloagile board` prints the board without finished cards; `soloagile finished <n or M3>`
   prints finished ones in full.
 - A Doing card ends with its stage: `design`, `develop`, `test` or `release`.
-- Every new card gets points (1, 2, 3, 5, 8, 13 = split it; none on a decision), a guessed
-  build time from the build times below, and a milestone from `pm/plan.md`. With none
+- Every new card gets points (1, 2, 3, 5, 8, 13 = split it; none on a decision) for its size,
+  a guessed build time (`card add` sets it from the finished cards; --guess only for an
+  unusual card), and a milestone from `pm/plan.md`. With none
   fitting, add one there as `not started`. A card that comes after a milestone's work is
   done goes in a new milestone, not the open old one. A milestone has a `short:` line of 2
   to 4 words and a `Cards:` line naming its cards.

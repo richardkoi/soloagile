@@ -75,7 +75,7 @@ test('board json: every open lane with its cards in full, and no Done lane', () 
   assert.deepEqual(j.lanes.map((l) => l.name), ['Ideas', 'Up next', 'Doing', 'Needs your look', 'Needs your decision']);
   const upNext = j.lanes[1].cards;
   assert.deepEqual(upNext[0], {
-    id: 9, title: 'Parse board.md', milestone: 'M2', points: 3, guess: 7, stage: 'plan',
+    id: 9, title: 'Parse board.md', milestone: 'M2', points: 3, guess: 7, range: null, stage: 'plan',
     date: null, details: ['done when: node --test passes'], waits: null, later: false,
     pictures: [], picturePage: null, links: [],
   });

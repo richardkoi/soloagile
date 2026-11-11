@@ -20,7 +20,7 @@ const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '');
 
 // "- #12 Title · M1 · 3 pts · test · live 2026-10-02", as board.md writes a card.
 function cardLine(c) {
-  const meta = [c.milestone, c.points !== null && `${c.points} ${c.points === 1 ? 'pt' : 'pts'}`, c.guess != null && guessText(c.guess), c.stage, c.date && [c.date.label, c.date.value].filter(Boolean).join(' ')];
+  const meta = [c.milestone, c.points !== null && `${c.points} ${c.points === 1 ? 'pt' : 'pts'}`, c.guess != null && guessText(c.guess, c.range), c.stage, c.date && [c.date.label, c.date.value].filter(Boolean).join(' ')];
   return `- #${c.id} ${c.title}${meta.filter(Boolean).map((m) => ` · ${m}`).join('')}`;
 }
 
@@ -64,7 +64,9 @@ function gone(archiveMd, id) {
 
 // soloagile card add "<title>" --milestone M3 --points 3 [--lane next] [--done-when "…"]
 //   [--note "…"]… [--option "…"]… [--design]
-export function addCard(boardMd, planMd, { title, milestone, points = null, guess = null, lane = 'next', doneWhen, notes = [], options = [], design = false, today }) {
+// `past` is the range from the project's finished cards (guess.js): a work card given no
+// --guess gets its middle and keeps the range (#208).
+export function addCard(boardMd, planMd, { title, milestone, points = null, guess = null, lane = 'next', doneWhen, notes = [], options = [], design = false, today, past = null }) {
   const column = laneOf(lane);
   if (!title?.trim()) refuse('a card needs a title: soloagile card add "<title>" --milestone M3 --points 3');
   if (column === 'Needs your look' || column === 'Done') refuse(`a new card can't start in ${column}; add it to doing, then move it`);
@@ -91,7 +93,8 @@ export function addCard(boardMd, planMd, { title, milestone, points = null, gues
     title: title.trim(),
     milestone,
     points,
-    guess,
+    guess: guess ?? (!question && past ? past.mid : null),
+    range: guess === null && !question && past ? [past.low, past.high] : null,
     stage: column === 'Doing' ? 'develop' : design ? 'design' : null,
     date: column === 'Needs your decision' ? { label: 'asked', value: today } : null,
   };
@@ -277,7 +280,10 @@ export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, gue
     checkPoints(points);
     card.points = points;
   }
-  if (guess !== undefined) card.guess = guess;
+  if (guess !== undefined) {
+    card.guess = guess;
+    card.range = null; // a guess set by hand has no range from the past
+  }
   if (title !== undefined) card.title = title.trim() || refuse('a card needs a title');
   lines[found.at] = cardLine(card);
   if (doneWhen !== undefined) {
@@ -376,10 +382,10 @@ export function cardCommits(log, id) {
   return lines.length ? `Commits:\n${lines.map((l) => `- ${l}`).join('\n')}\n` : 'Commits: none name this card\n';
 }
 
-export function runCard(argv, { board, plan, archive, today }) {
+export function runCard(argv, { board, plan, archive, today, past = null }) {
   const { verb, args } = parseCardArgs(argv);
   const [first, second, third] = args.words;
-  if (verb === 'add') return addCard(board, plan, { ...args, title: first, today });
+  if (verb === 'add') return addCard(board, plan, { ...args, title: first, today, past });
   if (verb === 'move') return moveCard(board, archive, { ...args, id: numberOf(first), lane: second, stage: third, today });
   if (verb === 'note') return noteCard(board, archive, { id: numberOf(first), line: second, first: args.first });
   if (verb === 'drop') return dropCard(board, archive, { id: numberOf(first), why: second, today });

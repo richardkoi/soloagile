@@ -42,6 +42,7 @@ test('reads id, title, milestone, dated state and detail lines', () => {
     milestone: 'M1',
     points: 3,
     guess: null,
+    range: null,
     stage: null,
     date: null,
     details: ['done when: node --test passes', 'second detail line'],
@@ -182,7 +183,7 @@ test('reads a guessed build time after the points, in minutes or hours', () => {
   assert.equal(c.title, 'Night mode');
   assert.equal(parseCardLine('#9 Big one · M1 · 8 pts · ~2.5 h').guess, 150);
   assert.equal(parseCardLine('#9 No guess · M1 · 2 pts').guess, null);
-  assert.deepEqual([5, 40, 119, 120, 150, 200].map(guessText), ['~5 min', '~40 min', '~119 min', '~2 h', '~2.5 h', '~3.5 h']);
+  assert.deepEqual([5, 40, 119, 120, 150, 200].map((m) => guessText(m)), ['~5 min', '~40 min', '~119 min', '~2 h', '~2.5 h', '~3.5 h']);
 });
 
 test('an Up next or Doing card with points and no done when: is reported; questions and designs are not (#168)', () => {

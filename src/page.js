@@ -167,6 +167,8 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   if (left === meta) meta = '';
   // Once built, a guessed card says how close the guess came, under its foot.
   const tookLine = c.guess != null && c.took != null ? `<p class="card-took">guessed ${duration(c.guess)}, took ${duration(c.took)}</p>` : '';
+  // The range a guess came with (#208) shows in the pop-up only; the chip keeps the middle (#207, Rich's pick b).
+  const rangeLine = c.range ? `<p class="card-range">likely ${c.range[0]}–${c.range[1]} min (6 in 10 cards like it land here)</p>` : '';
   // data-ms and data-later are for the milestone filter, data-id for the search box (template/refresh.html).
   const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${c.id !== null ? ` data-id="${c.id}"` : ''}${later ? ' data-later' : ''}>`;
   if (!c.details.length) {
@@ -175,7 +177,7 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
   const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(inline(d))}${optionPicture(c, d, pictures)}</li>`).join('');
-  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></div>`;
+  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${rangeLine}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></div>`;
   return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${tookLine}${modal}</li>`;
 }
 

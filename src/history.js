@@ -31,7 +31,7 @@ const minutesBetween = (a, b) => (new Date(b.replace(' ', 'T')) - new Date(a.rep
 const LINE = /^- (\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · ([^·]+?) · (#\d+ .*)$/;
 
 export function formatEvent(e) {
-  const meta = [e.milestone, e.points !== null && `${e.points} pt${e.points === 1 ? '' : 's'}`, e.guess != null && guessText(e.guess), e.stage].filter(Boolean);
+  const meta = [e.milestone, e.points !== null && `${e.points} pt${e.points === 1 ? '' : 's'}`, e.guess != null && guessText(e.guess, e.range), e.stage].filter(Boolean);
   return `- ${e.at} · ${e.lane} · #${e.id} ${e.title}${meta.map((m) => ` · ${m}`).join('')}`;
 }
 
@@ -41,8 +41,8 @@ export function parseHistory(md) {
   for (const line of md.split('\n')) {
     const m = line.match(LINE);
     if (!m) continue;
-    const { id, title, milestone, points, guess, stage } = parseCardLine(m[3]);
-    events.push({ at: m[1], lane: m[2], id, title, milestone, points, guess, stage });
+    const { id, title, milestone, points, guess, range, stage } = parseCardLine(m[3]);
+    events.push({ at: m[1], lane: m[2], id, title, milestone, points, guess, range, stage });
   }
   return events;
 }
@@ -62,7 +62,7 @@ function cardsOn(board) {
     for (const c of col.cards) {
       if (c.id === null) continue;
       const stage = col.name === 'Doing' || isDesign(c, col.name) ? stageOf(c, col.name) : null;
-      now.set(c.id, { lane: col.name, id: c.id, title: c.title, milestone: c.milestone, points: c.points, guess: c.guess, stage });
+      now.set(c.id, { lane: col.name, id: c.id, title: c.title, milestone: c.milestone, points: c.points, guess: c.guess, range: c.range, stage });
     }
   }
   return now;
