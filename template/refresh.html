@@ -98,11 +98,12 @@
     });
   });
 })();
-/* Long lanes (#219): Up next, Ideas and Done show their first 10 cards, then a "Show all N"
-   button. The count is of the cards the milestone menu leaves; while the search box has
+/* Long lanes (#219, #220): Up next, Ideas and Done show their first 10 cards (5 on a phone,
+   where lanes stack), then a "Show all N" button. The count is of the cards the milestone menu leaves; while the search box has
    words every card shows, so a match is never hidden; a card opened by its number has its
    lane shown in full first. A lane's choice lasts until the page is opened again. */
 (function () {
+  var phone = window.matchMedia('(max-width: 620px)');
   var FIRST = 10;
   var open = {}, searching = false;
   function limit(lane) {
@@ -110,7 +111,8 @@
     if (!body) return;
     var key = lane.className.match(/lane-([a-z-]+)/)[1];
     var cards = Array.prototype.filter.call(body.querySelectorAll(':scope > .card-x'), function (li) { return !li.hidden; });
-    var long = cards.length > FIRST;
+    FIRST = phone.matches ? 5 : 10;
+    var long = cards.length > FIRST && (phone.matches || key !== 'waiting');
     cards.forEach(function (li, i) { li.classList.toggle('over', long && !open[key] && !searching && i >= FIRST); });
     body.querySelectorAll(':scope > .card-x[hidden]').forEach(function (li) { li.classList.remove('over'); });
     var more = lane.querySelector('.lane-more');
@@ -124,7 +126,9 @@
     more.hidden = !long || searching || body.hidden;
     more.textContent = open[key] ? 'Show the first ' + FIRST : 'Show all ' + cards.length;
   }
-  var lanes = document.querySelectorAll('.lane-up-next, .lane-ideas, .lane-done');
+  // On a phone, Waiting on you is limited too: it comes first there, and fifteen looks would
+  // push every other lane screens down. Five in a row it sits in its own column, in full.
+  var lanes = document.querySelectorAll('.lane-up-next, .lane-ideas, .lane-done, .lane-waiting');
   // search: the search box has words in it. card: a card about to open, whose lane opens.
   window.soloagileLimit = function (search, card) {
     if (search !== undefined) searching = search;
@@ -132,6 +136,7 @@
     lanes.forEach(limit);
   };
   window.soloagileLimit();
+  if (phone.addEventListener) phone.addEventListener('change', function () { window.soloagileLimit(); });
 })();
 /* The search box (#132). Words light the cards that hold them and dim the rest, across every
    lane. A card's number ("#12" or "12") and Enter opens that card: the milestone filter goes

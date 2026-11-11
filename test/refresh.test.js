@@ -187,3 +187,24 @@ test('on desktop a long lane shows its first 10 cards and a Show all button; sea
   assert.equal(seen.zebra, true, 'a search shows a match past the first 10');
   assert.equal(seen.open, true, '#15 and Enter opens a card past the first 10');
 });
+
+test("on a phone a long lane shows its first 5 cards and a Show all button, so Done's heading comes near the top (#220)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-phone-'));
+  mkdirSync(join(repo, 'pm'));
+  const cards = (from, n, word) => Array.from({ length: n }, (_, i) => `- #${from + i} ${word} card ${i} with a title long enough to take two lines · M1 · 2 pts\n  a line`).join('\n');
+  writeFileSync(join(repo, 'pm', 'board.md'), `# Board\n<!-- next-id: 200 -->\n## Ideas\n${cards(1, 20, 'Idea')}\n## Up next\n${cards(30, 90, 'Next')}\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n- #150 Done card · M1 · 2 pts\n`.replace('## Needs your look\n', `## Needs your look\n${Array.from({ length: 12 }, (_, i) => `- #${160 + i} Look ${i} · M1 · live 2026-10-01`).join('\n')}\n`));
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 360, height: 780, deviceScaleFactor: 1, mobile: true });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    return run(`({ shown: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetParent).length,
+      button: document.querySelector('.lane-up-next .lane-more').textContent,
+      looks: [...document.querySelectorAll('.lane-waiting .card-x')].filter((li) => li.offsetParent).length,
+      done: document.querySelector('.lane-done').getBoundingClientRect().top + scrollY })`);
+  });
+  assert.equal(seen.shown, 5);
+  assert.equal(seen.button, 'Show all 90');
+  assert.equal(seen.looks, 5, 'on a phone Waiting on you, first in the stack, is limited too');
+  assert.ok(seen.done < 4 * 780, `Done's heading is near the top, not 90 cards down: at ${Math.round(seen.done)}px`);
+});
