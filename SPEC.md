@@ -620,7 +620,7 @@ soloagile/
   bin/soloagile           `soloagile build [repo]`, `init`, `home`, `card`, `archive`, `board`, `finished`, `set`, `pictures`, `retake`, `cleanup`, `backup`, `rule`, `usage`, `sizes`, `link`, `shots <url>`, `design` and the hooks. On Claude's PATH while the plugin is on
   hooks/hooks.json        the three hooks: rebuild after an edit, session start, session end
   rules.md                the short rules the session-start hook gives Claude in a project with pm/
-  skills/                 the eight skills: init, catchup, commit, needs, retro, save, away and parallel, typed `/soloagile:<name>`
+  skills/                 the nine skills: init, catchup, commit, needs, order, retro, save, away and parallel, typed `/soloagile:<name>`
   src/habits.js           habits: switches for ways of working, the Settings tab, soloagile set (tested)
   src/pictures.js         soloagile pictures and retake: a card's page of pictures, and its kept script (tested)
   src/cleanup.js          soloagile cleanup and backup, and the weekly run at session start (tested)

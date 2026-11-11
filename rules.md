@@ -58,7 +58,7 @@ in `pm/`. Follow these rules while you work here.
   `pm/decisions.md`.
 - Plain words run the skills: "catch me up" catchup, "commit" commit, "what needs me"
   needs, "done for today" save, "retro" retro, "I'm off to bed" away, "build these in
-  parallel" parallel (each `/soloagile:<name>`).
+  parallel" parallel, "what order" order (each `/soloagile:<name>`).
 - Read `NEXT_SESSION.md` when a session starts, and update it before one ends.
 
 The format of every file, and each rule in full: `{{spec}}`.
