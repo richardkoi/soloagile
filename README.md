@@ -50,7 +50,7 @@ open it in a browser and leave it open. It refreshes itself as cards move.
 | "retro" | At a milestone's end: what worked, what to change, what's next |
 | "I'm off to bed" | Claude asks every waiting question now, then builds Up next while you're away, and saves |
 | "build these in parallel" | Helpers build independent cards at once, each in its own copy of the code, then Claude merges them |
-| "what order should we build these in?" | Claude proposes an order for the milestones and Up next with a reason each; you pick, and it is applied. "Put #12 first" just moves that card |
+| "what order should we build these in?" | Claude suggests an order for the milestones and Up next with a reason each, asks you questions to tweak it, then applies it. "Put #12 first" just moves that card |
 
 Each habit, away mode among them, can be switched off on the page's Settings tab.
 
