@@ -35,7 +35,9 @@ surely 5 h (by 18:00)"), and when you will stop. Then work without asking anythi
 
 **3. Build Up next in order**, one card at a time, round the whole wheel: move it to
 Doing, build it, run the project's checks, write its `tested:` line and a `to look:` line,
-commit it, and move it to Needs your look. Then the next card.
+commit it, and move it to Needs your look. The move prints what's left of the run ("What's
+left: 3 in Up next · likely …"): say that line, then go on to the next card. A card
+command that says a card has run past its range prints it too: say it then as well.
 - Skip a card that needs the user: an unanswered design, a deploy to a live server, a
   purchase, an account, anything only they can approve. It waits in Needs your decision,
   with the question written on it.

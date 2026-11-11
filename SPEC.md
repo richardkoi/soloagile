@@ -72,6 +72,10 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   and parallel say it at a run's start. `soloagile guess --batch next|M3|<n> [--helpers N]`
   prints it (helpers 1 learns only from days built one at a time, 2 or more from the
   rest), and `--replay` checks it on every past day with 4 or more built cards.
+  During a run, what's left is worked out again (#210): moving a card to Needs your look
+  or Done prints `What's left: 3 in Up next and 1 in Doing · likely … · surely …`, and any
+  card command prints it too when a Doing card has run past the top of its range; away
+  mode says the line after each card.
   Once a guessed card is built, its face says under the foot how close it came, `guessed
   40 min, took 52 min`, and the time-to-build report says how many guessed cards took
   between half and double their guess, with up to four weeks of it and whether that is

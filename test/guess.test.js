@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseCardLine } from '../src/board.js';
 import { addCard } from '../src/card.js';
-import { batchGuess, batchText, builtCards, byWhen, cardsLeft, guessRange, guessSays, rangeOf, replayBatches, replayRanges, shares } from '../src/guess.js';
+import { batchGuess, batchText, builtCards, byWhen, cardsLeft, guessRange, guessSays, leftSays, overrunning, rangeOf, replayBatches, replayLeft, replayRanges, shares } from '../src/guess.js';
 import { formatEvent, parseHistory } from '../src/history.js';
 
 // A card that spent `minutes` in Doing, then reached the user's look, one after another.
@@ -96,4 +96,22 @@ test('a milestone counts its cards still to build, not its finished ones or ques
     { name: 'Done', cards: [{ milestone: 'M2', points: 1 }] },
   ] };
   assert.equal(cardsLeft(board, 'M2'), 2);
+});
+
+test('a card in Doing past the top of its range is flagged, and what is left is said', () => {
+  const events = parseHistory('- 2026-11-11 10:00 · Doing · #7 Long one · M1 · 3 pts · ~35 min (20-65 min) · develop');
+  const board = { columns: [
+    { name: 'Up next', cards: [{ id: 8, points: 2 }, { id: 9, points: null }] },
+    { name: 'Doing', cards: [{ id: 7, points: 3, range: [20, 65] }] },
+  ] };
+  assert.deepEqual(overrunning(events, board, new Date(2026, 10, 11, 11, 30)), [{ id: 7, minutes: 90, high: 65 }]);
+  assert.deepEqual(overrunning(events, board, new Date(2026, 10, 11, 10, 30)), []);
+  assert.equal(leftSays(events, board), "What's left: 1 in Up next and 1 in Doing; too few past days to guess from yet.");
+  assert.equal(leftSays(events, { columns: [] }), "What's left: nothing in Up next or Doing.");
+});
+
+test('the what-is-left replay guesses the rest of each busy day after each card lands', () => {
+  const day = (d, n) => spells(Array.from({ length: n }, (_, i) => [d * 10 + i, i * 30, i * 30 + 30]), d);
+  const events = parseHistory([...day(1, 3), ...day(2, 3), ...day(3, 4), ...day(4, 4)].join('\n'));
+  assert.deepEqual(replayLeft(events), { held: 3, of: 3, under: 3 });
 });

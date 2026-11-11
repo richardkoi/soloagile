@@ -49,7 +49,7 @@ import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
 import { parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
-import { batchGuess, batchText, cardsLeft, guessRange, guessSays, readGuess, replayBatches, replayRanges } from '../src/guess.js';
+import { batchGuess, batchText, cardsLeft, leftSays, overrunning, replayLeft, guessRange, guessSays, readGuess, replayBatches, replayRanges } from '../src/guess.js';
 import { addRuleTo, removeRuleFrom } from '../src/rules.js';
 import { readUsage } from '../src/usage.js';
 import { backupCommand, cleanupProject, clearCardShots, markShots } from '../src/cleanup.js';
@@ -395,6 +395,8 @@ if (cmd === 'guess') {
     console.log(of ? `Replayed cards: ${inside} of ${of} built cards (${Math.round((100 * inside) / of)}%) took a time inside the range they would have been given.` : 'Replayed cards: too few built cards to check.');
     const b = replayBatches(events);
     console.log(b.of ? `Replayed days: ${b.held} of ${b.of} days with 4 or more cards (${Math.round((100 * b.held) / b.of)}%) took no longer than their 'surely' guess; ${b.under} within 'likely'.` : 'Replayed days: too few busy days to check.');
+    const l = replayLeft(events);
+    if (l.of) console.log(`Replayed what's left: after ${l.of} cards landed, the rest of the day took no longer than 'surely' ${l.held} times (${Math.round((100 * l.held) / l.of)}%); ${l.under} within 'likely'.`);
   }
   process.exit(0);
 }
@@ -501,6 +503,14 @@ if (cmd === 'card') {
       for (const path of clearCardShots(here, id)) console.log(`soloagile: removed #${id}'s shots folder: ${path}`);
     }
     buildAndSay(here);
+    // What's left of the run (#210): said when a card lands, and when a card in Doing has
+    // run past its range, so Claude can tell the user how long the rest should take.
+    const events = readGuess(here);
+    const board = parseBoard(r.board);
+    const over = overrunning(events, board);
+    for (const o of over) console.log(`soloagile: #${o.id} has been in Doing ${o.minutes} min, past the top of its range (${o.high} min)`);
+    const landed = argv[0] === 'move' && ['Needs your look', 'Done'].includes(r.column);
+    if (landed || over.length) console.log(`soloagile: ${leftSays(events, board)}`);
   } catch (err) {
     console.error(`soloagile: ${err instanceof Refused ? 'refused: ' : ''}${err.message}`);
     process.exit(1);

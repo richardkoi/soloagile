@@ -232,3 +232,68 @@ export function cardsLeft(board, id) {
   const lanes = ['Up next', 'Doing', 'Needs your decision'];
   return board.columns.filter((c) => lanes.includes(c.name)).flatMap((c) => c.cards).filter((c) => c.milestone === id && c.points !== null).length;
 }
+
+// ---- What's left during a run (#210) ----------------------------------------------------
+// Worked out again each time a card lands, and when a card in Doing runs past its range:
+// the cards still to build are those in Up next and Doing.
+
+// Doing cards that have been in Doing longer than the top of their range:
+// [{ id, minutes, high }]. Minutes count every spell, the open one up to `now`.
+export function overrunning(events, board, now = new Date()) {
+  const doing = board.columns.find((c) => c.name === 'Doing')?.cards ?? [];
+  const out = [];
+  for (const card of doing) {
+    if (!card.range) continue;
+    let since = null;
+    let worked = 0;
+    for (const e of events) {
+      if (e.id !== card.id) continue;
+      const working = e.lane === 'Doing' || (e.lane === 'Needs your decision' && e.stage === 'design');
+      if (since !== null && !working) {
+        worked += when(e.at) - since;
+        since = null;
+      } else if (working && since === null) since = when(e.at);
+    }
+    if (since !== null) worked += now.getTime() - since;
+    const minutes = Math.round(worked / 60000);
+    if (minutes > card.range[1]) out.push({ id: card.id, minutes, high: card.range[1] });
+  }
+  return out;
+}
+
+// "What's left: 2 in Up next and 1 in Doing · likely 40 min (by 17:20) · surely 1 h (by 17:40)".
+export function leftSays(events, board, now = new Date()) {
+  const count = (name) => (board.columns.find((c) => c.name === name)?.cards ?? []).filter((c) => c.points !== null).length;
+  const [next, doing] = [count('Up next'), count('Doing')];
+  if (!next && !doing) return "What's left: nothing in Up next or Doing.";
+  const parts = [next && `${next} in Up next`, doing && `${doing} in Doing`].filter(Boolean).join(' and ');
+  const g = batchGuess(events, next + doing);
+  return g ? `What's left: ${parts} · ${batchText(g, { clock: now })}` : `What's left: ${parts}; too few past days to guess from yet.`;
+}
+
+// Replaying the history: on each day with 4 or more built cards, after each card but the
+// last lands, the cards still to come that day are guessed from the days before, and their
+// busy time is compared with the guess. { held, of, under }, as replayBatches counts.
+export function replayLeft(events) {
+  const list = shares(events);
+  const days = new Map();
+  for (const s of list) days.set(s.day, [...(days.get(s.day) ?? []), s]);
+  let held = 0;
+  let of = 0;
+  let under = 0;
+  for (const cards of days.values()) {
+    if (cards.length < 4) continue;
+    const first = Math.min(...cards.map((c) => c.start));
+    const past = list.filter((s) => s.end < first);
+    for (let i = 1; i < cards.length; i++) {
+      const rest = cards.slice(i);
+      const guess = batchFrom(past, rest.length);
+      if (!guess) continue;
+      const took = rest.reduce((t, c) => t + c.share, 0);
+      of++;
+      if (took <= guess.surely) held++;
+      if (took <= guess.likely) under++;
+    }
+  }
+  return { held, of, under };
+}
