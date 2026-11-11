@@ -94,16 +94,16 @@ test('without a plan heading the folder name is used', () => {
   assert.equal(listProjects(r)[0].name, 'beta');
 });
 
-test('anything waiting on the user comes first, then the most recently updated', () => {
+test('projects run from the one whose card moved last, waiting or not; with no card moved, by when its Markdown changed', () => {
   const now = Date.now();
   const projects = [
-    summary('calm-new', { updated: now }),
-    summary('waiting-old', { updated: now - 9000, look: 1 }),
-    summary('calm-old', { updated: now - 5000 }),
-    summary('waiting-new', { updated: now - 1000, decide: 1 }),
+    summary('waiting-old', { moved: now - 9000, updated: now, look: 1 }),
+    summary('calm-new', { moved: now - 1000, updated: now - 9000 }),
+    summary('never-moved', { moved: null, updated: now - 5000 }),
+    summary('waiting-new', { moved: now - 3000, updated: now - 9000, decide: 1 }),
   ];
   const { html } = renderHome({ projects, builtAt, template });
-  const order = ['waiting-new', 'waiting-old', 'calm-new', 'calm-old'].map((f) => html.indexOf(`href="/${f}/"`));
+  const order = ['calm-new', 'waiting-new', 'never-moved', 'waiting-old'].map((f) => html.indexOf(`href="/${f}/"`));
   assert.ok(order.every((i) => i > 0), 'every project is linked');
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });

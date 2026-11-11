@@ -120,8 +120,9 @@ const TABS = [
 ];
 
 export function renderHome({ projects, builtAt, template, flow = '', stampUrl = '' }) {
-  // Anything waiting on the user first, then the most recently updated.
-  const sorted = [...projects].sort((a, b) => (waitingOf(b) > 0) - (waitingOf(a) > 0) || b.updated - a.updated);
+  // The project worked on last first: its last card move, or, with none logged, when its Markdown changed.
+  const lastWork = (p) => p.moved ?? p.updated;
+  const sorted = [...projects].sort((a, b) => lastWork(b) - lastWork(a));
   const waiting = projects.reduce((n, p) => n + waitingOf(p), 0);
   const parts = {
     summary: `${plural(projects.length, 'project')} · ${waiting ? `<b>${waiting} waiting on you</b>` : 'nothing waiting on you'}`,
