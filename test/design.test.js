@@ -96,6 +96,6 @@ test("a card keeps its picked option's picture after soloagile card choose, unti
   const md = { board, plan: '', releases: '', overview: '', decisions: '', links: '' };
   const pic = { src: 'designs/12-b.png?v=5', width: 360, height: 200 };
   const { html } = renderPage({ name: 'demo', md, builtAt: new Date(2026, 9, 20), template: readTemplate('page.html'), pictures: { '12-b': pic } });
-  assert.match(html, /<li>chosen 2026-10-20: b\) Six dots<a class="pic-open" href="designs\/12-b\.png\?v=5"[^>]*><img class="option-pic"[^>]*alt="Option b, as a picture"/);
+  assert.match(html, /<li><b class="detail-label">chosen 2026-10-20:<\/b> b\) Six dots<a class="pic-open" href="designs\/12-b\.png\?v=5"[^>]*><img class="option-pic"[^>]*alt="Option b, as a picture"/);
   assert.match(html.split('<div class="card-modal"')[0], /title="1 picture inside"/);
 });

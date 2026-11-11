@@ -77,7 +77,7 @@ test('the page opens a finished card in full, from the archive', () => {
   assert.deepEqual(archivedDetails(archive).get(7), ['the short line', 'tested: 12 pass']);
   const md = { board, plan: '', releases: '', overview: '', decisions: '', links: '', finished: archive };
   const { html } = renderPage({ name: 'x', md, builtAt: new Date(2026, 9, 13, 12), template: readTemplate('page.html') });
-  assert.ok(html.includes('tested: 12 pass'));
+  assert.ok(html.includes('tested:</b> 12 pass'));
   assert.ok(!html.includes('what was built'), 'a card past its 48 hours is not on the page');
 });
 
@@ -109,7 +109,7 @@ test('the commands: archive rewrites both files and the page; board and finished
   assert.match(r.stdout, /4 finished cards are in pm\/finished-cards\.md/);
   assert.ok(readFileSync(join(repo, 'pm', 'finished-cards.md'), 'utf8').includes('tested: 12 pass'));
   assert.ok(!readFileSync(join(repo, 'pm', 'board.md'), 'utf8').includes('tested: 12 pass'));
-  assert.ok(readFileSync(join(repo, 'pm', 'index.html'), 'utf8').includes('tested: 12 pass'));
+  assert.ok(readFileSync(join(repo, 'pm', 'index.html'), 'utf8').includes('tested:</b> 12 pass'));
   assert.ok(run('board').stdout.includes('finished cards, not shown here'));
   assert.ok(run('finished', '7').stdout.includes('tested: 12 pass'));
   assert.equal(run('finished').status, 2);

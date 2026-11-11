@@ -515,3 +515,25 @@ test('a milestone whose cards are all Done leaves the menu; its cards still show
   assert.deepEqual([...bar.matchAll(/<option value="(M\d+)"/g)].map((m) => m[1]), ['M1', 'M3']);
   assert.match(html, /<li class="card-x card-done" data-ms="M2" data-id="\d+">/, 'the finished card is still on the board');
 });
+
+test("a card's pop-up starts each detail line with its label in bold, and lists an options line one to a line (#225)", () => {
+  const board = withCards([
+    '- #7 Labelled · M1 · 3 pts',
+    '  found by #1489, notes 14 and 48: a round spent turning round',
+    '  done when: each game has its first target ahead',
+    '  options: a) targets ahead (Claude\'s pick) b) the plane turned c) both: targets ahead, and the plane levelled',
+    '  tested: `node --test` passes',
+    '  see https://example.com/x for the play-test',
+    '  a plain line with no label',
+    '',
+  ].join('\n'));
+  const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
+  const modal = html.match(/<ul class="modal-body">.*?<\/ul><\/div>/)[0];
+  assert.match(modal, /<li><b class="detail-label">found by #1489, notes 14 and 48:<\/b> a round spent turning round<\/li>/);
+  assert.match(modal, /<li><b class="detail-label">done when:<\/b> each game has its first target ahead<\/li>/);
+  assert.match(modal, /<li><b class="detail-label">tested:<\/b> <code>node --test<\/code> passes<\/li>/);
+  assert.match(modal, /<b class="detail-label">options:<\/b><ul class="detail-options"><li>a\) targets ahead \(Claude&#39;s pick\)<\/li><li>b\) the plane turned<\/li><li>c\) both: targets ahead, and the plane levelled<\/li><\/ul>/);
+  assert.match(modal, /<li>see <a target="_blank" rel="noopener" href="https:\/\/example.com\/x">/, 'a link is not a label');
+  assert.match(modal, /<li>a plain line with no label<\/li>/);
+  assert.match(html, /\.detail-label \{/);
+});

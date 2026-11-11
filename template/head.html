@@ -266,6 +266,10 @@ body:has(#settings:target) .tab-settings { display: block; }
   border: 1px solid var(--border-default); border-left: 4px solid var(--hue); border-radius: var(--radius-lg); padding: var(--space-lg); }
 .card-modal::backdrop { background: rgb(0 0 0 / 0.65); }
 .card-modal .card-top { margin-bottom: var(--space-sm); }
+/* A detail line's label, and an options line's options, one to a line (#225). */
+.detail-label { color: var(--text-primary); font-weight: var(--weight-semibold); }
+.detail-options { list-style: none; margin: 4px 0 0; padding-left: var(--space-md); }
+.detail-options li { margin-top: 2px; }
 .modal-title { font-size: var(--font-lg); font-weight: var(--weight-semibold); color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; }
 .modal-body { list-style: none; margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border-muted);
   font-size: var(--font-base); line-height: var(--line-height); overflow-wrap: anywhere; }

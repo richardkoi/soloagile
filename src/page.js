@@ -140,6 +140,23 @@ export function ageNote(card, column, today) {
   return `<span class="age" data-since="${card.date.value}">${days ? `waiting ${days} day${days === 1 ? '' : 's'}` : 'since today'}</span>`;
 }
 
+// A detail line in a card's pop-up (#225). A short label before ": " ("done when", "tested",
+// "found by #1489, notes 14 and 48") is set in bold, so the lines are told apart at a glance.
+// An options line ("options: a) … b) … c) …") lists each option on a line of its own. An
+// option line ("a) Yes: …"), a link, or a "label" with a full stop in it is left as written.
+const LABEL = /^([^:.]{1,40}?):\s+([^]*)$/;
+const SPLIT_OPTIONS = /\s+(?=[b-z]\) )/;
+function detailLine(d) {
+  const m = d.match(LABEL);
+  if (!m || OPTION.test(d) || /^\/\//.test(m[2]) || /https?$/i.test(m[1])) return inline(d);
+  const label = `<b class="detail-label">${inline(m[1])}:</b>`;
+  const parts = m[2].split(SPLIT_OPTIONS);
+  if (/options$/i.test(m[1]) && OPTION.test(m[2]) && parts.length > 1) {
+    return `${label}<ul class="detail-options">${parts.map((o) => `<li>${inline(o)}</li>`).join('')}</ul>`;
+  }
+  return `${label} ${inline(m[2])}`;
+}
+
 // laneKey picks the card's colour; decisions and looks get their own within Waiting on you.
 // A card with detail lines opens them in a modal: its title becomes a button that the CSS
 // stretches over the whole card, and the browser's Popover API opens and closes the modal
@@ -181,7 +198,7 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   }
   const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
   const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
-  const lines = c.details.map((d) => `<li>${newTab(inline(d))}${optionPicture(c, d, pictures)}</li>`).join('');
+  const lines = c.details.map((d) => `<li>${newTab(detailLine(d))}${optionPicture(c, d, pictures)}</li>`).join('');
   const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${rangeLine}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></div>`;
   return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${tookLine}${modal}</li>`;
 }
