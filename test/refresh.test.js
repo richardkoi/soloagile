@@ -237,3 +237,24 @@ test('on a 360px phone the tabs are one row that swipes, the header is short, an
   assert.ok(seen.beside, 'Updated, ? and the theme button sit beside the title');
   assert.ok(seen.firstCard < 390, `the first card starts in the top half: at ${Math.round(seen.firstCard)}px`);
 });
+
+test('on a phone Ideas starts folded to its heading, and a tap opens it; desktop starts open (#231)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-ideas-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n- #1 An idea · M1\n## Up next\n- #2 Next · M1 · 2 pts\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n- #3 Done · M1 · 1 pt\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const look = (width) => withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: width < 600 });
+    await page.send('Page.reload');
+    await new Promise((ok) => setTimeout(ok, 500));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const state = () => run(`({ ideas: document.querySelector('.lane-ideas').classList.contains('folded'), done: document.querySelector('.lane-done').classList.contains('folded') })`);
+    const before = await state();
+    await run(`document.querySelector('.lane-ideas .lane-fold').click()`);
+    return { before, after: await state() };
+  });
+  const phone = await look(360);
+  assert.deepEqual(phone.before, { ideas: true, done: false }, 'on a phone Ideas starts folded, Done open');
+  assert.equal(phone.after.ideas, false, 'a tap opens it');
+  assert.deepEqual((await look(1400)).before, { ideas: false, done: false }, 'desktop starts with both open');
+});

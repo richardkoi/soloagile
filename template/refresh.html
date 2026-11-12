@@ -79,11 +79,13 @@
   });
 })();
 /* Ideas and Done fold to a thin strip and back (#134). Which are folded is remembered
-   for this page, so a reload keeps them. */
+   for this page, so a reload keeps them. A phone keeps its own list, and there Ideas
+   starts folded (#231): stacked, its cards would push Done a screen further down. */
 (function () {
-  var key = 'soloagile-fold:' + location.pathname;
-  var folded = [];
-  try { folded = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+  var phone = window.matchMedia('(max-width: 620px)').matches;
+  var key = (phone ? 'soloagile-fold-phone:' : 'soloagile-fold:') + location.pathname;
+  var folded = phone ? ['Ideas'] : [];
+  try { var kept = localStorage.getItem(key); if (kept !== null) folded = JSON.parse(kept); } catch (e) {}
   document.querySelectorAll('.lane-fold').forEach(function (b) {
     var lane = b.closest('.lane');
     var name = lane.getAttribute('aria-label');

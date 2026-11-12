@@ -484,7 +484,7 @@ test('Ideas and Done have a fold button, and the page remembers which are folded
   for (const key of ['waiting', 'doing', 'up-next']) {
     assert.doesNotMatch(html.split(`lane-${key}"`)[1].split('</section>')[0], /lane-fold/);
   }
-  assert.match(html, /'soloagile-fold:' \+ location\.pathname/);
+  assert.match(html, /\(phone \? 'soloagile-fold-phone:' : 'soloagile-fold:'\) \+ location\.pathname/);
 });
 
 test('buildProject warns about a file:// address in links.md (#168)', () => {
