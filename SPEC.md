@@ -43,6 +43,17 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   page. It is one list, in the order of a session: what the user says, what it does, and
   the typed command beside it. It opens as a card does, with no script, and is written
   once, in `template/guide.html`.
+- **An Awake button in the header keeps the computer from sleeping** through a long
+  session, on every project's page and the home page. While it is on and the page shows,
+  the page holds the browser's screen wake lock: the screen stays lit, so the computer
+  doesn't go to sleep. It starts off, and each browser remembers it, as it does the theme.
+  - The browser lets go of the lock whenever the page is hidden, such as when its window is
+    minimised or another tab is in front. The page takes it again when it shows, and after
+    every reload.
+  - A page over plain http has no wake lock, so there the button is hidden. A page opened
+    as a file or over https has one.
+  - A browser that refuses the lock says why in the button's tooltip, and the button stays on.
+  - On a small phone the ?, Awake and Dark/Light buttons go round, so the title keeps its room.
 - **Browser tabs read `<project> - PM`, with their own icon**, so a project's page is
   easy to tell from the app itself. The icon is a small kanban board, inline in the
   page.
@@ -180,7 +191,7 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
   on the Plan tab. Its name takes the colour in "Working on", on the burn-up's markers and
   on the home page. Each colour has a dark and a light value.
 - **One self-contained HTML file.** `soloagile build` renders the Markdown to HTML with a
-  vendored copy of `marked` (MIT). Its only scripts are the theme toggle and one that
+  vendored copy of `marked` (MIT). Its only scripts are the theme and Awake switches, and one that
   counts the days on waiting cards, opens a picture full size and reloads the page when its file changes. It needs no server, and its tabs work
   with plain CSS. A page over 5 MB is slow to open, so `soloagile build` warns with its
   size; this one is about 0.4 MB.
@@ -670,8 +681,9 @@ soloagile/
   template/page.html      the page: six tabs, light/dark, phone-width
   template/home.html      the home page: the waiting list, one row per project, and the Session flow tab
   template/flow.md        the Session flow tab's text
-  template/head.html      shared styles and theme toggle; refresh.html is the live refresh
+  template/head.html      shared styles, the theme toggle and the Awake switch; refresh.html is the live refresh
   template/guide.html     the "?" button and the command guide it opens, on both pages
+  template/awake.html     the Awake button, which keeps the computer from sleeping, on both pages
   vendor/marked.esm.js    Markdown renderer (MIT)
   starter/pm/*.md         starter files for new projects
   extras/page-server/     optional: a sample page server, for reading the pages from another device

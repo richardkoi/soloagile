@@ -9,6 +9,49 @@ function toggleTheme() {
   root.dataset.theme = next;
   try { localStorage.setItem('pm-theme', next); } catch (e) {}
 }
+/* Keep awake (template/awake.html): off unless this browser turned it on. While on, the page
+   holds a screen wake lock, so the computer doesn't sleep through a long session. The browser
+   lets go whenever the page is hidden, and each rebuild reloads the page, so the lock is taken
+   again each time the page shows. A page over plain http has no wake lock: the button hides. */
+var keepAwake = { on: false, lock: null, asking: false, refused: '' };
+try { keepAwake.on = localStorage.getItem('pm-awake') === 'on'; } catch (e) {}
+document.documentElement.dataset.awake = !('wakeLock' in navigator) ? 'none' : keepAwake.on ? 'on' : 'off';
+function holdAwake() {
+  var k = keepAwake;
+  if (!k.on || k.lock || k.asking || document.hidden || !('wakeLock' in navigator)) return;
+  k.asking = true;
+  navigator.wakeLock.request('screen').then(function (lock) {
+    k.asking = false;
+    if (!k.on) return lock.release(); // switched off while the browser was being asked
+    k.lock = lock;
+    k.refused = '';
+    lock.addEventListener('release', function () { k.lock = null; showAwake(); });
+    showAwake();
+  }, function (e) { k.asking = false; k.refused = e.message; showAwake(); });
+}
+// The page says whether the lock is held (data-awake-held, which the tests read); the button
+// says whether it is on, and its tooltip what the browser did.
+function showAwake() {
+  var k = keepAwake, b = document.querySelector('.awake');
+  document.documentElement.toggleAttribute('data-awake-held', !!k.lock);
+  if (!b) return;
+  b.setAttribute('aria-pressed', k.on);
+  b.title = !k.on ? 'Keep the screen awake while this page shows'
+    : k.refused ? 'The browser would not keep the screen awake: ' + k.refused
+    : 'Keeping the screen awake while this page shows';
+}
+function toggleAwake() {
+  var k = keepAwake;
+  k.on = !k.on;
+  k.refused = '';
+  try { localStorage.setItem('pm-awake', k.on ? 'on' : 'off'); } catch (e) {}
+  document.documentElement.dataset.awake = k.on ? 'on' : 'off';
+  if (k.on) holdAwake(); else if (k.lock) k.lock.release();
+  showAwake();
+}
+holdAwake();
+document.addEventListener('visibilitychange', holdAwake);
+document.addEventListener('DOMContentLoaded', showAwake);
 </script>
 <style>
 /* ---------- tokens: scale ---------- */
@@ -140,6 +183,10 @@ body:has(#settings:target) .tab-settings { display: block; }
   flex-shrink: 0; background: var(--brand-swatch); }
 .theme-name::after { content: "Dark"; }
 [data-theme="light"] .theme-name::after { content: "Light"; }
+/* Keep awake (template/awake.html): lit like the open tab while on. Hidden where the browser
+   has no wake lock, such as a page served over plain http. */
+[data-awake="on"] .awake { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
+[data-awake="none"] .awake { display: none; }
 
 /* ---------- page wrapper ---------- */
 .board-wrap { max-width: var(--width-wide); margin: 0 auto; padding: var(--container-pad); }
@@ -512,9 +559,10 @@ body:has(#settings:target) .tab-settings { display: block; }
   .header { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title right" "nav nav"; gap: var(--space-sm); }
   .header-left { display: contents; }
   .header-left > div { grid-area: title; min-width: 0; }
-  .header-right { grid-area: right; display: grid; grid-template-columns: auto auto; justify-items: end; align-items: center; gap: 4px var(--space-sm); }
+  .header-right { grid-area: right; display: grid; grid-template-columns: auto auto auto; justify-items: end; align-items: center; gap: 4px var(--space-sm); }
+  [data-awake="none"] .header-right { grid-template-columns: auto auto; }   /* no Awake button, so no empty column */
   .header-right .updated { grid-column: 1 / -1; grid-row: 2; white-space: nowrap; }
-  .updated-word, .theme-name { display: none; }
+  .updated-word, .theme-name, .awake-name { display: none; }
   .dk-nav { grid-area: nav; flex-wrap: nowrap; overflow-x: auto; gap: 4px; scrollbar-width: none; overscroll-behavior-x: contain;
     mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
   .dk-nav::-webkit-scrollbar { display: none; }
@@ -528,5 +576,9 @@ body:has(#settings:target) .tab-settings { display: block; }
 @media (max-width: 440px) {
   .dk-nav a .i { display: none; }
   .dk-nav a { padding: 6px; }
+  /* The ?, Awake and Dark/Light buttons go round and a little smaller, so the three take no
+     more width than the time under them and the title keeps its room. */
+  .header-right { column-gap: 4px; }
+  .header-right .btn { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 50%; }
 }
 </style>
