@@ -73,6 +73,12 @@ test('the theme button offers Light, Dark and System, and System removes the sav
   assert.equal(b.meta.content, 'light dark');
   b.sandbox.setTheme('light');
   assert.equal(b.store.get('pm-theme'), 'light', 'Light and Dark are stored as they are');
+  assert.equal(b.meta.content, 'light', 'picking Light sets the color-scheme meta to light');
+  b.sandbox.setTheme('dark');
+  assert.equal(b.meta.content, 'dark', 'picking Dark sets it to dark');
+  b.sandbox.setTheme('system');
+  assert.equal(b.meta.content, 'light dark', 'and System sets it back to light dark');
+  b.sandbox.setTheme('light');
   // Another open tab changes the choice: this one follows.
   b.store.set('pm-theme', 'dark');
   b.listeners.storage({ key: 'pm-theme' });
@@ -117,4 +123,42 @@ test('in a browser: the page follows the computer, Dark pins it, and System lets
   assert.equal(seen.back.meta, 'light dark');
   assert.equal(seen.back.word, 'System');
   assert.equal(seen.back.now, 'light now');
+});
+
+// Review round 2: a real mouse press on a label's text moves focus off the checked radio to
+// nothing (relatedTarget null). The list must stay open so the click lands; Tab out still closes it.
+test('in a browser: a real mouse click on Light picks it and the list stays open; Tab out of the list closes it (#258)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-theme-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 2 -->\n## Ideas\n## Up next\n- #1 A card · M1\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
+  const { out } = buildProject(repo, builtAt);
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.value;
+    const settle = `new Promise((ok) => setTimeout(ok, 50))`;
+    const state = `({ open: document.querySelector('#theme-menu').matches(':popover-open'), saved: localStorage.getItem('pm-theme'),
+      checked: document.querySelector('#theme-menu input:checked').value, meta: document.querySelector('meta[name="color-scheme"]').content })`;
+    const click = async ({ x, y }) => {
+      for (const type of ['mousePressed', 'mouseReleased']) await page.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+      await run(settle);
+    };
+    // The centre of a label's own text (not its radio), found with a Range over its last text node.
+    const textCentre = (value) => run(`(() => { const label = document.querySelector('#theme-menu input[value="${value}"]').closest('label');
+      const text = [...label.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); const r = document.createRange(); r.selectNodeContents(text);
+      const b = r.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+    const button = await run(`(() => { const b = document.querySelector('.theme-btn').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+    const r = {};
+    await click(button); r.opened = await run(state);
+    await click(await textCentre('light')); r.light = await run(state);
+    await click(await textCentre('dark')); r.dark = await run(state);
+    // Tab out of the list: focus leaves the radio group for the next thing on the page.
+    for (const type of ['keyDown', 'keyUp']) await page.send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    await run(settle);
+    r.tabbed = await run(`({ ...${state}, inMenu: document.querySelector('#theme-menu').contains(document.activeElement) })`);
+    return r;
+  });
+  assert.equal(seen.opened.open, true, 'the button opens the list');
+  assert.deepEqual(seen.light, { open: true, saved: 'light', checked: 'light', meta: 'light' }, 'a mouse click on Light picks it, the list stays open, and the meta tag says light');
+  assert.deepEqual(seen.dark, { open: true, saved: 'dark', checked: 'dark', meta: 'dark' }, 'then Dark');
+  assert.equal(seen.tabbed.inMenu, false, 'Tab moved focus out of the list');
+  assert.equal(seen.tabbed.open, false, 'and Tab out closes it');
 });

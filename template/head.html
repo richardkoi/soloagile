@@ -23,7 +23,8 @@ showTheme(savedTheme());
 window.addEventListener('storage', function (e) { if (e.key === 'pm-theme' || e.key === null) showTheme(savedTheme()); });
 // The list: picking a radio (click or arrow keys) applies it at once and the list stays open.
 // Opening it puts focus on the chosen radio; Tab out of it closes it (Esc and a click outside
-// close it by themselves).
+// close it by themselves). A focusout with no relatedTarget is a mouse press on a label's text
+// or the list's padding, which moves focus to nothing: closing then would lose the click.
 document.addEventListener('DOMContentLoaded', function () {
   var menu = document.getElementById('theme-menu');
   if (!menu) return;
@@ -32,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
   menu.addEventListener('toggle', function (e) { if (e.newState === 'open') menu.querySelector('input:checked').focus(); });
   menu.addEventListener('focusout', function (e) {
     var to = e.relatedTarget;
-    if (to && (menu.contains(to) || to.closest('[popovertarget="theme-menu"]'))) return;
+    if (!to || menu.contains(to) || to.closest('[popovertarget="theme-menu"]')) return;
     if (menu.matches(':popover-open')) menu.hidePopover();
   });
 });
