@@ -415,10 +415,49 @@ test('fleet scan --base with no branch is a usage error', () => {
 });
 
 // Round 2 of #269's review: one test per upheld finding.
-test('no trailing comment is cut: a # or // inside a string keeps the rest of the line', () => {
+test('a # or // inside a string keeps the rest of the line', () => {
   assert.equal(scanDiff(added('deploy.sh', 'echo "card #$id"; chmod 777 x'))[0]?.why, 'a permission');
   assert.equal(scanDiff(added('tool.py', 'print(f"issue #{n}"); os.environ["X"]'))[0]?.why, 'a .env file');
-  assert.equal(scanDiff(added('src/a.js', 'const x = 1; // the token'))[0]?.why, 'a key or token', 'a trailing comment is scanned too');
+});
+
+// #275: a trailing comment outside quotes is cut; token and login words inside _ names hit.
+test('a trailing comment outside quotes is not scanned (#275)', () => {
+  assert.deepEqual(scanDiff(added('deploy.sh', 'echo hi # the token')), []);
+  assert.deepEqual(scanDiff(added('src/a.js', 'const x = 1; // the token')), []);
+  assert.deepEqual(scanDiff(added('src/a.js', "const u = 'http://x'; // the token")), []);
+  assert.equal(scanDiff(added('deploy.sh', 'echo "card #$id"; chmod 777 x'))[0]?.why, 'a permission', 'the # is inside quotes');
+  assert.equal(scanDiff(added('deploy.sh', 'echo "a \\" # b"; chmod 777 x'))[0]?.why, 'a permission', 'an escaped quote keeps the string open');
+  assert.equal(scanDiff(added('deploy.sh', 'echo $#; chmod 777 x'))[0]?.why, 'a permission', 'a # after no space is not a comment');
+  assert.equal(scanDiff(added('src/a.js', "fetch('https://x.test/token')"))[0]?.why, 'a key or token', 'a URL is not cut as a comment');
+  assert.equal(scanDiff(added('src/a.js', 'fetch(u, { auth }); // https://x'))[0]?.why, 'a login or password');
+});
+
+// Round 1 of #275's review: the cutting rules hide code from the scan, so each has a test.
+test('what the comment cut leaves as code (#275 round 1)', () => {
+  assert.equal(scanDiff(added('src/a.js', 'const u = http://x; chmod(f, 0o777)'))[0]?.why, 'a permission', 'an unquoted http:// is not a comment');
+  assert.equal(scanDiff(added('deploy.sh', 'echo ${#x}; chmod 777 x'))[0]?.why, 'a permission', '${#x} is code');
+  assert.equal(scanDiff(added('deploy.sh', 'echo $# ; chmod 777 x'))[0]?.why, 'a permission', '$# is code');
+  assert.equal(scanDiff(added('run.sh', '#!/usr/bin/env -S sudo bash'))[0]?.why, 'a permission', 'a #! line is code');
+  assert.equal(scanDiff(added('deploy.sh', 'echo `date # x`; chmod 777 x'))[0]?.why, 'a permission', 'a # in backticks is code');
+  assert.equal(scanDiff(added('src/a.js', 'const s = `a // b`; chmod(f, 0o777)'))[0]?.why, 'a permission', 'a // in backticks is code');
+  assert.equal(scanDiff(added('src/a.css', 'a { background: url(//cdn.x/token.png); }'))[0]?.why, 'a key or token', 'CSS has no // comments');
+  assert.deepEqual(scanDiff(added('src/a.css', '/* the token */ a { color: red; }')), [], 'CSS keeps its /* */ comments');
+  assert.deepEqual(scanDiff(added('src/a.scss', 'a { color: red; } // the token')), [], 'SCSS cuts at //');
+});
+
+test('tokens, author and authority give no hit (#275 round 1)', () => {
+  assert.deepEqual(scanDiff(added('src/a.js', 'const n = tokens.length;')), []);
+  assert.deepEqual(scanDiff(added('src/a.js', 'const a = author;')), []);
+  assert.deepEqual(scanDiff(added('src/a.js', 'const b = authority;')), []);
+});
+
+test('token and login words hit inside _ names and after :_ (#275)', () => {
+  const rc = '.' + 'npmrc';
+  assert.equal(scanDiff(added('deploy.sh', 'export NPM_AUTH' + '_TOKEN=x'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('deploy.sh', 'export GITHUB' + '_TOKEN=x'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added(rc, '//registry.npmjs.org/:_auth' + '=dXNlcjpw'))[0]?.why, 'a login or password');
+  assert.equal(scanDiff(added(rc, '//registry.npmjs.org/:_pass' + 'word=abc'))[0]?.why, 'a login or password');
+  assert.deepEqual(scanDiff(added('src/a.js', 'const tokens = getTokenCount(author);')), [], 'a word inside a longer word is no hit');
 });
 
 test('comment syntax goes by file type; any other file is scanned whole', () => {
@@ -1145,6 +1184,29 @@ test("round 2: a measured window with no reset time says its reset wasn't checke
   const start = { pcts: { week: 4, '5 hours': 54 }, resetAt: { week: '2026-11-25T10:00:00.000Z' } };
   const text = costLines(start, { pcts: { week: 4.6, '5 hours': 61 } }, { now: new Date('2026-11-18T11:00:00Z') });
   assert.equal(text, "## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%) (reset not checked: usageResets isn't set)");
+});
+
+test('usageResets set but a window had no reset value at the start: the cost says the reading was missing (#274)', async () => {
+  const settings = { ...TS_SETTINGS, usageResets: { week: 'windows.seven_day.minutes_to_reset', '5 hours': 'windows.five_hour.minutes_to_reset' } };
+  const dir = repo();
+  await recordUsageStart(dir, 1, await readUsage(settings, TS(54.0, 4.0, null, 9927)), { now: new Date('2026-11-18T10:00:00Z') });
+  const text = await runCost(dir, 1, { usage: await readUsage(settings, TS(61.0, 4.6)), now: new Date('2026-11-18T11:00:00Z') });
+  assert.equal(text, '## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%) (reset not checked: no reset reading for the 5 hours at the start)');
+  // Neither window had a value: both say so, and neither blames the setting.
+  const none = repo();
+  await recordUsageStart(none, 1, await readUsage(settings, TS(54.0, 4.0, null, null)), { now: new Date('2026-11-18T10:00:00Z') });
+  const both = await runCost(none, 1, { usage: await readUsage(settings, TS(61.0, 4.6)), now: new Date('2026-11-18T11:00:00Z') });
+  assert.match(both, /- the week: .* \(reset not checked: no reset reading for the week at the start\)/);
+  assert.match(both, /- the 5 hours: .* \(reset not checked: no reset reading for the 5 hours at the start\)/);
+  assert.doesNotMatch(both, /usageResets isn't set/);
+});
+
+test("usageResets not set: the cost still says usageResets isn't set (#274)", async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, await readUsage(TS_SETTINGS, TS(54.0, 4.0)), { now: new Date('2026-11-18T10:00:00Z') });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8')).resetsSet, undefined);
+  const text = await runCost(dir, 1, { usage: await readUsage(TS_SETTINGS, TS(61.0, 4.6)), now: new Date('2026-11-18T11:00:00Z') });
+  assert.equal(text, `## Cost\n- the week: 0.6% of the limit (4% → 4.6%)${NC}\n- the 5 hours: 7.0% of the limit (54% → 61%)${NC}`);
 });
 
 test('round 2: a replaced start says so in the cost (#271)', async () => {

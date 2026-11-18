@@ -99,7 +99,8 @@ export function preflightText(id, { stage, file, cleared, said }) {
 // as { at, pcts, resetAt }, or { at, said } when there were no numbers. A resumed run keeps a
 // start with numbers; a start with none (or one that can't be read) gives way to a later one
 // that has them, and keeps the failed one's time as replaced. resetAt is each window's reset
-// time, from usageResets.
+// time, from usageResets; resetsSet says usageResets was set, even when no window had a
+// reset value (#274).
 export async function recordUsageStart(repo, id, usage, { now = new Date() } = {}) {
   const file = join(runDir(repo, id), 'usage-start.json');
   const u = usage ?? (await readUsage());
@@ -113,6 +114,7 @@ export async function recordUsageStart(repo, id, usage, { now = new Date() } = {
   if (numbers) {
     start = { at: now.toISOString(), pcts: u.pcts };
     if (typeof old?.at === 'string') start.replaced = old.at;
+    if (u.resets) start.resetsSet = true;
     if (u.resets && Object.keys(u.resets).length) {
       start.resetAt = Object.fromEntries(Object.entries(u.resets).map(([n, min]) => [n, new Date(now.getTime() + min * 60000).toISOString()]));
     }
@@ -127,7 +129,9 @@ export async function recordUsageStart(repo, id, usage, { now = new Date() } = {
 // trimmed to one decimal against float noise (4% → 4.6%). A window lower at the end than at
 // the start, or whose reset time (start.resetAt) had come by now, reset during the run, so
 // its share is unknown; a minute's grace after resetAt allows for the reading's rounding to
-// whole minutes. A window with no resetAt says its reset wasn't checked. A start that replaced
+// whole minutes. A window with no resetAt says its reset wasn't checked, and why: with
+// start.resetsSet, usageResets was set but gave no reset value for it at the start; without
+// it (including starts written before #274), usageResets isn't set. A start that replaced
 // a failed one (start.replaced) says when each was read, as ISO times.
 // others: cards whose runs overlapped, whose cost is in the same numbers.
 export function costLines(start, end, { others = [], now = new Date() } = {}) {
@@ -139,7 +143,8 @@ export function costLines(start, end, { others = [], now = new Date() } = {}) {
     for (const [name, from] of Object.entries(start.pcts)) {
       const to = end.pcts[name];
       const resetAt = Date.parse(start.resetAt?.[name]);
-      const unchecked = Number.isFinite(resetAt) ? '' : " (reset not checked: usageResets isn't set)";
+      const why = start.resetsSet ? `no reset reading for the ${name} at the start` : "usageResets isn't set";
+      const unchecked = Number.isFinite(resetAt) ? '' : ` (reset not checked: ${why})`;
       if (to == null) lines.push(`- the ${name}: not measured, no reading at the end`);
       else if (!Number.isFinite(from) || !Number.isFinite(to)) lines.push(`- the ${name}: not measured, the reading isn't a number`);
       else if (to < from || now.getTime() >= resetAt + 60000) lines.push(`- the ${name}: not measured, it reset during the run`);
@@ -223,40 +228,46 @@ export function fleetBranch(repo, id, { from } = {}) {
 // logins and permissions. No hits, and Rufus is never started, so a quiet change costs
 // nothing. Each hit is { file, line, text, why }, line being the new file's line number.
 // An entry whose third item is true is key material itself: it is checked on every added
-// line, comments and prose too (#269). The rest are words, checked in code only.
+// line, comments and prose too (#269). The rest are words, checked in code only. The token
+// and login words treat _ as a separator, not a letter (#275), so NPM_AUTH_TOKEN, GITHUB_TOKEN
+// and .npmrc's :_auth= and :_password= hit, while tokens or author do not.
 const RISKY = [
   ['a key or token', /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}|\bnpm_[A-Za-z0-9]{36}\b/i, true],
-  ['a key or token', /\b(api[_-]?key|_?auth[_-]?token|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b/i],
+  ['a key or token', /(?<![A-Za-z0-9])(api[_-]?key|_?auth[_-]?token|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)(?![A-Za-z0-9])/i],
   ['a .env file', /(^|[^\w.])\.env\b|\bprocess\.env\b|\bos\.environ\b|\bdotenv\b/],
   // Not session (#269): the word is all over this plugin's prose and tests ("Session flow").
-  ['a login or password', /\b(password|passwd|login|auth|cookie|credential|oauth|jwt)\b/i],
+  ['a login or password', /(?<![A-Za-z0-9])(password|passwd|login|auth|cookie|credential|oauth|jwt)(?![A-Za-z0-9])/i],
   ['a permission', /\b(chmod\w*|chown\w*|sudo|setuid|permissions?|allow(ed)?[-_ ]?tools|cors|access[-_ ]control)\b|\b(0o?)?777\b/i],
 ];
 
 // Only code is scanned for the words (#269): comments and Markdown prose talk about tokens
 // and logins without holding any. Comment syntax goes by file type: // and /* */ in the
-// SLASH files, # (not #!) in the HASH files, <!-- --> in the HTML files. Any other file
+// SLASH files, # (not #!) in the HASH files, <!-- --> in the HTML files, only /* */ in .css
+// (CSS has no // comments, and url(//cdn...) is code; .scss has them and is a SLASH file). Any other file
 // (.json, .txt, dotfiles like .npmrc, where // starts a real line) has no comments: every
 // line is scanned. Only a line that is wholly a comment is skipped, or one inside a comment
-// opened above; code after a closing */ or --> is scanned. A trailing comment is never cut,
-// since a # or // inside a string would cut real code off. In Markdown only fenced code is
+// opened above; code after a closing */ or --> is scanned. A trailing # or // comment is cut
+// only outside quotes (#275), so a # or // inside a string keeps the rest of the line, and
+// // after a : (a URL) is code. In Markdown only fenced code is
 // scanned. State is followed through added and context lines; the CLI scan reads the whole
 // file as context, so a fence or comment opened far above is known. An extensionless file
 // (bin/soloagile, a Dockerfile) is a HASH file unless its shebang, on line 1, runs node,
 // deno or bun, which makes it a SLASH file.
-const SLASH = /\.(js|mjs|cjs|ts|tsx|jsx|css|scss|c|h|cpp|go|rs|java|kt|swift)$/;
+const SLASH = /\.(js|mjs|cjs|ts|tsx|jsx|scss|c|h|cpp|go|rs|java|kt|swift)$/;
 const HASH = /\.(sh|bash|zsh|py|rb|ya?ml|toml)$/;
 const HTML = /\.(html?|xml|svg|vue)$/;
+const CSS = /\.css$/;
 const JS_SHEBANG = /^#!.*\b(node|deno|bun)\b/;
 const MARKDOWN = /\.(md|markdown)$/i;
-const BLOCK = { slash: ['/*', '*/'], html: ['<!--', '-->'] };
+const BLOCK = { slash: ['/*', '*/'], css: ['/*', '*/'], html: ['<!--', '-->'] };
 
-// slash, hash, html, or null for a file with no comment syntax known.
+// slash, hash, html, css, or null for a file with no comment syntax known.
 function syntax(file, st) {
   const name = file.slice(file.lastIndexOf('/') + 1);
   if (SLASH.test(name)) return 'slash';
   if (HASH.test(name) || /^(Dockerfile|Makefile)$/.test(name)) return 'hash';
   if (HTML.test(name)) return 'html';
+  if (CSS.test(name)) return 'css';
   if (!name.includes('.')) return JS_SHEBANG.test(st.shebang ?? '') ? 'slash' : 'hash';
   return null;
 }
@@ -285,6 +296,24 @@ function codePart(file, body, st) {
   }
   if (lang === 'slash' && t.startsWith('//')) return null;
   if (lang === 'hash' && t.startsWith('#') && !t.startsWith('#!')) return null;
+  return lang === 'html' || lang === 'css' ? body : cutTrailing(body, lang);
+}
+
+// A line with its trailing comment cut off (#275). The walk follows '…', "…" and `…`
+// strings, with backslash escapes, so a # or // inside one is not a comment. In a hash file
+// a # is a comment only at the start or after whitespace ($# and a#b are code, and so is a
+// #! opening the line); in a slash file // is a comment unless it follows a : (a URL like
+// http://x is code).
+function cutTrailing(body, lang) {
+  let quote = null;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c === '\\') { i++; continue; }
+    if (quote) { if (c === quote) quote = null; continue; }
+    if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
+    if (lang === 'hash' && c === '#' && (i === 0 || /\s/.test(body[i - 1])) && !(body[i + 1] === '!' && !body.slice(0, i).trim())) return body.slice(0, i);
+    if (lang === 'slash' && c === '/' && body[i + 1] === '/' && body[i - 1] !== ':') return body.slice(0, i);
+  }
   return body;
 }
 
