@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { fleetBranch, preflight, runDir, unlock } from '../src/fleet.js';
+import { fleetBranch, preflight, runDir, scanDiff, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -136,4 +136,68 @@ test('Milo reviews blind: no tools, a different model from Tobin, and two rework
   assert.match(skill, /only\s+the\s+card.s\s+"done\s+when"\s+lines\s+and\s+that\s+diff/);
   assert.match(skill, /Two\s+rework\s+rounds\s+at\s+most/);
   assert.match(skill, /a\s+new\s+Agent\s+call,\s+never\s+a\s+message\s+to\s+the\s+old\s+one/);
+});
+
+test('the security scan flags keys, tokens, .env, logins and permissions in added lines, with file and line', () => {
+  const diff = `diff --git a/src/api.js b/src/api.js
+--- a/src/api.js
++++ b/src/api.js
+@@ -10,3 +10,6 @@ export function call() {
+   const url = base;
++  const headers = { Authorization: \`Bearer \${process.env.API_TOKEN}\` };
++  return fetch(url, { headers });
+-  const old = 1;
++  login(user, password);
+ }
+diff --git a/.env b/.env
+--- /dev/null
++++ b/.env
+@@ -0,0 +1 @@
++X=1
+diff --git a/deploy.sh b/deploy.sh
+--- a/deploy.sh
++++ b/deploy.sh
+@@ -1,1 +1,2 @@
+ #!/bin/sh
++chmod 777 /srv/app
+`;
+  const hits = scanDiff(diff);
+  assert.deepEqual(hits.map((h) => `${h.file}:${h.line}`), ['src/api.js:11', 'src/api.js:13', '.env:0', 'deploy.sh:2']);
+  assert.equal(hits[0].why, 'a key or token');
+  assert.equal(hits.at(-1).why, 'a permission');
+  // Found in a real run (#238): Rufus caught a chmodSync to 0o777 the first scan missed.
+  assert.equal(scanDiff('+++ b/x.js\n@@ -0,0 +1 @@\n+require("fs").chmodSync("/srv", 0o777);\n')[0]?.why, 'a permission');
+});
+
+test('a quiet change has no hits, so Rufus never starts', () => {
+  const diff = `--- a/stats.js
++++ b/stats.js
+@@ -0,0 +1,2 @@
++export const average = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
++// the author of this line likes sessions of music
+`;
+  assert.deepEqual(scanDiff(diff), []);
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  assert.match(readFileSync(join(root, 'agents', 'rufus.md'), 'utf8'), /^tools: \[\]$/m);
+  assert.match(readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8'), /With no hits it says so and exits 0: write nothing, start\s+no one/);
+});
+
+test('soloagile fleet scan reads card-<n> against main and exits 1 on a hit', () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  const { path } = fleetBranch(dir, 1);
+  const commit = (file, text) => {
+    writeFileSync(join(path, file), text);
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'x'], { cwd: path });
+  };
+  writeFileSync(join(path, 'quiet.js'), 'export const two = 2;\n');
+  execFileSync('git', ['add', 'quiet.js'], { cwd: path });
+  commit('quiet.js', 'export const two = 2;\n');
+  const quiet = spawnSync('node', [PM, 'fleet', 'scan', '1'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(quiet.status, 0, quiet.stderr);
+  assert.match(quiet.stdout, /no security list needed/);
+  commit('quiet.js', 'export const two = 2;\nexport const key = process.env.SECRET;\n');
+  const loud = spawnSync('node', [PM, 'fleet', 'scan', '1'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(loud.status, 1);
+  assert.match(loud.stdout, /quiet\.js:2  a key or token/);
 });

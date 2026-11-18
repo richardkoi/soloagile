@@ -103,3 +103,52 @@ export function fleetBranch(repo, id) {
   else git('worktree', 'add', '-b', branch, path);
   return { path, branch, made: true };
 }
+
+// The security scan (#238): a plain search of a change's added lines for keys, tokens, .env,
+// logins and permissions. No hits, and Rufus is never started, so a quiet change costs
+// nothing. Each hit is { file, line, text, why }, line being the new file's line number.
+const RISKY = [
+  ['a key or token', /\b(api[_-]?key|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}/i],
+  ['a .env file', /(^|[^\w.])\.env\b|\bprocess\.env\b|\bos\.environ\b|\bdotenv\b/],
+  ['a login or password', /\b(password|passwd|login|auth|session|cookie|credential|oauth|jwt)\b/i],
+  ['a permission', /\b(chmod\w*|chown\w*|sudo|setuid|permissions?|allow(ed)?[-_ ]?tools|cors|access[-_ ]control)\b|\b(0o?)?777\b/i],
+];
+
+export function scanDiff(diff) {
+  const hits = [];
+  let file = null;
+  let line = 0;
+  for (const text of diff.split('\n')) {
+    const to = text.match(/^\+\+\+ (?:b\/)?(.+)$/);
+    if (to) {
+      file = to[1] === '/dev/null' ? null : to[1];
+      // A changed file whose own name is risky is a hit even when its lines aren't.
+      if (file && /(^|\/)(\.env[\w.-]*|[\w.-]*\.pem|[\w.-]*\.key|id_(rsa|ed25519)\w*|credentials[\w.]*)$/.test(file)) hits.push({ file, line: 0, text: file, why: 'a secret file' });
+      continue;
+    }
+    const hunk = text.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
+    if (hunk) {
+      line = Number(hunk[1]);
+      continue;
+    }
+    if (!file || text.startsWith('---')) continue;
+    if (text.startsWith('+')) {
+      const why = RISKY.find(([, re]) => re.test(text.slice(1)))?.[0];
+      if (why) hits.push({ file, line, text: text.slice(1).trim(), why });
+      line++;
+    } else if (!text.startsWith('-') && !text.startsWith('\\')) line++;
+  }
+  return hits;
+}
+
+// The change on card-<n> against the branch it came from, as a unified diff.
+export function cardDiff(repo, id, base = 'main') {
+  const r = spawnSync('git', ['diff', `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.status !== 0) throw new Error(`git diff ${base}...card-${id}: ${r.stderr.trim()}`);
+  return r.stdout;
+}
+
+export const scanText = (id, hits) =>
+  hits.length
+    ? [`soloagile: #${id}'s change has ${hits.length} line${hits.length === 1 ? '' : 's'} for Rufus:`, ...hits.map((h) => `  ${h.file}:${h.line}  ${h.why}: ${h.text.slice(0, 120)}`)].join('\n')
+    : `soloagile: #${id}'s change touches no keys, tokens, .env, logins or permissions: no security list needed`;

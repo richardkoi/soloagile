@@ -1,6 +1,6 @@
 ---
 name: fleet
-description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Tobin's build in his own copy and branch, Milo's blind review and Orla's fact-check — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
+description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Tobin's build in his own copy and branch, Milo's blind review, Orla's fact-check and the security list — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
 argument-hint: "<card number>"
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git worktree:*), Bash(git branch:*), Bash(soloagile card:*), Bash(soloagile fleet:*), Bash(soloagile set:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
@@ -54,9 +54,15 @@ under a `## Round 2` heading. Two rework rounds at most: if findings are still u
 the second, move the card to Needs your decision with them, run `soloagile fleet unlock
 <n>`, and stop.
 
-**6. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
-`card-<n>`, unmerged and unpushed. The stages after the fact-check (security list, test
-and notes) come with later cards; until then say plainly that they didn't run. Move
+**6. Security list (a script, then Rufus only on a hit), `pm/runs/<n>/security-list.md`.**
+Run `soloagile fleet scan <n>`. With no hits it says so and exits 0: write nothing, start
+no one, and go on. With hits (exit 1), start Rufus with the Agent tool, `subagent_type:
+"soloagile:rufus"`, giving him the diff and the scan's lines, and write his reply into
+security-list.md word for word. It is a reading list for the user, never a sign-off.
+
+**7. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
+`card-<n>`, unmerged and unpushed. The stage after the security list (test and notes) comes
+with a later card; until then say plainly that it didn't run. Move
 the card to Needs your look with a `tested:` line naming what ran and a `not tested:`
 line for the rest, and tell the user the branch and the run's files.
 
