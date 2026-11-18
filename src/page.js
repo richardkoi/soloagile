@@ -130,7 +130,8 @@ function picturesTag(card, pictures) {
 // A card with its own page of pictures (soloagile pictures) links it, in a new tab.
 function picturePage(card, pictures) {
   const page = pictures[`card-${card.id}`];
-  return page ? `<a class="pic-page" href="designs/card-${card.id}/index.html" target="_blank">${icon('image')}Open its picture page (${page.count})</a>` : '';
+  const run = pictures[`run-${card.id}`] ? `<a class="pic-page" href="docs/run-${card.id}.html" target="_blank">${icon('file-text')}Fleet run</a>` : '';
+  return (page ? `<a class="pic-page" href="designs/card-${card.id}/index.html" target="_blank">${icon('image')}Open its picture page (${page.count})</a>` : '') + run;
 }
 
 // How long a card has waited on the user, as a note after its date: "waiting 6 days". It

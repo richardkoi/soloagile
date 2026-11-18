@@ -2,7 +2,7 @@
 // runs once at a time, and the stage a run starts or resumes at. A run's files live in
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { parseBoard } from './board.js';
 
@@ -199,4 +199,56 @@ export function dropRun(repo, id) {
   removeCopy(repo, id, git);
   if (spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/card-${id}`], { cwd: resolve(repo) }).status === 0) git('branch', '-D', `card-${id}`);
   rmSync(runDir(repo, id), { recursive: true, force: true });
+}
+
+// A fleet run's own page (#241): the five files stacked, each under its heading, a missing
+// one said as "didn't run". The page server serves .html from pm/docs/ but nothing from
+// pm/runs/, so the page is written to pm/docs/run-<n>.html at each page build. The files are
+// written by helpers from the code, so they go through the project's safe Markdown.
+const RUN_PARTS = [['Plan', 'plan.md'], ['Build', 'build.md'], ['Blind review', 'review.md'], ['Verdicts', 'verdicts.md'], ['Security list', 'security-list.md', 'No hits in the scan, so none was needed.'], ['Report', 'report.md']];
+const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+export function runPageHtml(id, files, toHtml) {
+  const parts = RUN_PARTS.map(([heading, file, quiet]) => {
+    const text = files[file];
+    const body = text != null ? toHtml(text.replace(/^# .*\n+/, '')) : `<p class="none">${quiet && files['report.md'] != null ? quiet : "Didn't run."}</p>`;
+    return `<section><h2>${heading}</h2>${body}</section>`;
+  }).join('\n');
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#${id} fleet run</title>
+<style>
+:root { color-scheme: dark; --bg: #0D100D; --surface: #161A15; --line: #2A2E26; --text: #E8E0CE; --muted: #A8A18E; }
+@media (prefers-color-scheme: light) { :root { color-scheme: light; --bg: #F5EDE0; --surface: #FBF6EF; --line: #E4D8C4; --text: #1A1210; --muted: #554C40; } }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 24px; margin: 0 0 16px; }
+section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px 16px 12px; margin: 0 0 16px; overflow-wrap: anywhere; }
+h2 { font-size: 18px; margin: 12px 0 8px; }
+h3 { font-size: 16px; }
+pre, code { font-size: 14px; }
+pre { overflow-x: auto; background: var(--bg); padding: 8px; border-radius: 8px; }
+.none { color: var(--muted); }
+</style></head>
+<body><main>
+<h1>Fleet run · #${id}</h1>
+${parts}
+</main></body></html>
+`;
+}
+
+// Writes every run's page; returns the card numbers that have one, for the pop-ups.
+export function writeRunPages(pmDir, toHtml) {
+  const runs = join(pmDir, 'runs');
+  if (!existsSync(runs)) return [];
+  const ids = [];
+  for (const id of readdirSync(runs).filter((d) => /^\d+$/.test(d))) {
+    const files = {};
+    for (const [, file] of RUN_PARTS) if (existsSync(join(runs, id, file))) files[file] = readFileSync(join(runs, id, file), 'utf8');
+    if (!Object.keys(files).length) continue;
+    mkdirSync(join(pmDir, 'docs'), { recursive: true });
+    writeFileSync(join(pmDir, 'docs', `run-${id}.html`), runPageHtml(id, files, toHtml));
+    ids.push(Number(id));
+  }
+  return ids;
 }

@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { dropRun, fleetBranch, mergeCard, preflight, runDir, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -253,4 +253,25 @@ test('drop removes the copy, the branch and the run files', () => {
   assert.equal(existsSync(runDir(dir, 1)), false);
   const needs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'needs', 'SKILL.md'), 'utf8');
   assert.match(needs, /"Yes, merge it",\s+"Send it back", "Drop it"/);
+});
+
+test("a fleet run gets one page, its files stacked, and the card's pop-up links it", async () => {
+  const { block } = await import('../src/page.js');
+  const { buildProject } = await import('../src/build.js');
+  const dir = repo();
+  writeFileSync(join(dir, 'pm', 'plan.md'), '# Plan\n\n## Milestones\n### M1 — First · in progress\nshort: first\nCards: #1, #2\n');
+  mkdirSync(runDir(dir, 1), { recursive: true });
+  writeFileSync(join(runDir(dir, 1), 'plan.md'), '# Plan for #1\n\nChange **sum.js**. <script>x</script>\n');
+  writeFileSync(join(runDir(dir, 1), 'report.md'), '# Report\n\nAll passed.\n');
+  const html = runPageHtml(1, { 'plan.md': readFileSync(join(runDir(dir, 1), 'plan.md'), 'utf8'), 'report.md': 'All passed.' }, block);
+  assert.match(html, /<h1>Fleet run · #1<\/h1>/);
+  assert.match(html, /<h2>Plan<\/h2><p>Change <strong>sum\.js<\/strong>/);
+  assert.doesNotMatch(html, /<script>/, 'a helper-written file is shown, never run');
+  assert.match(html, /<h2>Blind review<\/h2><p class="none">Didn't run\.<\/p>/);
+  assert.match(html, /<h2>Security list<\/h2><p class="none">No hits in the scan/);
+  buildProject(dir);
+  assert.ok(existsSync(join(dir, 'pm', 'docs', 'run-1.html')));
+  const page = readFileSync(join(dir, 'pm', 'index.html'), 'utf8');
+  assert.match(page, /href="docs\/run-1\.html"[^>]*>.*Fleet run<\/a>/);
+  assert.doesNotMatch(page, /docs\/run-2\.html/);
 });
