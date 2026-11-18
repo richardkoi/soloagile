@@ -254,7 +254,7 @@ function locate({ kind, what, text }) {
   const norm = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
   const want = norm(what);
   const shown = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
-  const CLICKS = 'button, a, summary, label, input[type=button], input[type=submit], input[type=checkbox], input[type=radio], [role=button], [role=tab], [role=menuitem], [role=link], [onclick], [popovertarget]';
+  const CLICKS = 'button, a, summary, label, input[type=button], input[type=submit], input[type=checkbox], input[type=radio], [role=button], [role=tab], [role=menuitem], [role=link], [onclick], [popovertarget], [commandfor]';
   const BOXES = 'input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable=""], [contenteditable=true]';
   const names = kind === 'click'
     ? (el) => [el.innerText, el.value, el.getAttribute('aria-label'), el.title]
