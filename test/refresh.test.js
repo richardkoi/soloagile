@@ -258,3 +258,56 @@ test('on a phone Ideas starts folded to its heading, and a tap opens it; desktop
   assert.equal(phone.after.ideas, false, 'a tap opens it');
   assert.deepEqual((await look(1400)).before, { ideas: false, done: false }, 'desktop starts with both open');
 });
+
+test('a fold button keeps one label and leaves open or shut to aria-expanded (#264)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-foldlabel-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n- #1 An idea · M1\n## Up next\n- #2 Next · M1 · 2 pts\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n- #3 Done · M1 · 1 pt\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const state = () => run(`(() => { const b = document.querySelector('.lane-done .lane-fold'); return { label: b.getAttribute('aria-label'), expanded: b.getAttribute('aria-expanded') }; })()`);
+    const before = await state();
+    await run(`document.querySelector('.lane-done .lane-fold').click()`);
+    const folded = await state();
+    await run(`document.querySelector('.lane-done .lane-fold').click()`);
+    return { before, folded, after: await state() };
+  });
+  assert.deepEqual(seen.before, { label: 'Done', expanded: 'true' });
+  assert.deepEqual(seen.folded, { label: 'Done', expanded: 'false' }, 'folding flips aria-expanded, the label stays');
+  assert.deepEqual(seen.after, seen.before);
+});
+
+test("the search box's match count waits until typing stops, about 300ms, before it changes (#264)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-findnote-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n## Up next\n- #1 Zebra one · M1 · 2 pts\n- #2 Zebra two · M1 · 2 pts\n- #3 Other · M1 · 2 pts\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.value;
+    // Three letters 50ms apart, then the note and the cards are read at once, at 150ms after
+    // the last letter, and at 400ms after it.
+    return run(`(async () => {
+      const b = document.querySelector('.card-find input'), note = document.querySelector('.card-find-note');
+      const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+      for (const l of ['z', 'ze', 'zeb']) { b.value = l; b.dispatchEvent(new Event('input')); await wait(50); }
+      const now = { note: note.textContent, hits: document.querySelectorAll('.find-hit').length };
+      await wait(100);
+      const mid = note.textContent;
+      await wait(250);
+      const later = note.textContent;
+      b.value = '#9'; b.dispatchEvent(new Event('input'));
+      b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await wait(400);
+      return { now, mid, later, missing: note.textContent };
+    })()`);
+  });
+  assert.equal(seen.now.hits, 2, 'the cards light at once');
+  assert.equal(seen.now.note, '', 'the note has not changed while typing');
+  assert.equal(seen.mid, '', 'nor 150ms after the last letter');
+  assert.equal(seen.later, '2 cards match', 'about 300ms after the last letter it shows the count');
+  assert.equal(seen.missing, 'no card #9 on this page', 'a pending count does not overwrite what Enter said');
+});

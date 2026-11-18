@@ -91,8 +91,8 @@
     var name = lane.getAttribute('aria-label');
     function set(on) {
       lane.classList.toggle('folded', on);
+      // The label stays the lane's name; open or shut is said by aria-expanded alone (#264).
       b.setAttribute('aria-expanded', String(!on));
-      b.setAttribute('aria-label', (on ? 'Unfold ' : 'Fold ') + name + (on ? '' : ' to a strip'));
     }
     set(folded.indexOf(name) >= 0);
     b.addEventListener('click', function () {
@@ -152,6 +152,10 @@
   if (!box) return;
   var note = document.querySelector('.card-find-note');
   var cards = document.querySelectorAll('li.card-x');
+  // The note is a live region, so it is written about 300ms after typing stops, not on every
+  // key (#264); the cards light and dim at once.
+  var noteTimer;
+  function say(text) { clearTimeout(noteTimer); note.textContent = text; }
   function light() {
     var q = box.value.trim().toLowerCase();
     var n = 0;
@@ -161,7 +165,9 @@
       li.classList.toggle('find-dim', !!q && !hit);
       if (hit && !li.hidden) n++;
     });
-    note.textContent = !q ? '' : /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
+    var text = !q ? '' : /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(function () { note.textContent = text; }, 300);
     if (window.soloagileLimit) window.soloagileLimit(!!q && !/^#?\d+$/.test(q));
   }
   box.addEventListener('input', light);
@@ -170,7 +176,7 @@
     var m = box.value.trim().match(/^#?(\d+)$/);
     if (e.key !== 'Enter' || !m) return;
     var li = document.querySelector('li.card-x[data-id="' + m[1] + '"]');
-    if (!li) { note.textContent = 'no card #' + m[1] + ' on this page'; return; }
+    if (!li) { say('no card #' + m[1] + ' on this page'); return; }
     var menu = document.querySelector('.ms-filter select');
     if (li.hidden && menu) { menu.value = ''; menu.dispatchEvent(new Event('change')); }
     if (li.classList.contains('over') && window.soloagileLimit) window.soloagileLimit(false, li);
