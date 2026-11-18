@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { dropRun, fleetBranch, mergeCard, preflight, reviewPack, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { blockRanges, dropRun, fleetBranch, mergeCard, preflight, reviewPack, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -381,7 +381,7 @@ const packRepo = (change) => {
   writeFileSync(join(dir, 'big.js'), BIG);
   writeFileSync(join(dir, 'README.md'), Array.from({ length: 20 }, (_, i) => `Readme line ${i + 1}`).join('\n') + '\n');
   writeFileSync(join(dir, 'old.js'), 'export const gone = 1;\n');
-  git('add', 'big.js', 'README.md', 'old.js');
+  git('add', 'big.js', 'README.md', 'old.js', 'pm/board.md');
   git('commit', '-qm', 'files');
   git('checkout', '-qb', 'card-1');
   change(dir, git);
@@ -448,9 +448,181 @@ test("the fleet skill gives Milo the review pack, and he still has no tools (#26
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
   const step4 = skill.split('**4. Blind review')[1].split('**5.')[0];
   assert.match(step4, /soloagile fleet review <n>/);
+  assert.match(step4, /over\s+300\s+lines,\s+or\s+any\s+file\s+over\s+60\s+KB,\s+comes\s+as\s+its\s+changed\s+regions\s+with\s+20\s+lines/);
+  assert.match(step4, /files\s+under\s+`pm\/`\s+are\s+in\s+the\s+diff\s+alone/);
+  assert.match(step4, /over\s+120\s+KB\s+it\s+gives\s+the\s+diff\s+alone/);
   assert.doesNotMatch(step4, /git diff main\.\.\.card-<n>/);
   const milo = readFileSync(join(root, 'agents', 'milo.md'), 'utf8');
   assert.match(milo, /^tools: \[\]$/m);
   assert.match(milo, /in full/);
   assert.match(milo, /Never invent a line that isn't in what you were given/);
+});
+
+// Rework round 1 (#268): size limits, pm/ left out, odd entries, and the block rule's edges.
+const fullPart = (pack) => pack.split('## Changed code in full')[1];
+const sizeLine = (pack) => {
+  const at = pack.lastIndexOf('\n\n');
+  const m = pack.slice(at + 2).match(/^Size: (\d+) bytes \(\d+ KB\) above this line\.$/);
+  assert.ok(m, `the pack ends with its size line: ${JSON.stringify(pack.slice(-120))}`);
+  assert.equal(Number(m[1]), Buffer.byteLength(pack.slice(0, at)));
+};
+
+test("Milo's pack ends with a line giving its size (#268)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  sizeLine(reviewPack(dir, 1));
+});
+
+test("a long non-code file gives its changed regions with 20 lines around, numbered (#268)", () => {
+  const json = `{\n${Array.from({ length: 400 }, (_, i) => `  "k${i + 1}": ${i + 1},`).join('\n')}\n  "last": 0\n}\n`;
+  const dir = packRepo((d, git) => {
+    writeFileSync(join(d, 'data.json'), json);
+    git('add', 'data.json');
+  });
+  // a second commit on card-1 edits the json's line 201 ("k200"), so main has no data.json
+  // and the file is new; edit on main instead so the change is one line.
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, stdio: 'pipe' });
+  git('checkout', '-q', '-b', 'tmp', 'main');
+  writeFileSync(join(dir, 'data.json'), json);
+  git('add', 'data.json');
+  git('commit', '-qm', 'json');
+  git('branch', '-f', 'main', 'tmp');
+  git('checkout', '-q', 'card-1');
+  git('rebase', '-q', 'main');
+  edit(dir, 'data.json', '"k200": 200,', '"k200": 2000,');
+  git('commit', '-qam', 'edit json');
+  git('checkout', '-q', 'main');
+  git('branch', '-q', '-D', 'tmp');
+  const full = fullPart(reviewPack(dir, 1));
+  assert.match(full, /### data\.json lines 181-221\n/);
+  assert.match(full, /181 {2} {2}"k180": 180,\n/);
+  assert.match(full, /201 {2} {2}"k200": 2000,\n/);
+  assert.match(full, /221 {2} {2}"k220": 220,\n/);
+  assert.doesNotMatch(full, /"k179"|"k221"|\(whole file\)/);
+});
+
+test("a file over 60 KB gives its changed regions only, even when short (#268)", () => {
+  const long = Array.from({ length: 100 }, (_, i) => `const v${i + 1} = '${'x'.repeat(700)}';`).join('\n') + '\n';
+  const dir = packRepo((d, git) => {
+    git('checkout', '-q', 'main');
+    writeFileSync(join(d, 'wide.js'), long);
+    git('add', 'wide.js');
+    git('commit', '-qm', 'wide');
+    git('checkout', '-q', 'card-1');
+    git('rebase', '-q', 'main');
+    edit(d, 'wide.js', "const v50 = '", "const v50 = 'y");
+  });
+  const full = fullPart(reviewPack(dir, 1));
+  assert.deepEqual(full.match(/### wide\.js[^\n]*/g), ['### wide.js lines 30-70']);
+});
+
+test("over 120 KB the pack gives the diff alone, with a note saying so (#268)", () => {
+  const dir = packRepo((d, git) => {
+    for (const name of ['a.js', 'b.js', 'c.js']) writeFileSync(join(d, name), `${`// ${'z'.repeat(500)}\n`.repeat(100)}`);
+    git('add', 'a.js', 'b.js', 'c.js');
+  });
+  const pack = reviewPack(dir, 1);
+  const full = fullPart(pack);
+  assert.doesNotMatch(full, /###/);
+  assert.match(full, /would be \d+ KB, over 120 KB, so Milo has the diff alone/);
+  assert.match(pack.split('## Changed code in full')[0], /\+\/\/ z{500}/, 'the diff is still there');
+  sizeLine(pack);
+});
+
+test("files under pm/ are left out of the changed code in full, but stay in the diff (#268)", () => {
+  const dir = packRepo((d, git) => {
+    mkdirSync(join(d, 'pm', 'runs', '1'), { recursive: true });
+    writeFileSync(join(d, 'pm', 'runs', '1', 'build.md'), 'ZEBRABUILD: built\n');
+    edit(d, 'pm/board.md', '## Ideas\n', '## Ideas\n- #3 ZEBRABOARD · M1 · 1 pt\n');
+    edit(d, 'big.js', '  return 150;', '  return 150 + 1;');
+    git('add', 'pm');
+  });
+  const pack = reviewPack(dir, 1);
+  const full = fullPart(pack);
+  assert.doesNotMatch(full, /ZEBRABUILD|ZEBRABOARD|### pm\//);
+  assert.match(full, /### big\.js lines 201-204/);
+  assert.match(pack.split('## Changed code in full')[0], /\+ZEBRABUILD[\s\S]*\+- #3 ZEBRABOARD|\+- #3 ZEBRABOARD[\s\S]*\+ZEBRABUILD/, 'both are in the diff');
+});
+
+test("an empty changed-code part says why: only deletions, only pm/, or both (#268)", () => {
+  const del = packRepo((d, git) => git('rm', '-q', 'old.js'));
+  assert.match(fullPart(reviewPack(del, 1)), /^\n\nNone: the change only deletes files, so they are in the diff alone\.\n/);
+  const pm = packRepo((d) => edit(d, 'pm/board.md', '## Ideas\n', '## Ideas\n- #3 Idea\n'));
+  assert.match(fullPart(reviewPack(pm, 1)), /^\n\nNone: the change only touches files under pm\/, which are in the diff alone\.\n/);
+  const both = packRepo((d, git) => {
+    git('rm', '-q', 'old.js');
+    edit(d, 'pm/board.md', '## Ideas\n', '## Ideas\n- #3 Idea\n');
+  });
+  assert.match(fullPart(reviewPack(both, 1)), /^\n\nNone: the change only deletes files and touches files under pm\/, which are in the diff alone\.\n/);
+});
+
+test("a binary file and a mode change are listed by name (#268)", () => {
+  const dir = packRepo((d, git) => {
+    writeFileSync(join(d, 'logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3, 0, 0xff]));
+    git('add', 'logo.png');
+    chmodSync(join(d, 'README.md'), 0o755);
+  });
+  const full = fullPart(reviewPack(dir, 1));
+  assert.match(full, /### logo\.png \(binary, not shown\)/);
+  assert.match(full, /### README\.md \(mode change only\)/);
+  assert.doesNotMatch(full, /Readme line/);
+});
+
+test("a submodule, or anything git show can't print, is listed by name (#268)", () => {
+  // A gitlink to a commit this repo doesn't have; its empty folder keeps commit -a from
+  // taking it for a deletion.
+  const dir = packRepo((d, git) => {
+    mkdirSync(join(d, 'vendor', 'lib'), { recursive: true });
+    git('update-index', '--add', '--cacheinfo', `160000,${'1'.repeat(40)},vendor/lib`);
+    edit(d, 'big.js', '  return 150;', '  return 150 + 1;');
+  });
+  const full = fullPart(reviewPack(dir, 1));
+  assert.match(full, /### vendor\/lib \(submodule, not shown\)/);
+});
+
+test("a pure deletion in a long file gives the block it was in (#268)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;\n', ''));
+  const full = fullPart(reviewPack(dir, 1));
+  assert.deepEqual(full.match(/### big\.js[^\n]*/g), ['### big.js lines 201-203']);
+  assert.match(full, /202 {2}function f150\(\) \{\n203 {2}\}\n/);
+});
+
+test("a changed comment line belongs to the block below it (#268)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '// f150 adds\n', '// f150 adds one\n'));
+  const full = fullPart(reviewPack(dir, 1));
+  assert.deepEqual(full.match(/### big\.js[^\n]*/g), ['### big.js lines 201-204']);
+});
+
+test("block rule: shell and Ruby closers end a block, a decorator joins the one below (#268)", () => {
+  const sh = ['if [ -n "$a" ]; then', '  echo a', 'fi', 'for x in 1 2; do', '  echo $x', 'done', 'case $a in', '  b) echo b ;;', 'esac', 'def ruby', '  1', 'end', 'next=1'];
+  assert.deepEqual(blockRanges(sh, [2]), [[1, 3]]);
+  assert.deepEqual(blockRanges(sh, [5]), [[4, 6]]);
+  assert.deepEqual(blockRanges(sh, [8]), [[7, 9]]);
+  assert.deepEqual(blockRanges(sh, [11]), [[10, 12]]);
+  const py = ['x = 1', '', '# cached', '@cache', '@wraps(f)', 'def g():', '    return 2', '', 'y = 3'];
+  assert.deepEqual(blockRanges(py, [7]), [[3, 7]]);
+  assert.deepEqual(blockRanges(py, [4]), [[3, 7]], 'a changed decorator gives the block below');
+});
+
+test("Milo's pack has every done when line of the card (#268)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  edit(dir, 'pm/board.md', '  done when: the feed parses\n', '  done when: the feed parses\n  done when: and its dates are kept\n');
+  assert.match(reviewPack(dir, 1), /^## Done when\n\ndone when: the feed parses\ndone when: and its dates are kept\n\n## The change/);
+});
+
+test("Milo's pack refuses a card not on the board, one with no done when, and a git failure (#268)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  assert.throws(() => reviewPack(dir, 9), /#9 isn't on the board/);
+  assert.throws(() => reviewPack(dir, 2), /#2 has no done when/);
+  assert.throws(() => reviewPack(repo(), 1), /^Error: git diff/);
+  const r = spawnSync('node', [PM, 'fleet', 'review', '9'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /#9 isn't on the board/);
+});
+
+test("a long fenced text gets a fence longer than its longest run of backticks (#268)", () => {
+  const dir = packRepo((d, git) => {
+    writeFileSync(join(d, 'ticks.md'), `${'`'.repeat(7)}\n${'a`b\n'.repeat(500000)}`);
+    git('add', 'ticks.md');
+  });
+  assert.doesNotThrow(() => reviewPack(dir, 1));
 });

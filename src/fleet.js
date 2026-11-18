@@ -166,13 +166,22 @@ export function cardDiff(repo, id, base = 'main') {
 // Milo's review pack (#268): the card's done when, the diff, and each changed file whole
 // when it is short or not code, else each changed top-level block whole with line numbers.
 // A three-line diff context hid the guard a line above a hunk, so most of his findings were
-// "the code he couldn't see handles it". Still no title, plan, build notes or other files.
+// "the code he couldn't see handles it". Still no title, plan, build notes or other files:
+// files under pm/ (the board, run notes) are in the diff alone.
 const WHOLE_LINES = 300;
 const NOT_CODE = /\.(md|markdown|json|ya?ml|txt)$/i;
-// A top-level block starts at column 0 on a line that isn't blank, a closing bracket or a
-// comment; a comment line directly above it belongs to it. Language-blind on purpose.
+// A long non-code file, or any file over 60 KB, gives its changed regions with this many
+// lines either side. Over 120 KB in all, the pack drops the code in full for the diff alone.
+const AROUND = 20;
+const REGIONS_ONLY = 60 * 1024;
+const PACK_MAX = 120 * 1024;
+// A top-level block starts at column 0 on a line that isn't blank, a closing bracket, a
+// closing keyword (shell's fi, done and esac, Ruby's and Lua's end), a comment or a decorator.
+// Comment and @decorator lines directly above a start belong to it. Language-blind on purpose.
 const COMMENT = /^\s*(\/\/|#|\/\*|\*|--)/;
-const starts = (line) => /^[^\s})\]]/.test(line) && !COMMENT.test(line);
+const CLOSER = /^(?:fi|done|esac|end)\b(?!\s*=(?!=))/;
+const attaches = (line) => (COMMENT.test(line) && line.trim() !== '') || line.startsWith('@');
+const starts = (line) => /^[^\s})\]]/.test(line) && !CLOSER.test(line) && !attaches(line);
 
 // The new side's changed line numbers, from a -U0 diff of one file. A pure deletion marks
 // the lines either side of where it was.
@@ -187,18 +196,33 @@ function changedLines(diff) {
   return [...lines].sort((a, b) => a - b);
 }
 
+// Sorts 1-based ranges [a, b] and merges those that touch or overlap.
+const mergeRanges = (ranges) => {
+  const merged = [];
+  for (const r of ranges.sort((x, y) => x[0] - y[0])) {
+    const last = merged.at(-1);
+    if (last && r[0] <= last[1] + 1) last[1] = Math.max(last[1], r[1]);
+    else merged.push([...r]);
+  }
+  return merged;
+};
+
 // The 1-based ranges [a, b] of the top-level blocks holding the changed lines, merged when
 // they touch or overlap.
 export function blockRanges(lines, changed) {
   const n = lines.length;
   const blockStart = (i) => {
-    // i is 0-based; back over comment lines directly above the start.
-    while (i > 0 && COMMENT.test(lines[i - 1]) && lines[i - 1].trim()) i--;
+    // i is 0-based; back over comment and decorator lines directly above the start.
+    while (i > 0 && attaches(lines[i - 1])) i--;
     return i;
   };
   const ranges = [];
   for (const line of changed) {
-    const at = Math.min(Math.max(line, 1), n) - 1;
+    let at = Math.min(Math.max(line, 1), n) - 1;
+    // A changed comment or decorator line directly above a block start belongs to that block.
+    let below = at;
+    while (below < n && attaches(lines[below])) below++;
+    if (below > at && below < n && starts(lines[below])) at = below;
     let s = at;
     while (s > 0 && !starts(lines[s])) s--;
     s = starts(lines[s]) ? blockStart(s) : 0;
@@ -208,19 +232,19 @@ export function blockRanges(lines, changed) {
     while (e - 1 > at && !lines[e - 1].trim()) e--;
     ranges.push([s + 1, Math.max(e, at + 1)]);
   }
-  ranges.sort((x, y) => x[0] - y[0]);
-  const merged = [];
-  for (const r of ranges) {
-    const last = merged.at(-1);
-    if (last && r[0] <= last[1] + 1) last[1] = Math.max(last[1], r[1]);
-    else merged.push([...r]);
-  }
-  return merged;
+  return mergeRanges(ranges);
 }
 
+// The 1-based ranges [a, b] of each changed line with AROUND lines either side, merged.
+const regionRanges = (n, changed) =>
+  mergeRanges(changed.map((l) => [Math.max(1, l - AROUND), Math.min(n, l + AROUND)]));
+
 // A fence longer than any run of backticks in the text, so a Markdown file can't close it.
+// A loop, not a spread into Math.max: a long file can have more runs than a call takes.
 const fenced = (text) => {
-  const ticks = '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+  let longest = 2;
+  for (const m of text.matchAll(/`+/g)) if (m[0].length > longest) longest = m[0].length;
+  const ticks = '`'.repeat(longest + 1);
   return `${ticks}\n${text}${text.endsWith('\n') ? '' : '\n'}${ticks}`;
 };
 
@@ -237,37 +261,81 @@ export function reviewPack(repo, id, base = 'main') {
   };
   const branch = `card-${id}`;
   const range = `${base}...${branch}`;
-  // -z keeps odd file names unquoted; --no-renames shows a move as a deletion and an addition.
-  const status = git('diff', '--no-renames', '--name-status', '-z', range).split('\0').filter(Boolean);
-  const numstat = git('diff', '--no-renames', '--numstat', '-z', range).split('\0').filter(Boolean);
-  const binary = new Set(numstat.filter((l) => l.startsWith('-\t-\t')).map((l) => l.slice(4)));
+  // --raw gives each entry's modes ("…:100644 100755 <old> <new> M", then its path); -z
+  // keeps odd file names unquoted; --no-renames shows a move as a deletion and an addition.
+  const raw = git('diff', '--no-renames', '--raw', '-z', range).split('\0').filter(Boolean);
+  // numstat -z: "<added>\t<deleted>\t<path>"; "-\t-" for a binary file.
+  const counts = new Map(git('diff', '--no-renames', '--numstat', '-z', range).split('\0').filter(Boolean).map((l) => {
+    const [added, deleted, ...path] = l.split('\t');
+    return [path.join('\t'), `${added}\t${deleted}`];
+  }));
   const parts = [];
-  for (let i = 0; i < status.length; i += 2) {
-    const [kind, path] = [status[i], status[i + 1]];
-    if (kind === 'D') continue; // a deleted file is only in the diff
-    if (binary.has(path)) {
+  let deleted = 0;
+  let underPm = 0;
+  for (let i = 0; i < raw.length; i += 2) {
+    const [, newMode, , , kind] = raw[i].split(' ');
+    const path = raw[i + 1];
+    if (kind === 'D') {
+      deleted++; // a deleted file is only in the diff
+      continue;
+    }
+    if (path.startsWith('pm/')) {
+      underPm++; // the board and run notes: in the diff alone, never whole
+      continue;
+    }
+    if (newMode === '160000') {
+      parts.push(`### ${path} (submodule, not shown)`);
+      continue;
+    }
+    const count = counts.get(path);
+    if (count === '-\t-') {
       parts.push(`### ${path} (binary, not shown)`);
       continue;
     }
-    const text = git('show', `${branch}:${path}`);
+    if (kind !== 'A' && count === '0\t0') {
+      parts.push(`### ${path} (mode change only)`);
+      continue;
+    }
+    let text;
+    try {
+      text = git('show', `${branch}:${path}`);
+    } catch {
+      parts.push(`### ${path} (git show can't print it, not shown)`);
+      continue;
+    }
     const lines = text.split('\n');
     if (text.endsWith('\n')) lines.pop();
-    if (lines.length <= WHOLE_LINES || NOT_CODE.test(path)) {
+    const big = Buffer.byteLength(text) > REGIONS_ONLY;
+    if (!big && lines.length <= WHOLE_LINES) {
       parts.push(`### ${path} (whole file)\n${fenced(text)}`);
       continue;
     }
     const changed = changedLines(git('diff', '-U0', range, '--', path));
-    for (const [a, b] of blockRanges(lines, changed)) {
+    const ranges = big || NOT_CODE.test(path) ? regionRanges(lines.length, changed) : blockRanges(lines, changed);
+    for (const [a, b] of ranges) {
       const width = String(b).length;
       const body = lines.slice(a - 1, b).map((l, k) => `${String(a + k).padStart(width)}  ${l}`).join('\n');
       parts.push(`### ${path} lines ${a}-${b}\n${fenced(`${body}\n`)}`);
     }
   }
-  return [
-    `## Done when\n\n${doneWhen.join('\n')}`,
-    `## The change\n\n${fenced(git('diff', range))}`,
-    `## Changed code in full\n\n${parts.join('\n\n') || 'No file left to show: the change only deletes.'}`,
-  ].join('\n\n');
+  // An empty part says which of the two reasons holds (a binary, submodule or mode change
+  // is listed by name, so only deleted files and files under pm/ leave nothing to show).
+  const none = deleted && underPm
+    ? 'None: the change only deletes files and touches files under pm/, which are in the diff alone.'
+    : underPm
+      ? 'None: the change only touches files under pm/, which are in the diff alone.'
+      : deleted
+        ? 'None: the change only deletes files, so they are in the diff alone.'
+        : 'None: the change has no files.';
+  const head = [`## Done when\n\n${doneWhen.join('\n')}`, `## The change\n\n${fenced(git('diff', range))}`];
+  let pack = [...head, `## Changed code in full\n\n${parts.join('\n\n') || none}`].join('\n\n');
+  const kb = (bytes) => Math.round(bytes / 1024);
+  if (Buffer.byteLength(pack) > PACK_MAX) {
+    const note = `Left out: with the changed code in full the pack would be ${kb(Buffer.byteLength(pack))} KB, over 120 KB, so Milo has the diff alone.`;
+    pack = [...head, `## Changed code in full\n\n${note}`].join('\n\n');
+  }
+  const bytes = Buffer.byteLength(pack);
+  return `${pack}\n\nSize: ${bytes} bytes (${kb(bytes)} KB) above this line.`;
 }
 
 export const scanText = (id, hits) =>
