@@ -234,7 +234,7 @@ function renderLane(lane, cards, pictures, today, shorts, batchOf = () => null) 
   // name like "Waiting on you" out of a 1400px window's lane.
   const total = points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : '';
   const sub = `<div class="lane-sub"><div class="lane-hints">${hint}</div>${total}</div>`;
-  const fold = FOLDS[lane.key] ? `<button type="button" class="lane-fold" aria-expanded="true" aria-label="Fold ${esc(lane.name)} to a strip" title="Fold or unfold">${icon(FOLDS[lane.key])}</button>` : '';
+  const fold = FOLDS[lane.key] ? `<button type="button" class="lane-fold" aria-expanded="true" aria-label="${esc(lane.name)}" title="Fold or unfold">${icon(FOLDS[lane.key])}</button>` : '';
   // The lane's name is its h2 and each card's title an h3, so a screen reader can jump
   // between them; the <section> has no name, so it is not one of five region landmarks (#261).
   return `<section class="lane lane-${lane.key}">
@@ -324,8 +324,10 @@ const TABS = [
   ['settings', 'Settings', 'sliders-horizontal'],
 ];
 
+// The badge's words sit in a visually-hidden span: a plain <span> can't be named with
+// aria-label (#264).
 function renderNav(waiting) {
-  const badge = waiting ? `<span class="badge" aria-label="${waiting} waiting on you">${waiting}</span>` : '';
+  const badge = waiting ? `<span class="badge">${waiting}<span class="visually-hidden"> waiting on you</span></span>` : '';
   return TABS.map(([id, label, ic]) => `<a href="#${id}">${icon(ic)}${label}${id === 'board' ? badge : ''}</a>`).join('');
 }
 

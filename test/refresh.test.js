@@ -444,7 +444,7 @@ test('the fold button folds a lane and names it; a milestone heading opens and s
     steps.planShown = await run(`!!document.querySelector('.tab-plan').offsetParent`);
     return steps;
   });
-  assert.deepEqual(seen.fold, { before: 'Fold Done to a strip', after: 'Unfold Done', folded: true }, "the lane's name comes from its heading now");
+  assert.deepEqual(seen.fold, { before: 'Done', after: 'Done', folded: true }, "the fold button keeps the lane's name; aria-expanded says open or shut (#264)");
   assert.deepEqual(seen.start, { m1: { expanded: 'false', shown: false }, m2: { expanded: 'true', shown: true } }, 'a done milestone starts folded');
   assert.deepEqual(seen.shut, { expanded: 'false', shown: false });
   assert.deepEqual(seen.reopened, { expanded: 'true', shown: true });
@@ -523,4 +523,62 @@ test("the browser's find finds a card past Show all, shows it and opens its lane
   });
   assert.deepEqual(seen.before, { shown: false, hidden: 'until-found', display: 'shown', cv: 'hidden', all: 10, button: 'Show all 15' }, 'past the first 10, hidden until found: not display none, so find in page can reach it');
   assert.deepEqual(seen.after, { shown: true, hidden: null, display: 'shown', cv: 'visible', all: 15, button: 'Show the first 10' }, 'found: the card shows and its lane opens in full');
+});
+
+
+test('a fold button keeps one label and leaves open or shut to aria-expanded (#264)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-foldlabel-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n- #1 An idea · M1\n## Up next\n- #2 Next · M1 · 2 pts\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n- #3 Done · M1 · 1 pt\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const state = () => run(`(() => { const b = document.querySelector('.lane-done .lane-fold'); return { label: b.getAttribute('aria-label'), expanded: b.getAttribute('aria-expanded') }; })()`);
+    const before = await state();
+    await run(`document.querySelector('.lane-done .lane-fold').click()`);
+    const folded = await state();
+    await run(`document.querySelector('.lane-done .lane-fold').click()`);
+    return { before, folded, after: await state() };
+  });
+  assert.deepEqual(seen.before, { label: 'Done', expanded: 'true' });
+  assert.deepEqual(seen.folded, { label: 'Done', expanded: 'false' }, 'folding flips aria-expanded, the label stays');
+  assert.deepEqual(seen.after, seen.before);
+});
+
+test("the search box's match count waits until typing stops, about 300ms, before it changes (#264)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-findnote-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n## Up next\n- #1 Zebra one · M1 · 2 pts\n- #2 Zebra two · M1 · 2 pts\n- #3 Other · M1 · 2 pts\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.value;
+    // Three letters 50ms apart, then the note and the cards are read at once and at 150ms
+    // after the last letter; then the note is polled (up to 2s) for the count, so a busy
+    // machine can't fail it. Clearing the box must empty the note at once, not after 300ms.
+    return run(`(async () => {
+      const b = document.querySelector('.card-find input'), note = document.querySelector('.card-find-note');
+      const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+      for (const l of ['z', 'ze', 'zeb']) { b.value = l; b.dispatchEvent(new Event('input')); await wait(50); }
+      const now = { note: note.textContent, hits: document.querySelectorAll('.find-hit').length };
+      await wait(100);
+      const mid = note.textContent;
+      for (let t = 0; t < 2000 && !note.textContent; t += 25) await wait(25);
+      const later = note.textContent;
+      b.value = ''; b.dispatchEvent(new Event('input'));
+      const cleared = note.textContent;
+      b.value = '#9'; b.dispatchEvent(new Event('input'));
+      b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await wait(400);
+      return { now, mid, later, cleared, missing: note.textContent };
+    })()`);
+  });
+  assert.equal(seen.now.hits, 2, 'the cards light at once');
+  assert.equal(seen.now.note, '', 'the note has not changed while typing');
+  assert.equal(seen.mid, '', 'nor 150ms after the last letter');
+  assert.equal(seen.later, '2 cards match', 'about 300ms after the last letter it shows the count');
+  assert.equal(seen.cleared, '', 'clearing the box empties the note at once');
+  assert.equal(seen.missing, 'no card #9 on this page', 'a pending count does not overwrite what Enter said');
 });
