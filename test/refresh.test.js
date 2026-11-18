@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import './isolate.js';
 import { buildProject } from '../src/build.js';
+import { buildHome } from '../src/home.js';
 import { stampOf } from '../src/settings.js';
 import { findBrowser, withPage } from '../src/shots.js';
 
@@ -257,4 +258,95 @@ test('on a phone Ideas starts folded to its heading, and a tap opens it; desktop
   assert.deepEqual(phone.before, { ideas: true, done: false }, 'on a phone Ideas starts folded, Done open');
   assert.equal(phone.after.ideas, false, 'a tap opens it');
   assert.deepEqual((await look(1400)).before, { ideas: false, done: false }, 'desktop starts with both open');
+});
+
+// #260: the open tab is marked for screen readers (aria-current), by a shape (a 3px bar),
+// and in the window title; on a 360px phone the strip scrolls to it and fades only where
+// more tabs wait.
+const nap = (ms) => new Promise((ok) => setTimeout(ok, ms));
+const tabState = `(() => {
+  const on = [...document.querySelectorAll('.dk-nav a[aria-current="page"]')];
+  return { on: on.map((a) => a.getAttribute('href')), title: document.title,
+    bar: on[0] ? getComputedStyle(on[0], '::after').borderBottomWidth : '' };
+})()`;
+
+test('the open tab has aria-current, a 3px bar and its name in the window title, and follows the hash (#260)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = project('A card');
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — One · in progress\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const name = readFileSync(out, 'utf8').match(/<title>(.*?) - PM<\/title>/)[1];
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const at = async (hash) => { await run(`location.hash = ${JSON.stringify(hash)}`); await nap(150); return run(tabState); };
+    return { start: await run(tabState), plan: await at('#plan'), ms: await at('#plan-M1'), settings: await at('#settings'), none: await at('') };
+  });
+  assert.deepEqual(seen.start.on, ['#board'], 'no hash: Board is the open tab');
+  assert.equal(seen.start.title, `${name} - Board - PM`);
+  assert.equal(seen.start.bar, '3px', 'the open tab carries a 3px bar, a shape and not colour alone');
+  assert.deepEqual(seen.plan.on, ['#plan']);
+  assert.equal(seen.plan.title, `${name} - Plan - PM`);
+  assert.deepEqual(seen.ms.on, ['#plan'], 'a milestone on the Plan tab counts as Plan');
+  assert.equal(seen.ms.title, `${name} - Plan - PM`);
+  assert.deepEqual(seen.settings.on, ['#settings']);
+  assert.equal(seen.settings.title, `${name} - Settings - PM`);
+  assert.deepEqual(seen.none.on, ['#board'], 'back to no hash: Board again');
+});
+
+test("the home page's open tab has aria-current and names the window (#260)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'pm-home-tabs-')), 'index.html');
+  buildHome({ root: mkdtempSync(join(tmpdir(), 'pm-home-root-')), out });
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const start = await run(tabState);
+    await run(`location.hash = '#flow'`);
+    await nap(150);
+    return { start, flow: await run(tabState) };
+  });
+  assert.deepEqual(seen.start.on, ['#projects']);
+  assert.equal(seen.start.title, 'Projects - PM');
+  assert.deepEqual(seen.flow.on, ['#flow']);
+  assert.equal(seen.flow.title, 'Session flow - PM');
+});
+
+test('on a 360px phone the open tab is scrolled into the strip, and each edge fades only where more tabs wait (#260)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = project('A card');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 360, height: 780, deviceScaleFactor: 1, mobile: true });
+    await nap(300);
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.value;
+    // Is the open tab's link wholly inside the strip's visible box?
+    const inView = (hash) => run(`(async () => {
+      document.querySelector('.dk-nav').scrollLeft = 0;
+      location.hash = ${JSON.stringify(hash)};
+      await new Promise((ok) => setTimeout(ok, 300));
+      const nav = document.querySelector('.dk-nav').getBoundingClientRect();
+      const a = document.querySelector('.dk-nav a[href="${hash}"]').getBoundingClientRect();
+      return { inside: a.left >= nav.left - 0.5 && a.right <= nav.right + 0.5, a: [a.left, a.right], nav: [nav.left, nav.right] };
+    })()`);
+    // The two fades' widths at a scroll position (the registered --fade-start / --fade-end).
+    const fades = (where) => run(`(async () => {
+      const nav = document.querySelector('.dk-nav');
+      nav.scrollLeft = ${where === 'start' ? 0 : 'nav.scrollWidth'};
+      await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+      const s = getComputedStyle(nav);
+      return { left: s.getPropertyValue('--fade-start').trim(), right: s.getPropertyValue('--fade-end').trim(), overflows: nav.scrollWidth > nav.clientWidth };
+    })()`);
+    const settings = await inView('#settings');
+    const links = await inView('#links');
+    // Load straight onto #settings too: the script runs on load, not only on hashchange.
+    await run(`location.hash = '#settings'`);
+    await page.send('Page.reload');
+    await nap(500);
+    const loaded = await run(`(() => { const nav = document.querySelector('.dk-nav').getBoundingClientRect(), a = document.querySelector('.dk-nav a[href="#settings"]').getBoundingClientRect(); return a.left >= nav.left - 0.5 && a.right <= nav.right + 0.5; })()`);
+    return { settings, links, loaded, start: await fades('start'), end: await fades('end') };
+  });
+  assert.ok(seen.settings.inside, `Settings is in the strip's view: ${JSON.stringify(seen.settings)}`);
+  assert.ok(seen.links.inside, `Links is in the strip's view: ${JSON.stringify(seen.links)}`);
+  assert.ok(seen.loaded, 'a page opened on #settings shows Settings in the strip');
+  assert.ok(seen.start.overflows, 'at 360px the strip has more tabs than fit');
+  assert.equal(seen.start.left, '0px', 'at the start, no fade on the left');
+  assert.equal(seen.start.right, '32px', 'at the start, the right edge fades');
+  assert.equal(seen.end.left, '32px', 'at the end, the left edge fades');
+  assert.equal(seen.end.right, '0px', 'at the end, no fade on the right');
 });

@@ -141,7 +141,8 @@ button { font-family: inherit; }
 .anchor { display: block; height: 0; }
 .dk-nav { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 .dk-nav a { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-base); color: var(--text-muted);
-  padding: 6px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); white-space: nowrap; }
+  padding: 6px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); white-space: nowrap;
+  position: relative; }
 .dk-nav a:hover { color: var(--accent-link); border-color: var(--accent-link); text-decoration: none; }
 body:not(:has(.anchor:target, .ms-fold:target)) .dk-nav a[href="#board"],
 body:has(#board:target) .dk-nav a[href="#board"],
@@ -151,6 +152,13 @@ body:has(#releases:target) .dk-nav a[href="#releases"],
 body:has(#docs:target) .dk-nav a[href="#docs"],
 body:has(#links:target) .dk-nav a[href="#links"],
 body:has(#settings:target) .dk-nav a[href="#settings"] { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
+/* The open tab's shape (#260), so it isn't shown by colour alone: a 3px bar on its bottom
+   edge, between the rounded corners, drawn from aria-current (set by the script in
+   refresh.html). It is a border, not a background, so a Windows contrast theme keeps it;
+   absolutely placed, so the tab keeps its size. */
+.dk-nav a[aria-current="page"]::after { content: ""; position: absolute;
+  inset: auto var(--radius-md) 0; border-block-end: 3px solid var(--accent-link); }
+@media (forced-colors: active) { .dk-nav a[aria-current="page"]::after { border-color: Highlight; } }
 .tab { display: none; }
 body:not(:has(.anchor:target, .ms-fold:target)) .tab-board,
 body:has(#board:target) .tab-board,
@@ -548,6 +556,12 @@ body:has(#settings:target) .tab-settings { display: block; }
 .chart-table th:first-child { text-align: left; }
 .chart-table thead th { color: var(--text-muted); font-weight: var(--weight-semibold); }
 
+/* The phone strip's fades (#260): registered, so the scroll-driven animations below can
+   ease them; unregistered custom properties would jump. */
+@property --fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes nav-fade-start { to { --fade-start: var(--fade-size); } }
+@keyframes nav-fade-end { from { --fade-end: var(--fade-size); } }
 /* ---------- phone ---------- */
 @media (max-width: 700px) {
   :root { --container-pad: var(--space-sm); --header-pad-y: var(--space-sm); --header-pad-x: var(--space-md); }
@@ -563,8 +577,19 @@ body:has(#settings:target) .tab-settings { display: block; }
   [data-awake="none"] .header-right { grid-template-columns: auto auto; }   /* no Awake button, so no empty column */
   .header-right .updated { grid-column: 1 / -1; grid-row: 2; white-space: nowrap; }
   .updated-word, .theme-name, .awake-name { display: none; }
+  /* Each edge of the strip fades only while more tabs wait past it (#260): an opaque mask
+     minus a band at each end, each band's width driven by the strip's own scroll. With no
+     scroll-driven animations, no fade. The scroll padding stops the open tab, scrolled to by
+     refresh.html, clear of the fades. */
   .dk-nav { grid-area: nav; flex-wrap: nowrap; overflow-x: auto; gap: 4px; scrollbar-width: none; overscroll-behavior-x: contain;
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+    --fade-size: 32px; scroll-padding-inline: var(--fade-size);
+    mask:
+      linear-gradient(black, black) no-clip subtract,
+      linear-gradient(to right, black, transparent) 0 0 / var(--fade-start) 100% no-repeat no-clip,
+      linear-gradient(to right, transparent, black) 100% 0 / var(--fade-end) 100% no-repeat no-clip;
+    animation: nav-fade-start linear both, nav-fade-end linear both;
+    animation-timeline: scroll(self inline);
+    animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%; }
   .dk-nav::-webkit-scrollbar { display: none; }
   .dk-nav a { padding: 6px 8px; flex-shrink: 0; }
   .panel-x, .card-modal { padding: var(--space-md); }
