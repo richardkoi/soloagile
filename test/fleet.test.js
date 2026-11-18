@@ -634,6 +634,23 @@ test('soloagile fleet review <n> prints the pack and exits 0 (#268)', () => {
   assert.match(r.stdout, /### big\.js lines 201-204/);
 });
 
+// Round 3 (#268): into a pipe, console.log then process.exit cut the pack at 64 KB.
+test('soloagile fleet review <n> sends a pack over 64 KB whole through a slow pipe (#268)', () => {
+  const dir = packRepo((d, git) => {
+    // a new 45 KB file: its diff and its code in full make a pack of about 90 KB
+    writeFileSync(join(d, 'wide.js'), `${`// ${'q'.repeat(450)}\n`.repeat(100)}`);
+    git('add', 'wide.js');
+  });
+  const want = `${reviewPack(dir, 1)}\n`;
+  assert.ok(Buffer.byteLength(want) > 70000, `the pack is over 70 KB: ${Buffer.byteLength(want)}`);
+  for (let i = 0; i < 3; i++) {
+    // the reader waits before it reads, so the pipe fills and Node is still writing at exit
+    const r = spawnSync('sh', ['-c', `node "${PM}" fleet review 1 | (sleep 0.2; cat)`], { cwd: dir, encoding: 'utf8', maxBuffer: 1 << 24 });
+    assert.equal(Buffer.byteLength(r.stdout), Buffer.byteLength(want), `try ${i + 1}: all of it arrived`);
+    sizeLine(r.stdout.slice(0, -1));
+  }
+});
+
 test("the fleet skill gives Milo the review pack, and he still has no tools (#268)", () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');

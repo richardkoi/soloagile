@@ -360,6 +360,9 @@ if (cmd === 'fleet') {
   // soloagile fleet preflight <n> | unlock <n>, in the project's folder (src/fleet.js, #233).
   const [verb, n, ...rest] = process.argv.slice(3);
   const id = Number(String(n ?? '').replace(/^#/, ''));
+  // Print and wait until it is all written before process.exit, which into a pipe would
+  // otherwise cut a big output at 64 KB, as with board --json above (#268).
+  const say = (text) => new Promise((done) => process.stdout.write(`${text}\n`, done));
   if (!['preflight', 'unlock', 'branch', 'update', 'review', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
     console.error('usage: soloagile fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>])');
     process.exit(2);
@@ -381,7 +384,7 @@ if (cmd === 'fleet') {
     } else if (verb === 'drop') {
       dropRun(process.cwd(), id);
       console.log(`soloagile: dropped #${id}'s fleet work: its copy, branch card-${id} and pm/runs/${id}/`);
-    } else if (verb === 'review') console.log(reviewPack(process.cwd(), id)); // Milo's pack (#268)
+    } else if (verb === 'review') await say(reviewPack(process.cwd(), id)); // Milo's pack (#268)
     else if (verb === 'scan') {
       // Exit 1 on a hit, so a script can tell; the hits are on stdout either way.
       // It compares against the branch the card was built on, or --base <branch> (#269).
@@ -394,12 +397,12 @@ if (cmd === 'fleet') {
       // The whole of each changed file as context, so comments and fences are followed, or
       // the 3-line diff when that fails, said in the first line (#269).
       const { hits, narrow } = scanCard(process.cwd(), id, base);
-      console.log(scanText(id, hits, base, { narrow }));
+      await say(scanText(id, hits, base, { narrow }));
       process.exit(hits.length ? 1 : 0);
     } else if (verb === 'update') {
       // Exit 1 on a clash or an uncommitted resolve, so a script can tell; the copy is left mid-merge for Tobin (#267).
       const u = updateBranch(process.cwd(), id);
-      console.log(updateText(id, u));
+      await say(updateText(id, u));
       process.exit(u.state === 'clash' || u.state === 'resolved' ? 1 : 0);
     } else if (verb === 'branch') {
       const b = fleetBranch(process.cwd(), id);
