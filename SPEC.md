@@ -307,6 +307,9 @@ The six columns, always in this order and always present, even when empty:
   clears a lock whose process is gone, and names the stage to start at: the first of
   plan.md, build.md, review.md, verdicts.md, report.md not yet in `pm/runs/12/`.
   `soloagile fleet unlock 12` ends the run's lock.
+  The fleet guard (`bin/fleet-guard.js`, a PreToolUse hook) refuses a fleet helper, any
+  agent whose type starts `soloagile:`, a token, the environment, a key, a login or a .env
+  file. Every other session, the user's own included, is left alone.
 - **IDs are never reused.** `<!-- next-id: N -->` holds the next free ID.
 - **Claude changes the board with `soloagile card`**, not by editing the file. The command
   numbers a new card, writes its line, puts it in its lane and rebuilds the page. It is

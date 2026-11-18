@@ -7,9 +7,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const json = (...path) => JSON.parse(readFileSync(join(ROOT, ...path), 'utf8'));
 
-test('the three hooks ship in the plugin, and run its own command', () => {
+test('the four hooks ship in the plugin, and run its own commands', () => {
   const { hooks } = json('hooks', 'hooks.json');
-  assert.deepEqual(Object.keys(hooks).sort(), ['PostToolUse', 'SessionEnd', 'SessionStart']);
+  assert.deepEqual(Object.keys(hooks).sort(), ['PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart']);
+  assert.equal(hooks.PreToolUse[0].hooks[0].command, 'node "${CLAUDE_PLUGIN_ROOT}"/bin/fleet-guard.js', 'the fleet guard (#234)');
+  delete hooks.PreToolUse;
   const run = { PostToolUse: 'hook', SessionStart: 'session-start', SessionEnd: 'session-end' };
   for (const [event, [entry]] of Object.entries(hooks)) {
     assert.equal(entry.hooks[0].command, `"\${CLAUDE_PLUGIN_ROOT}"/bin/soloagile ${run[event]}`);
