@@ -97,12 +97,12 @@
       <p class="never">Can't open other files or run anything.</p></div></div>
     <div class="who"><img src="rufus-watchdog.webp" alt="Rufus the Watchdog">
       <div><h3>Rufus the Watchdog</h3><p class="job">The security lister</p>
-      <p>Barks at every changed line that touches logins, keys or passwords, and lists them for you to read.</p>
+      <p>Called only when a quick search of the changes finds logins, keys or passwords. Then he barks at every such line and lists them for you to read.</p>
       <p class="never">Never says "it's safe". You read those lines yourself.</p></div></div>
   </div>
 
   <h2>One run, step by step</h2>
-  <p class="sub">For a card of 3 points or more. Every step writes a short file, so you can see what happened.</p>
+  <p class="sub">For a card that changes logic or data, or anything risky. Claude marks those when planning, and you can mark any card. Cards that are only about looks build as they do today, because your eye is their check. Every step writes a short file, so you can see what happened.</p>
   <ol class="run">
     <li><img src="ada-ant.webp" alt=""><div><h3>Ada checks the gate</h3>
       <p>Is the card ready? If any box isn't ticked, the run stops here. <span class="file">doctor.md</span></p></div></li>
@@ -116,11 +116,11 @@
       <p>Each of Milo's points is checked against the real code: upheld, rejected or can't tell. <span class="file">verdicts.md</span></p>
       <p class="loop">Upheld problems go back to Tobin to fix, at most twice. After that, Orla stops and asks you.</p></div></li>
     <li><img src="rufus-watchdog.webp" alt=""><div><h3>Rufus lists the risky lines</h3>
-      <p>Every change near logins, keys or passwords, with the file and line. <span class="file">security-list.md</span></p></div></li>
+      <p>Only if a quick search finds changes near logins, keys or passwords: each one with its file and line. <span class="file">security-list.md</span></p></div></li>
     <li><img src="orla-owl.webp" alt=""><div><h3>Orla tests and writes it up</h3>
-      <p>Runs the project's checks, takes phone pictures for anything on screen, writes what was and wasn't tested, and opens a pull request. <span class="file">report.md</span></p></div></li>
+      <p>Runs the project's checks, takes phone pictures for anything on screen, writes what was and wasn't tested, and leaves the work waiting on its own branch. <span class="file">report.md</span></p></div></li>
     <li class="you"><span class="num">You</span><div><h3>You decide</h3>
-      <p>The card waits in <b>Needs your look</b>. Read the report and Rufus's list, then merge it, send it back with a note, or drop it.</p></div></li>
+      <p>The card waits in <b>Needs your look</b>. Read the report and Rufus's list, then say yes and it's merged into the main code, send it back with a note, or drop it.</p></div></li>
   </ol>
 
   <h2>Where you come in</h2>
@@ -130,25 +130,24 @@
     <div class="moment"><h3>During</h3>
       <p>Nothing, unless Orla hits a real choice. Then it shows up in <b>Needs your decision</b>, as a multiple-choice question.</p></div>
     <div class="moment"><h3>After</h3>
-      <ul><li>Read <span class="file">report.md</span></li><li>Read Rufus's lines</li><li>Merge, send back or drop</li></ul></div>
+      <ul><li>Read <span class="file">report.md</span></li><li>Read Rufus's lines</li><li>Yes, send back or drop</li></ul></div>
   </div>
 
   <h2>While you're away</h2>
   <div class="box">
     <p>Say you're off to bed and away mode answers its questions with you first, then builds.
-    Big cards go through the crew; small ones are built as they are today.</p>
-    <p>Everything builds on one <b>away branch</b>, each card on top of the last. In the morning
-    there's one pull request waiting, with a report for each card.</p>
+    Several helpers build at once, as today. When one of them gets a fleet card, the crew runs it on its own branch.</p>
+    <p>In the morning the fleet cards wait in <b>Needs your look</b> with everything else, each with its report. Your yes merges each one.</p>
   </div>
 
   <h2>House rules</h2>
   <ul class="rules">
     <li><b>Only you merge.</b> The crew never moves a card to Done.</li>
-    <li><b>Only Orla sends anything to GitHub.</b> The helpers can't push.</li>
+    <li><b>Only Orla merges, and only after your yes.</b> The helpers can't push.</li>
     <li><b>No helper can read your passwords or keys.</b> A guard blocks it, and the first run proves the guard works.</li>
     <li><b>Spotted something else?</b> It becomes an Ideas card, never a sneaky extra fix.</li>
     <li><b>It knows when to stop:</b> at 98% of your usage, after a set number of turns per step, and after two rounds of fixes.</li>
-    <li><b>Small cards skip it.</b> Under 3 points (a setting), the crew costs more than the card is worth.</li>
+    <li><b>Looks skip it.</b> Cards that are only about how something looks build as today; the crew costs more than it would catch there.</li>
   </ul>
 
   <footer>Pictures made in Gemini. The crew in full: docs/fleet-crew.md in the soloagile repo.
