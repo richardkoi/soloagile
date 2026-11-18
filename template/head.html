@@ -400,6 +400,27 @@ body:has(#settings:target) .tab-settings { display: block; }
   overflow-y: auto; overscroll-behavior: contain; background: var(--bg-surface); color: var(--text-secondary);
   border: 1px solid var(--border-default); border-left: 4px solid var(--hue); border-radius: var(--radius-lg); padding: var(--space-lg); }
 .card-modal::backdrop { background: rgb(0 0 0 / 0.65); }
+/* Pop-ups and the guide fade and grow a little in and out (#265). display and overlay
+   transition too (allow-discrete), so a closing pop-up stays in the top layer until its
+   fade ends; @starting-style is where an opening one fades in from. */
+@media (prefers-reduced-motion: no-preference) {
+  .card-modal { opacity: 0; transform: scale(0.97);
+    transition-property: opacity, transform, display, overlay; transition-duration: 0.2s;
+    transition-timing-function: ease-out; transition-behavior: allow-discrete; }
+  .card-modal[open] { opacity: 1; transform: none; }
+  .card-modal::backdrop { background: rgb(0 0 0 / 0);
+    transition-property: background-color, display, overlay; transition-duration: 0.2s;
+    transition-timing-function: ease-out; transition-behavior: allow-discrete; }
+  .card-modal[open]::backdrop { background: rgb(0 0 0 / 0.65); }
+  @starting-style {
+    .card-modal[open] { opacity: 0; transform: scale(0.97); }
+    .card-modal[open]::backdrop { background: rgb(0 0 0 / 0); }
+  }
+}
+/* With reduced motion they appear and go at once (#262 keeps other fades; these stop). */
+@media (prefers-reduced-motion: reduce) {
+  .card-modal, .card-modal::backdrop { transition-duration: 0s !important; }
+}
 .card-modal .card-top { margin-bottom: var(--space-sm); }
 /* A detail line's label, and an options line's options, one to a line (#225). */
 .detail-label { color: var(--text-primary); font-weight: var(--weight-semibold); }

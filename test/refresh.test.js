@@ -582,3 +582,66 @@ test("the search box's match count waits until typing stops, about 300ms, before
   assert.equal(seen.cleared, '', 'clearing the box empties the note at once');
   assert.equal(seen.missing, 'no card #9 on this page', 'a pending count does not overwrite what Enter said');
 });
+
+
+// Opens and closes one pop-up by script, and reads what the browser shows at each moment.
+async function fadeSteps(reduce) {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-fade-'));
+  mkdirSync(join(repo, 'pm'));
+  // A line under the card, so it has a pop-up.
+  writeFileSync(join(repo, 'pm', 'board.md'), board('First title\n  a line'));
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  return withPage(pathToFileURL(out).href, async (page) => {
+    if (reduce) await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: reduce }] });
+    const run = async (expression) => { const r = await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description); return r.result.value; };
+    const seen = {};
+    for (const [name, sel] of [['card', '[data-id="1"] .card-modal'], ['guide', '#guide']]) {
+      seen[name] = await run(`(async () => {
+        const d = document.querySelector('${sel}'), wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+        const look = () => { const s = getComputedStyle(d), b = getComputedStyle(d, '::backdrop');
+          return { opacity: +s.opacity, display: s.display, overlay: s.overlay, backdrop: b.backgroundColor }; };
+        const s = getComputedStyle(d);
+        const rule = { property: s.transitionProperty, duration: s.transitionDuration, behavior: s.transitionBehavior };
+        d.showModal();
+        const opening = look();
+        await wait(400);
+        const opened = look();
+        d.close();
+        const closing = look();
+        await wait(400);
+        const closed = look();
+        return { rule, opening, opened, closing, closed };
+      })()`);
+    }
+    return seen;
+  });
+}
+
+test('card pop-ups and the guide fade open and closed (#265)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const seen = await fadeSteps(null);
+  for (const name of ['card', 'guide']) {
+    const { rule, opening, opened, closing, closed } = seen[name];
+    assert.match(rule.property, /opacity/, `${name}: opacity is transitioned`);
+    assert.match(rule.property, /display/, `${name}: display is transitioned`);
+    assert.match(rule.property, /overlay/, `${name}: overlay is transitioned`);
+    assert.match(rule.duration, /^0\.2s/, `${name}: about 0.2s`);
+    assert.match(rule.behavior, /allow-discrete/, `${name}: display and overlay are allowed to wait`);
+    assert.ok(opening.opacity < 1, `${name}: just after opening it is still fading in (${opening.opacity})`);
+    assert.notEqual(opening.backdrop, opened.backdrop, `${name}: the backdrop fades in too`);
+    assert.equal(opened.opacity, 1, `${name}: a moment later it is fully shown`);
+    assert.equal(closing.display, 'block', `${name}: just after close it is still on screen`);
+    assert.equal(closing.overlay, 'auto', `${name}: and still in the top layer`);
+    assert.equal(closed.display, 'none', `${name}: a moment later it is gone`);
+    assert.equal(closed.overlay, 'none', `${name}: and out of the top layer`);
+  }
+});
+
+test('with reduced motion on, card pop-ups and the guide appear at once (#265)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const seen = await fadeSteps('reduce');
+  for (const name of ['card', 'guide']) {
+    const { rule, opening, closing } = seen[name];
+    assert.match(rule.duration, /^0s(, 0s)*$/, `${name}: no transition time`);
+    assert.equal(opening.opacity, 1, `${name}: fully shown right after opening`);
+    assert.equal(closing.display, 'none', `${name}: gone right after closing`);
+  }
+});
