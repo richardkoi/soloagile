@@ -3,7 +3,7 @@
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { parseBoard } from './board.js';
 
 // Each stage leaves one file; a run resumes at the first one missing. The security list is
@@ -76,4 +76,30 @@ export function preflightText(id, { stage, file, cleared }) {
     `soloagile: #${id} is locked for its fleet run`,
     stage === 'done' ? `soloagile: every stage file is there; the run is at its end` : `soloagile: start at ${stage}: pm/runs/${id}/${file} isn't written yet`,
   ].filter(Boolean).join('\n');
+}
+
+// Tobin's own copy of the code (#235): a git worktree on branch card-<n>, under
+// .claude/worktrees/ where soloagile cleanup clears merged ones. That folder is added to
+// the repo's own .git/info/exclude, never to a committed file, so the copy doesn't make the
+// main tree look dirty to the next preflight. A second call finds the copy already there.
+export function fleetBranch(repo, id) {
+  const root = resolve(repo);
+  const git = (...args) => {
+    const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr.trim()}`);
+    return r.stdout.trim();
+  };
+  const branch = `card-${id}`;
+  const path = join(root, '.claude', 'worktrees', branch);
+  const exclude = resolve(root, git('rev-parse', '--git-path', 'info/exclude'));
+  const excluded = existsSync(exclude) ? readFileSync(exclude, 'utf8') : '';
+  if (!excluded.split('\n').includes('.claude/worktrees/')) {
+    mkdirSync(dirname(exclude), { recursive: true });
+    writeFileSync(exclude, `${excluded}${excluded && !excluded.endsWith('\n') ? '\n' : ''}.claude/worktrees/\n`);
+  }
+  if (existsSync(path)) return { path, branch, made: false };
+  const known = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root }).status === 0;
+  if (known) git('worktree', 'add', path, branch);
+  else git('worktree', 'add', '-b', branch, path);
+  return { path, branch, made: true };
 }

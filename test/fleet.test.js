@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { preflight, runDir, unlock } from '../src/fleet.js';
+import { fleetBranch, preflight, runDir, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -100,4 +100,28 @@ test('soloagile fleet preflight and unlock run from the command line', () => {
   assert.match(run('preflight', '2').stderr, /no done when/);
   assert.match(run('unlock', '1').stdout, /#1 is unlocked/);
   assert.equal(run('nonsense').status, 2);
+});
+
+test("fleet branch makes Tobin's copy on card-<n>, kept out of the main tree's status", () => {
+  const dir = repo();
+  const first = fleetBranch(dir, 1);
+  assert.equal(first.made, true);
+  assert.equal(first.branch, 'card-1');
+  assert.equal(execFileSync('git', ['branch', '--show-current'], { cwd: first.path, encoding: 'utf8' }).trim(), 'card-1');
+  assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).replace(/.. pm\/\n?/g, ''), '', 'the copy leaves the main tree clean');
+  assert.equal(fleetBranch(dir, 1).made, false, 'a second call finds it');
+  assert.doesNotThrow(() => preflight(dir, 1, { pid: 1, isAlive: () => false }));
+});
+
+test('Tobin is a plugin agent with set tools, a turn cap and the strongest model; Orla is the fleet skill', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const tobin = readFileSync(join(root, 'agents', 'tobin.md'), 'utf8');
+  assert.match(tobin, /^name: tobin$/m);
+  assert.match(tobin, /^model: opus$/m);
+  assert.match(tobin, /^tools: Read, Edit, Write, Bash, Glob, Grep$/m);
+  assert.match(tobin, /^maxTurns: \d+$/m);
+  const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  assert.match(skill, /subagent_type: "soloagile:tobin"/);
+  assert.match(skill, /soloagile fleet preflight <n>/);
+  assert.match(skill, /don't restart or message him for more turns/);
 });
