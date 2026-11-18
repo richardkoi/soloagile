@@ -205,7 +205,7 @@ export function dropRun(repo, id) {
 // one said as "didn't run". The page server serves .html from pm/docs/ but nothing from
 // pm/runs/, so the page is written to pm/docs/run-<n>.html at each page build. The files are
 // written by helpers from the code, so they go through the project's safe Markdown.
-const RUN_PARTS = [['Plan', 'plan.md'], ['Build', 'build.md'], ['Blind review', 'review.md'], ['Verdicts', 'verdicts.md'], ['Security list', 'security-list.md', 'No hits in the scan, so none was needed.'], ['Report', 'report.md']];
+const RUN_PARTS = [['Plan', 'plan.md'], ['Design', 'design.md', 'No screen in this card, so no design.'], ['Build', 'build.md'], ['Blind review', 'review.md'], ['Verdicts', 'verdicts.md'], ['Security list', 'security-list.md', 'No hits in the scan, so none was needed.'], ['Picture check', 'picture-check.md', 'No screen in this card, so no pictures to check.'], ['Report', 'report.md']];
 const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function runPageHtml(id, files, toHtml) {

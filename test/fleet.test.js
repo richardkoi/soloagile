@@ -283,3 +283,17 @@ test('an away run hands a fleet card to the fleet skill, never to a parallel hel
   const tools = away.match(/^allowed-tools: (.*)$/m)[1];
   for (const t of ['Agent', 'Skill', 'Bash(soloagile fleet:*)', 'Bash(git worktree:*)']) assert.ok(tools.includes(t), t);
 });
+
+test('Cora designs a card with a screen before the build and checks its pictures after', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const cora = readFileSync(join(root, 'agents', 'cora.md'), 'utf8');
+  assert.match(cora, /^name: cora$/m);
+  assert.match(cora, /one recommendation/);
+  assert.match(cora, /phone and\s+desktop, light and dark/);
+  const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  assert.ok(skill.indexOf('soloagile:cora') < skill.indexOf('soloagile:tobin'), 'design comes before the build');
+  assert.match(skill, /picture-check\.md/);
+  assert.match(skill, /`## Choice for the user`, make it a\s+Needs your decision card/);
+  const html = runPageHtml(5, { 'plan.md': 'p', 'report.md': 'r' }, (s) => s);
+  assert.match(html, /<h2>Design<\/h2><p class="none">No screen in this card, so no design\.<\/p>/);
+});

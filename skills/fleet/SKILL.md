@@ -1,6 +1,6 @@
 ---
 name: fleet
-description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Tobin's build in his own copy and branch, Milo's blind review, Orla's fact-check, the security list, and the test and notes — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
+description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Cora's design for a card with a screen, Tobin's build in his own copy and branch, Milo's blind review, Orla's fact-check, the security list, and the test and notes — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
 argument-hint: "<card number>"
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git worktree:*), Bash(git branch:*), Bash(soloagile card:*), Bash(soloagile fleet:*), Bash(soloagile set:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
@@ -27,6 +27,15 @@ from `## Checks` in `pm/overview.md`; and what is out of the card. If the plan n
 choice the card and design don't make, don't guess: move the card to Needs your decision
 with the options (`soloagile card move <n> decision --option "…" --option "…"`, the
 recommended one first), run `soloagile fleet unlock <n>`, and stop.
+
+**2b. Design (Cora), `pm/runs/<n>/design.md`, only for a card with a screen.** A card that
+changes anything a person sees (a page, a screen, a chart) gets a design before it is
+built; for any other card, skip this and Cora's check in step 7. Start Cora with the Agent
+tool, `subagent_type: "soloagile:cora"`, giving her the card, plan.md and the path to write
+design.md and its mock-up to. If design.md has a `## Choice for the user`, make it a
+Needs your decision card with those options, a picture of each
+(`soloagile design <n> <letter> <mock-up.html>`), run `soloagile fleet unlock <n>`, and
+stop. Otherwise add her recommendation to plan.md, so Tobin builds to it.
 
 **3. Build (Tobin), writes `pm/runs/<n>/build.md`.** Run `soloagile fleet branch <n>`:
 it makes Tobin's own copy of the code on branch `card-<n>` and prints its path. Start Tobin
@@ -62,7 +71,10 @@ security-list.md word for word. It is a reading list for the user, never a sign-
 
 **7. Test and notes (Orla), `pm/runs/<n>/report.md`.** In Tobin's copy, run the project's
 checks from `## Checks` in `pm/overview.md`, as for any card; for anything in a browser,
-run `soloagile shots <url>` on the copy's build and read its pictures. Write report.md:
+run `soloagile shots <url>` on the copy's build and read its pictures. A card with a
+design.md: start a new Cora with the four pictures' paths and design.md, to write
+`pm/runs/<n>/picture-check.md`; what she finds off goes in report.md, and a clear miss goes
+back to Tobin as a rework round (step 5's limit of two counts it). Write report.md:
 the card and its done when, each stage with what it did and its file (security list: "no
 hits, not needed" when the scan was quiet), the checks with their results, and what wasn't
 tested. Then the card's lines, as today: `soloagile card note <n> "tested: …"`, a `not
