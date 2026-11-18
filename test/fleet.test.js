@@ -118,7 +118,7 @@ test('Tobin is a plugin agent with set tools, a turn cap and the strongest model
   const tobin = readFileSync(join(root, 'agents', 'tobin.md'), 'utf8');
   assert.match(tobin, /^name: tobin$/m);
   assert.match(tobin, /^model: opus$/m);
-  assert.match(tobin, /^tools: Read, Edit, Write, Bash, Glob, Grep$/m);
+  assert.match(tobin, /^tools: Read, Edit, Write, Bash, Glob, Grep, Skill$/m);
   assert.match(tobin, /^maxTurns: \d+$/m);
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
   assert.match(skill, /subagent_type: "soloagile:tobin"/);
@@ -302,4 +302,15 @@ test('a card marked look runs only Cora and Tobin: no blind review, no security 
   const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
   assert.match(skill, /A card marked `look` takes the short path/);
   assert.match(skill, /Skip Milo's review, the fact-check and the security list/);
+});
+
+test('Orla names the skills each worker loads, and Tobin and Cora can load them', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  assert.match(skill, /a `## Skills` section\s+naming, for Tobin and for Cora, the installed skills that fit this card and why/);
+  for (const name of ['tobin', 'cora']) {
+    const agent = readFileSync(join(root, 'agents', `${name}.md`), 'utf8');
+    assert.match(agent, /^tools: .*\bSkill$/m, name);
+    assert.match(agent, /load each with the Skill tool/, name);
+  }
 });

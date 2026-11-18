@@ -29,7 +29,11 @@ files are already in `pm/runs/<n>/`.
 (`soloagile card show <n>`), its chosen design if it has one (its "chosen" line, and its
 picture in `pm/designs/`), and the code it will touch. Write plan.md: the card and its
 done when; the files to change and how; one test per "done when"; the project's checks,
-from `## Checks` in `pm/overview.md`; and what is out of the card. If the plan needs a real
+from `## Checks` in `pm/overview.md`; what is out of the card; and a `## Skills` section
+naming, for Tobin and for Cora, the installed skills that fit this card and why (from the
+skills listed in your session, such as a frontend design skill for a page, or the
+project's own skills), or "none" for a worker no skill fits. Milo and Rufus have no tools,
+so they load none. If the plan needs a real
 choice the card and design don't make, don't guess: move the card to Needs your decision
 with the options (`soloagile card move <n> decision --option "…" --option "…"`, the
 recommended one first), run `soloagile fleet unlock <n>`, and stop.
@@ -46,7 +50,9 @@ stop. Otherwise add her recommendation to plan.md, so Tobin builds to it.
 **3. Build (Tobin), writes `pm/runs/<n>/build.md`.** Run `soloagile fleet branch <n>`:
 it makes Tobin's own copy of the code on branch `card-<n>` and prints its path. Start Tobin
 with the Agent tool, `subagent_type: "soloagile:tobin"`, giving him the card, plan.md in
-full, his copy's path and the full path to write build.md to. Don't use `isolation`: his
+full, his copy's path and the full path to write build.md to, and telling him to load the
+skills plan.md names for him with the Skill tool before anything else (the same for Cora
+in 2b and 7). Check his transcript shows each Skill call; say in report.md which loaded. Don't use `isolation`: his
 copy is already made. When he returns, read build.md and check his branch has a commit
 (`git log main..card-<n> --oneline`). If he stopped at his turn cap with the card unbuilt,
 don't restart or message him for more turns (a restarted helper gets a fresh cap, #232):
