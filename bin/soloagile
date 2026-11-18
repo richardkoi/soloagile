@@ -58,7 +58,7 @@ import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
-import { cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, runCost, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
+import { cardBase, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, runCost, scanCard, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
 // is installed beside this one, the whole command goes to it, stdin and all, so an old
@@ -100,7 +100,7 @@ const COMMANDS = [
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …] [--press …] [--wait …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
-  ['fleet preflight|branch|update|scan|cost|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, bringing that branch up to date with main before review (exits 1 on a clash, left for the builder), the security scan of its change, what the run cost of the week and the 5 hours, the lock's end, and on the user's look: merge, send back to Build, or drop"],
+  ['fleet preflight|branch|update|scan|cost|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, bringing that branch up to date with main before review (exits 1 on a clash, left for the builder), the security scan of its code against the branch it was built on (scan <card> --base <branch> to choose), what the run cost of the week and the 5 hours, the lock's end, and on the user's look: merge, send back to Build, or drop"],
   ['herdr [--sound <name or file>] [--dry-run]', 'install or update the Herdr add-ons, keeping their sound, and bind F3 to the board if free'],
 ].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
 
@@ -358,10 +358,10 @@ if (cmd === 'rule') {
 
 if (cmd === 'fleet') {
   // soloagile fleet preflight <n> | unlock <n>, in the project's folder (src/fleet.js, #233).
-  const [verb, n] = process.argv.slice(3);
+  const [verb, n, ...rest] = process.argv.slice(3);
   const id = Number(String(n ?? '').replace(/^#/, ''));
   if (!['preflight', 'unlock', 'branch', 'update', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
-    console.error('usage: soloagile fleet preflight|branch|update|scan|cost|unlock|merge|sendback|drop <card>');
+    console.error('usage: soloagile fleet preflight|branch|update|scan|cost|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>])');
     process.exit(2);
   }
   try {
@@ -383,8 +383,17 @@ if (cmd === 'fleet') {
       console.log(`soloagile: dropped #${id}'s fleet work: its copy, branch card-${id} and pm/runs/${id}/`);
     } else if (verb === 'scan') {
       // Exit 1 on a hit, so a script can tell; the hits are on stdout either way.
-      const hits = scanDiff(cardDiff(process.cwd(), id));
-      console.log(scanText(id, hits));
+      // It compares against the branch the card was built on, or --base <branch> (#269).
+      const at = rest.indexOf('--base');
+      if (at >= 0 && (!rest[at + 1] || rest[at + 1].startsWith('--'))) {
+        console.error('usage: soloagile fleet scan <card> [--base <branch>]   (--base needs a branch)');
+        process.exit(2);
+      }
+      const base = at >= 0 ? rest[at + 1] : cardBase(process.cwd(), id);
+      // The whole of each changed file as context, so comments and fences are followed, or
+      // the 3-line diff when that fails, said in the first line (#269).
+      const { hits, narrow } = scanCard(process.cwd(), id, base);
+      console.log(scanText(id, hits, base, { narrow }));
       process.exit(hits.length ? 1 : 0);
     } else if (verb === 'update') {
       // Exit 1 on a clash or an uncommitted resolve, so a script can tell; the copy is left mid-merge for Tobin (#267).
