@@ -163,7 +163,7 @@ test('on desktop a long lane shows its first 10 cards and a Show all button; sea
     await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
     await new Promise((ok) => setTimeout(ok, 300));
     const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
-    const state = () => run(`({ shown: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetParent).length,
+    const state = () => run(`({ shown: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetHeight > 0).length,
       button: document.querySelector('.lane-up-next .lane-more')?.offsetParent ? document.querySelector('.lane-up-next .lane-more').textContent : '',
       ideasButton: !!document.querySelector('.lane-ideas .lane-more')?.offsetParent })`);
     const steps = {};
@@ -176,9 +176,9 @@ test('on desktop a long lane shows its first 10 cards and a Show all button; sea
     steps.m2 = await state();
     await run(`(() => { const m = document.querySelector('.ms-filter select'); m.value = ''; m.dispatchEvent(new Event('change')); })()`);
     await run(`(() => { const b = document.querySelector('.card-find input'); b.value = 'zebra'; b.dispatchEvent(new Event('input')); })()`);
-    steps.zebra = await run(`!!document.querySelector('[data-id="14"]').offsetParent`);
+    steps.zebra = await run(`document.querySelector('[data-id="14"]').offsetHeight > 0`);
     await run(`(() => { const b = document.querySelector('.card-find input'); b.value = '#15'; b.dispatchEvent(new Event('input')); b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); })()`);
-    steps.open = await run(`!!document.querySelector('[data-id="15"] .card-modal:popover-open') && !!document.querySelector('[data-id="15"]').offsetParent`);
+    steps.open = await run(`!!document.querySelector('[data-id="15"] .card-modal:popover-open') && document.querySelector('[data-id="15"]').offsetHeight > 0`);
     return steps;
   });
   assert.deepEqual(seen.start, { shown: 10, button: 'Show all 15', ideasButton: false }, 'ten cards, then the button; a short lane has none');
@@ -188,6 +188,32 @@ test('on desktop a long lane shows its first 10 cards and a Show all button; sea
   assert.equal(seen.m2.button, '');
   assert.equal(seen.zebra, true, 'a search shows a match past the first 10');
   assert.equal(seen.open, true, '#15 and Enter opens a card past the first 10');
+});
+
+test("the browser's find finds a card past Show all, shows it and opens its lane in full (#263)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-find-'));
+  mkdirSync(join(repo, 'pm'));
+  // 15 Up next cards; only #12 has the word "Quokka", and it sits past the first 10.
+  const next = Array.from({ length: 15 }, (_, i) => `- #${i + 1} ${i === 11 ? 'Quokka' : 'Next'} card ${i + 1} · M1 · 2 pts\n  a line`).join('\n');
+  writeFileSync(join(repo, 'pm', 'board.md'), `# Board\n<!-- next-id: 20 -->\n## Ideas\n## Up next\n${next}\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n`);
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — One · not started\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const state = () => run(`({ shown: document.querySelector('[data-id="12"]').offsetHeight > 0,
+      hidden: document.querySelector('[data-id="12"]').getAttribute('hidden'),
+      all: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetHeight > 0).length,
+      button: document.querySelector('.lane-up-next .lane-more').textContent })`);
+    const steps = { before: await state() };
+    // Chrome fires beforematch on the hidden card when find in page hits it, then shows it.
+    await run(`(() => { const li = document.querySelector('[data-id="12"]'); li.dispatchEvent(new Event('beforematch', { bubbles: true })); li.removeAttribute('hidden'); })()`);
+    steps.after = await state();
+    return steps;
+  });
+  assert.deepEqual(seen.before, { shown: false, hidden: 'until-found', all: 10, button: 'Show all 15' }, 'past the first 10, hidden until found');
+  assert.deepEqual(seen.after, { shown: true, hidden: null, all: 15, button: 'Show the first 10' }, 'found: the card shows and its lane opens in full');
 });
 
 test("on a phone a long lane shows its first 5 cards and a Show all button, so Done's heading comes near the top (#220)", { skip: !findBrowser() && 'no browser here' }, async () => {
@@ -200,9 +226,9 @@ test("on a phone a long lane shows its first 5 cards and a Show all button, so D
     await page.send('Emulation.setDeviceMetricsOverride', { width: 360, height: 780, deviceScaleFactor: 1, mobile: true });
     await new Promise((ok) => setTimeout(ok, 300));
     const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
-    return run(`({ shown: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetParent).length,
+    return run(`({ shown: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetHeight > 0).length,
       button: document.querySelector('.lane-up-next .lane-more').textContent,
-      looks: [...document.querySelectorAll('.lane-waiting .card-x')].filter((li) => li.offsetParent).length,
+      looks: [...document.querySelectorAll('.lane-waiting .card-x')].filter((li) => li.offsetHeight > 0).length,
       done: document.querySelector('.lane-done').getBoundingClientRect().top + scrollY })`);
   });
   assert.equal(seen.shown, 5);

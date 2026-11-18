@@ -107,7 +107,12 @@
 /* Long lanes (#219, #220): Up next, Ideas and Done show their first 10 cards (5 on a phone,
    where lanes stack), then a "Show all N" button. The count is of the cards the milestone menu leaves; while the search box has
    words every card shows, so a match is never hidden; a card opened by its number has its
-   lane shown in full first. A lane's choice lasts until the page is opened again. */
+   lane shown in full first. A lane's choice lasts until the page is opened again.
+   The cards past the first are hidden="until-found" (#263), so the browser's find in page
+   still finds them: Chrome fires beforematch on the card and shows it, and its lane opens
+   in full. The milestone menu hides cards with a plain hidden; only that counts as
+   filtered out here. A browser without until-found hides them as plain hidden. */
+function soloagileFiltered(li) { return li.hasAttribute('hidden') && li.getAttribute('hidden') !== 'until-found'; }
 (function () {
   var phone = window.matchMedia('(max-width: 620px)');
   var FIRST = 10;
@@ -116,11 +121,13 @@
     var body = lane.querySelector('.lane-body');
     if (!body) return;
     var key = lane.className.match(/lane-([a-z-]+)/)[1];
-    var cards = Array.prototype.filter.call(body.querySelectorAll(':scope > .card-x'), function (li) { return !li.hidden; });
+    var cards = Array.prototype.filter.call(body.querySelectorAll(':scope > .card-x'), function (li) { return !soloagileFiltered(li); });
     FIRST = phone.matches ? 5 : 10;
     var long = cards.length > FIRST && (phone.matches || key !== 'waiting');
-    cards.forEach(function (li, i) { li.classList.toggle('over', long && !open[key] && !searching && i >= FIRST); });
-    body.querySelectorAll(':scope > .card-x[hidden]').forEach(function (li) { li.classList.remove('over'); });
+    cards.forEach(function (li, i) {
+      if (long && !open[key] && !searching && i >= FIRST) li.setAttribute('hidden', 'until-found');
+      else li.removeAttribute('hidden');
+    });
     var more = lane.querySelector('.lane-more');
     if (!more) {
       more = document.createElement('button');
@@ -128,6 +135,8 @@
       more.className = 'lane-more';
       more.addEventListener('click', function () { open[key] = !open[key]; limit(lane); if (!open[key]) lane.scrollIntoView({ block: 'nearest' }); });
       body.after(more);
+      // Find in page hit a card past the first: open the lane, so the rest show too.
+      body.addEventListener('beforematch', function () { open[key] = true; limit(lane); });
     }
     more.hidden = !long || searching || body.hidden;
     more.textContent = open[key] ? 'Show the first ' + FIRST : 'Show all ' + cards.length;
@@ -159,7 +168,7 @@
       var hit = q && li.textContent.toLowerCase().indexOf(q) >= 0;
       li.classList.toggle('find-hit', !!hit);
       li.classList.toggle('find-dim', !!q && !hit);
-      if (hit && !li.hidden) n++;
+      if (hit && !soloagileFiltered(li)) n++;
     });
     note.textContent = !q ? '' : /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
     if (window.soloagileLimit) window.soloagileLimit(!!q && !/^#?\d+$/.test(q));
@@ -172,8 +181,8 @@
     var li = document.querySelector('li.card-x[data-id="' + m[1] + '"]');
     if (!li) { note.textContent = 'no card #' + m[1] + ' on this page'; return; }
     var menu = document.querySelector('.ms-filter select');
-    if (li.hidden && menu) { menu.value = ''; menu.dispatchEvent(new Event('change')); }
-    if (li.classList.contains('over') && window.soloagileLimit) window.soloagileLimit(false, li);
+    if (soloagileFiltered(li) && menu) { menu.value = ''; menu.dispatchEvent(new Event('change')); }
+    if (li.hasAttribute('hidden') && window.soloagileLimit) window.soloagileLimit(false, li);
     var modal = li.querySelector('.card-modal');
     if (modal) modal.showPopover(); else li.scrollIntoView({ block: 'center' });
   });
