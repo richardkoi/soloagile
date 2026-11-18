@@ -97,8 +97,9 @@ export function preflightText(id, { stage, file, cleared, said }) {
 // .claude/worktrees/ where soloagile cleanup clears merged ones. That folder is added to
 // the repo's own .git/info/exclude, never to a committed file, so the copy doesn't make the
 // main tree look dirty to the next preflight. A second call finds the copy already there.
-// from: the branch the card was made from, kept in git config as branch.card-<n>.fleetBase
-// so the scan compares against it (#269). Making the branch from it is #270's job.
+// from: a new branch card-<n> is made from it (not HEAD), and it is kept in git config as
+// branch.card-<n>.fleetBase so the scan compares against it (#269). Only a branch made here
+// is recorded; a later call never rewrites it. The CLI's --from flag is #270's job.
 export function fleetBranch(repo, id, { from } = {}) {
   const root = resolve(repo);
   const git = (...args) => {
@@ -114,34 +115,47 @@ export function fleetBranch(repo, id, { from } = {}) {
     mkdirSync(dirname(exclude), { recursive: true });
     writeFileSync(exclude, `${excluded}${excluded && !excluded.endsWith('\n') ? '\n' : ''}.claude/worktrees/\n`);
   }
-  if (from) git('config', `branch.${branch}.fleetBase`, from);
   if (existsSync(path)) return { path, branch, made: false };
   const known = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root }).status === 0;
   if (known) git('worktree', 'add', path, branch);
-  else git('worktree', 'add', '-b', branch, path);
+  else {
+    git('worktree', 'add', '-b', branch, path, ...(from ? [from] : []));
+    if (from) git('config', `branch.${branch}.fleetBase`, from);
+  }
   return { path, branch, made: true };
 }
 
 // The security scan (#238): a plain search of a change's added lines for keys, tokens, .env,
 // logins and permissions. No hits, and Rufus is never started, so a quiet change costs
 // nothing. Each hit is { file, line, text, why }, line being the new file's line number.
+// An entry whose third item is true is key material itself: it is checked on every added
+// line, comments and prose too (#269). The rest are words, checked in code only.
 const RISKY = [
-  ['a key or token', /\b(api[_-]?key|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}/i],
+  ['a key or token', /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}/i, true],
+  ['a key or token', /\b(api[_-]?key|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b/i],
   ['a .env file', /(^|[^\w.])\.env\b|\bprocess\.env\b|\bos\.environ\b|\bdotenv\b/],
   // Not session (#269): the word is all over this plugin's prose and tests ("Session flow").
   ['a login or password', /\b(password|passwd|login|auth|cookie|credential|oauth|jwt)\b/i],
   ['a permission', /\b(chmod\w*|chown\w*|sudo|setuid|permissions?|allow(ed)?[-_ ]?tools|cors|access[-_ ]control)\b|\b(0o?)?777\b/i],
 ];
 
-// Only code is scanned (#269): comments and Markdown prose talk about tokens and logins
-// without holding any. A line wholly a comment is skipped (//, /*, *, <!--, the lines of an
-// HTML comment that spans lines, and # in the # languages, not #!); a code line is cut at a
+// Only code is scanned for the words (#269): comments and Markdown prose talk about tokens
+// and logins without holding any. A line wholly a comment is skipped (//, <!-- and /* up to
+// their close, the lines inside an open /* or HTML comment, and # in the # languages, not
+// #!); code after a closing */ or --> on the same line is scanned. A code line is cut at a
 // trailing comment (` //`, never `://`, so URLs stay; ` #` in the # languages). In Markdown
-// only fenced code is scanned. State is followed through a hunk's added and context lines.
-const HASH_LANG = /\.(sh|bash|py|ya?ml|toml)$|(^|\/)bin\/[^/.]+$/;
+// only fenced code is scanned. State is followed through added and context lines; the CLI
+// scan reads the whole file as context, so a fence or comment opened far above is known.
+// An extensionless file (bin/soloagile, a Dockerfile) is a # language unless its shebang,
+// on line 1, runs node, deno or bun.
+const HASH_LANG = /\.(sh|bash|py|ya?ml|toml)$/;
+const JS_SHEBANG = /^#!.*\b(node|deno|bun)\b/;
 const MARKDOWN = /\.(md|markdown)$/i;
 
-// The part of a line to scan, or null for none; st carries the open fence or HTML comment.
+const hashLang = (file, st) => HASH_LANG.test(file) || (!/\.[^/]*$/.test(file) && !JS_SHEBANG.test(st.shebang ?? ''));
+
+// The part of a line to scan, or null for none; st carries the open fence or comment and
+// the file's shebang.
 function codePart(file, body, st) {
   const t = body.trim();
   if (MARKDOWN.test(file)) {
@@ -152,17 +166,18 @@ function codePart(file, body, st) {
     }
     return st.fence ? body : null;
   }
-  if (st.html) {
-    if (!body.includes('-->')) return null;
-    st.html = false;
-    return codePart(file, body.slice(body.indexOf('-->') + 3), st);
+  // Inside a comment, or one opening the line: skip to its close, then scan what follows.
+  const open = st.html ? '-->' : st.block ? '*/' : t.startsWith('<!--') ? '-->' : t.startsWith('/*') ? '*/' : null;
+  if (open) {
+    // An opener on this line is passed over before looking for its close.
+    const start = st.html || st.block ? 0 : body.indexOf(t) + (open === '-->' ? 4 : 2);
+    const end = body.indexOf(open, start);
+    st.html = open === '-->' && end < 0;
+    st.block = open === '*/' && end < 0;
+    return end < 0 ? null : codePart(file, body.slice(end + open.length), st);
   }
-  if (t.startsWith('<!--')) {
-    if (!t.slice(4).includes('-->')) st.html = true;
-    return null;
-  }
-  const hash = HASH_LANG.test(file);
-  if (/^(\/\/|\/\*|\*)/.test(t) || (hash && t.startsWith('#') && !t.startsWith('#!'))) return null;
+  const hash = hashLang(file, st);
+  if (t.startsWith('//') || (hash && t.startsWith('#') && !t.startsWith('#!'))) return null;
   return body.split(hash ? /[ \t]#/ : /[ \t]\/\//)[0];
 }
 
@@ -177,24 +192,26 @@ export function scanDiff(diff) {
       file = to[1] === '/dev/null' ? null : to[1];
       // A changed file whose own name is risky is a hit even when its lines aren't.
       if (file && /(^|\/)(\.env[\w.-]*|[\w.-]*\.pem|[\w.-]*\.key|id_(rsa|ed25519)\w*|credentials[\w.]*)$/.test(file)) hits.push({ file, line: 0, text: file, why: 'a secret file' });
+      st = {};
       continue;
     }
     const hunk = text.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
     if (hunk) {
       line = Number(hunk[1]);
-      st = {};
+      st = { shebang: st.shebang };
       continue;
     }
     if (!file || text.startsWith('---')) continue;
-    if (text.startsWith('+')) {
-      const code = codePart(file, text.slice(1), st);
-      const why = code && RISKY.find(([, re]) => re.test(code))?.[0];
-      if (why) hits.push({ file, line, text: text.slice(1).trim(), why });
-      line++;
-    } else if (!text.startsWith('-') && !text.startsWith('\\')) {
-      codePart(file, text.slice(1), st);
-      line++;
+    const added = text.startsWith('+');
+    if (!added && (text.startsWith('-') || text.startsWith('\\'))) continue;
+    const body = text.slice(1);
+    if (line === 1 && body.startsWith('#!')) st.shebang = body;
+    const code = codePart(file, body, st);
+    if (added) {
+      const why = RISKY.find(([, re, everywhere]) => (everywhere ? body : code) && re.test(everywhere ? body : code))?.[0];
+      if (why) hits.push({ file, line, text: body.trim(), why });
     }
+    line++;
   }
   return hits;
 }
@@ -209,9 +226,12 @@ export function cardBase(repo, id) {
   return list.split('\n\n')[0].match(/^branch refs\/heads\/(.+)$/m)?.[1] ?? 'main';
 }
 
-// The change on card-<n> against the branch it came from, as a unified diff.
-export function cardDiff(repo, id, base = cardBase(repo, id)) {
-  const r = spawnSync('git', ['diff', `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+// The change on card-<n> against the branch it came from, as a unified diff. context: 'all'
+// gives each changed file whole as context (the scan's view, so a fence, comment or shebang
+// far from the change is known); otherwise git's usual 3 lines.
+export function cardDiff(repo, id, base = cardBase(repo, id), { context } = {}) {
+  const wide = context === 'all' ? ['-U1000000'] : [];
+  const r = spawnSync('git', ['diff', ...wide, `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`git diff ${base}...card-${id}: ${r.stderr.trim()}`);
   return r.stdout;
 }

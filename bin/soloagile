@@ -381,8 +381,13 @@ if (cmd === 'fleet') {
       // Exit 1 on a hit, so a script can tell; the hits are on stdout either way.
       // It compares against the branch the card was built on, or --base <branch> (#269).
       const at = rest.indexOf('--base');
-      const base = at >= 0 && rest[at + 1] ? rest[at + 1] : cardBase(process.cwd(), id);
-      const hits = scanDiff(cardDiff(process.cwd(), id, base));
+      if (at >= 0 && (!rest[at + 1] || rest[at + 1].startsWith('--'))) {
+        console.error('usage: soloagile fleet scan <card> [--base <branch>]   (--base needs a branch)');
+        process.exit(2);
+      }
+      const base = at >= 0 ? rest[at + 1] : cardBase(process.cwd(), id);
+      // The whole of each changed file as context, so comments and fences are followed (#269).
+      const hits = scanDiff(cardDiff(process.cwd(), id, base, { context: 'all' }));
       console.log(scanText(id, hits, base));
       process.exit(hits.length ? 1 : 0);
     } else if (verb === 'branch') {

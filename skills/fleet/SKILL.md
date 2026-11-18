@@ -79,8 +79,9 @@ the second, move the card to Needs your decision with them, run `soloagile fleet
 
 **6. Security list (a script, then Rufus only on a hit), `pm/runs/<n>/security-list.md`.**
 Run `soloagile fleet scan <n>`. It compares card-<n> against the branch the card was built
-on (its first line names it; `--base <branch>` chooses another) and skips comments and
-Markdown prose, so a hit is in code. With no hits it says so and exits 0: write nothing, start
+on (its first line names it; `--base <branch>` chooses another). Its words (token, login and
+the rest) count only in code, not in comments or Markdown prose; a key itself counts
+anywhere. With no hits it says so and exits 0: write nothing, start
 no one, and go on. With hits (exit 1), start Rufus with the Agent tool, `subagent_type:
 "soloagile:rufus"`, giving him the diff and the scan's lines, and write his reply into
 security-list.md word for word. It is a reading list for the user, never a sign-off.
