@@ -22,6 +22,7 @@
 //          --batch next|M3|<n> [--helpers N]   a batch's time instead: likely and surely, and when
 //        soloagile link [repo]      print where the project's page opens: a page server's address, or its file
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
+//        soloagile shots --card <n>[#fragment] [dir]   the same of the page built from card-<n>'s copy
 //          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box;
 //                                --press <key> presses a key, such as Enter or Escape.
 //                                --wait "<words or selector>" waits up to 30 s for a slow page to show it.
@@ -48,7 +49,7 @@ import { nextText } from '../src/next.js';
 import { parseBoard, parsePlan } from '../src/board.js';
 import { commitHandoff, savesAtEnd, sessionStartOutput } from '../src/session.js';
 import { onHome, pageUrl, projectsFolderOf, readSettings } from '../src/settings.js';
-import { parseShotArgs, takeShots } from '../src/shots.js';
+import { cardPage, parseShotArgs, takeShots } from '../src/shots.js';
 import { readSizes } from '../src/sizes.js';
 import { batchGuess, batchText, cardsLeft, leftSays, overrunning, replayLeft, guessRange, guessSays, readGuess, replayBatches, replayRanges } from '../src/guess.js';
 import { addRuleTo, removeRuleFrom } from '../src/rules.js';
@@ -98,9 +99,9 @@ const COMMANDS = [
   ['guess [repo] [--replay]', "a new card's time range from the finished cards; --replay checks it on the past"],
   ['guess --batch next|M3|<n>', 'a batch of cards: likely and surely, and when it would end'],
   ['link [repo]', "print the address of the project's page"],
-  ['shots <url> [dir] [--click …] [--type …] [--press …] [--wait …]', 'four screenshots: desktop and phone, dark and light'],
+  ['shots <url> [dir] | shots --card <n> [dir] [--click …] [--type …] [--press …] [--wait …]', "four screenshots: desktop and phone, dark and light; --card builds the page from card-<n>'s copy first"],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
-  ['fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, bringing that branch up to date with main before review (exits 1 on a clash, left for the builder), the blind reviewer's pack (done when, diff, changed code in full), the security scan of its code against the branch it was built on (scan <card> --base <branch> to choose), what the run cost of the week and the 5 hours, the lock's end, and on the user's look: merge, send back to Build, or drop"],
+  ['fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n> (branch <card> [--from <card>] to build on another card's branch), bringing that branch up to date with main before review (exits 1 on a clash, left for the builder), the blind reviewer's pack (done when, diff, changed code in full), the security scan of its code against the branch it was built on (scan <card> --base <branch> to choose), what the run cost of the week and the 5 hours, the lock's end, and on the user's look: merge, send back to Build, or drop"],
   ['herdr [--sound <name or file>] [--dry-run]', 'install or update the Herdr add-ons, keeping their sound, and bind F3 to the board if free'],
 ].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
 
@@ -143,12 +144,14 @@ if (cmd === 'shots') {
     process.exit(2);
   }
   try {
-    const files = await takeShots(shot.url, shot.dir, shot.steps);
+    // --card <n>: the page built from card-<n>'s copy into a temp folder, shot there (#270).
+    const page = shot.card ? cardPage(process.cwd(), shot.card, { hash: shot.hash }) : null;
+    const files = await takeShots(page ? page.url : shot.url, shot.dir ?? page?.dir, shot.steps);
     for (const file of files) console.log(file);
     // Run in a project, a folder of its own making is marked with the Doing cards, so moving
     // the card to Needs your look clears it (#155).
     const board = resolve(process.cwd(), 'pm', 'board.md');
-    if (!shot.dir && files.length && existsSync(board)) markShots(dirname(files[0]), process.cwd(), readFileSync(board, 'utf8'));
+    if (!shot.dir && !shot.card && files.length && existsSync(board)) markShots(dirname(files[0]), process.cwd(), readFileSync(board, 'utf8'));
   } catch (err) {
     console.error(`soloagile: ${err.message}`);
     process.exit(1);
@@ -364,7 +367,7 @@ if (cmd === 'fleet') {
   // otherwise cut a big output at 64 KB, as with board --json above (#268).
   const say = (text) => new Promise((done) => process.stdout.write(`${text}\n`, done));
   if (!['preflight', 'unlock', 'branch', 'update', 'review', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
-    console.error('usage: soloagile fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>])');
+    console.error('usage: soloagile fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>], branch <card> [--from <card>])');
     process.exit(2);
   }
   try {
@@ -405,8 +408,17 @@ if (cmd === 'fleet') {
       await say(updateText(id, u));
       process.exit(u.state === 'clash' || u.state === 'resolved' ? 1 : 0);
     } else if (verb === 'branch') {
-      const b = fleetBranch(process.cwd(), id);
-      console.log(`soloagile: ${b.made ? 'made' : 'found'} #${id}'s copy on branch ${b.branch}: ${b.path}`);
+      // --from <m> builds on another card's unmerged branch (#270): a number or #m is card-<m>,
+      // anything else a branch name as given. A branch that exists already keeps its start.
+      const at = rest.indexOf('--from');
+      if (at >= 0 && (!rest[at + 1] || rest[at + 1].startsWith('--'))) {
+        console.error('usage: soloagile fleet branch <card> [--from <card>]   (--from needs a card or branch)');
+        process.exit(2);
+      }
+      const from = at < 0 ? undefined : /^#?\d+$/.test(rest[at + 1]) ? `card-${rest[at + 1].replace(/^#/, '')}` : rest[at + 1];
+      const b = fleetBranch(process.cwd(), id, { from });
+      if (b.made) console.log(`soloagile: made #${id}'s copy on branch ${b.branch}${from ? ` from ${from}` : ''}: ${b.path}`);
+      else console.log(`soloagile: found #${id}'s copy on branch ${b.branch}${from ? '; --from ignored, the branch exists' : ''}: ${b.path}`);
     }
     else console.log(unlock(process.cwd(), id) ? `soloagile: #${id} is unlocked` : `soloagile: #${id} had no lock`);
   } catch (err) {

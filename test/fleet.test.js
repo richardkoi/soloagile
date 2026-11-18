@@ -169,6 +169,30 @@ test("fleet branch makes Tobin's copy on card-<n>, kept out of the main tree's s
   assert.doesNotThrow(() => preflight(dir, 1, { pid: 1, isAlive: () => false }));
 });
 
+test('fleet branch <n> --from <m> makes card-<n> from card-<m> and records it as the base (#270)', () => {
+  const dir = repo();
+  const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' }).trim();
+  const first = fleetBranch(dir, 1);
+  writeFileSync(join(first.path, 'app.js'), '2\n');
+  git(first.path, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'card 1');
+  const run = (...a) => spawnSync('node', [PM, 'fleet', 'branch', ...a], { cwd: dir, encoding: 'utf8' });
+  const made = run('2', '--from', '1');
+  assert.equal(made.status, 0, made.stderr);
+  assert.match(made.stdout, /made #2's copy on branch card-2 from card-1: /);
+  assert.equal(git(dir, 'rev-parse', 'card-2'), git(dir, 'rev-parse', 'card-1'), "card-2 starts at card-1's tip");
+  assert.equal(git(dir, 'config', 'branch.card-2.fleetBase'), 'card-1');
+  assert.match(run('2', '--from', '#1').stdout, /found #2's copy on branch card-2; --from ignored, the branch exists: /);
+  const bare = run('3', '--from');
+  assert.equal(bare.status, 2);
+  assert.match(bare.stderr, /usage: soloagile fleet .*branch <card> \[--from <card>\]/);
+});
+
+test('the fleet skill shoots a copy with shots --card and builds on another card with --from (#270)', () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  assert.match(skill, /soloagile shots --card <n>/);
+  assert.match(skill, /soloagile fleet branch\s+<n> --from <m>/);
+});
+
 test('Tobin is a plugin agent with set tools, a turn cap and the strongest model; Orla is the fleet skill', () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const tobin = readFileSync(join(root, 'agents', 'tobin.md'), 'utf8');

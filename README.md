@@ -104,7 +104,9 @@ computer. Without one, everything else still works.
 
 `soloagile shots <url>` takes them. It can click, type and press a key first (`--click`,
 `--type`, `--press`), take the whole page (`--full`), and wait for a slow page, such as a
-map that draws after its data arrives (`--wait "<words or selector>"`).
+map that draws after its data arrives (`--wait "<words or selector>"`). `soloagile shots
+--card <n>` shoots a fleet card's page before it is merged: it builds the page from that
+card's own copy of the code first.
 
 ## Release notes
 
