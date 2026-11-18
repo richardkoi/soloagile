@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,8 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { cardBase, cardDiff, dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
+import { cardBase, cardDiff, costLines, dropRun, fleetBranch, mergeCard, preflight, recordUsageStart, runCost, runDir, runPageHtml, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
+import { maskUrl, readUsage } from '../src/usage.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -558,6 +559,236 @@ test('Orla names the skills each worker loads, and Tobin and Cora can load them'
     assert.match(agent, /^tools: .*\bSkill$/m, name);
     assert.match(agent, /load each with the Skill tool/, name);
   }
+});
+
+const NC = " (reset not checked: usageResets isn't set)";
+
+// What a run cost (#271). Never the real TokenSentinel: usage is passed in, or read through a
+// get that throws, or from a settings folder with no usage address.
+test("a run's cost: each window's share, with the numbers it went between (#271)", () => {
+  const text = costLines({ pcts: { week: 4, '5 hours': 54 } }, { pcts: { week: 4.6, '5 hours': 61 } });
+  assert.equal(text, `## Cost\n- the week: 0.6% of the limit (4% → 4.6%)${NC}\n- the 5 hours: 7.0% of the limit (54% → 61%)${NC}`);
+});
+
+test("a run's cost is not measured when TokenSentinel doesn't answer, or wasn't read at the start (#271)", async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4, '5 hours': 54 } });
+  const down = await readUsage({ usageUrl: 'http://u.test/budget' }, async () => { throw new Error('refused'); });
+  const text = await runCost(dir, 1, { usage: down });
+  assert.equal(text, "## Cost\n- not measured: couldn't read http://u.test/budget: refused");
+  const said = costLines({ said: 'no usage address set' }, { pcts: { week: 5 } });
+  assert.equal(said, '## Cost\n- not measured: no usage address set');
+  assert.match(await runCost(dir, 2, { usage: { pcts: { week: 5 } } }), /not measured: no usage was recorded at the run's start/);
+});
+
+test("a window that reset during the run isn't measured (#271)", () => {
+  const text = costLines({ pcts: { week: 40, '5 hours': 90 } }, { pcts: { week: 41, '5 hours': 12 } });
+  assert.match(text, /- the 5 hours: not measured, it reset during the run/);
+  assert.match(text, /- the week: 1.0% of the limit \(40% → 41%\)/);
+});
+
+test("other runs that overlapped are named, since their cost is in it too (#271)", async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(0) });
+  await recordUsageStart(dir, 268, { pcts: { week: 4.1 } }, { now: at(5) });
+  mkdirSync(runDir(dir, 269), { recursive: true });
+  writeFileSync(join(runDir(dir, 269), 'lock'), JSON.stringify({ pid: 9, started: at(10).toISOString() }));
+  await recordUsageStart(dir, 250, { pcts: { week: 3 } }, { now: new Date(Date.UTC(2026, 10, 17)) }); // the day before: not shared
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(30) });
+  assert.match(text, /\n- shared with #268, #269: their runs ran at the same time, so this counts them too$/);
+});
+
+test('a resumed run keeps the usage from its first start (#271)', async () => {
+  const dir = repo();
+  assert.equal(await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: new Date('2026-11-18T10:00:00Z') }), true);
+  assert.equal(await recordUsageStart(dir, 1, { pcts: { week: 9 } }, { now: new Date('2026-11-18T12:00:00Z') }), false);
+  assert.deepEqual(JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8')), { at: '2026-11-18T10:00:00.000Z', pcts: { week: 4 } });
+  await recordUsageStart(dir, 2, { pct: null, said: 'no usage address set' });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 2), 'usage-start.json'), 'utf8')).said, 'no usage address set');
+});
+
+test('soloagile fleet cost <n> says not measured with no usage address, and exits 0 (#271)', () => {
+  const dir = repo();
+  const home = mkdtempSync(join(tmpdir(), 'home-'));
+  const env = { ...process.env, HOME: home, SOLOAGILE_DIR: home };
+  const run = (...a) => spawnSync('node', [PM, 'fleet', ...a], { cwd: dir, encoding: 'utf8', env });
+  assert.equal(run('preflight', '1').status, 0);
+  assert.match(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'), /no usage address set/, 'preflight records the start');
+  const cost = run('cost', '1');
+  assert.equal(cost.status, 0, cost.stderr);
+  assert.match(cost.stdout, /^## Cost\n- not measured: no usage address set/);
+});
+
+test("the fleet skill's report ends with soloagile fleet cost (#271)", () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  const step7 = skill.slice(skill.indexOf('**7. Test and notes'), skill.indexOf('**8. '));
+  assert.match(step7, /report\.md ends with the output of\s+`soloagile fleet cost <n>`/);
+});
+
+// Round 1 rework (#271).
+const TS = (five, week, fiveReset = 27, weekReset = 9927) => async () => ({
+  json: async () => ({ windows: { five_hour: { used_pct: five, minutes_to_reset: fiveReset }, seven_day: { used_pct: week, minutes_to_reset: weekReset } } }),
+});
+const TS_SETTINGS = { usageUrl: 'http://u.test/budget', usagePaths: { week: 'windows.seven_day.used_pct', '5 hours': 'windows.five_hour.used_pct' } };
+
+test("a run's cost through readUsage with TokenSentinel's JSON gives both windows measured (#271)", async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, await readUsage(TS_SETTINGS, TS(60.0, 5.0)));
+  const text = await runCost(dir, 1, { usage: await readUsage(TS_SETTINGS, TS(64.0, 5.5)) });
+  assert.equal(text, `## Cost\n- the week: 0.5% of the limit (5% → 5.5%)${NC}\n- the 5 hours: 4.0% of the limit (60% → 64%)${NC}`);
+});
+
+test('usageResets: a window whose reset time passed during the run is not measured (#271)', async () => {
+  const settings = { ...TS_SETTINGS, usageResets: { week: 'windows.seven_day.minutes_to_reset', '5 hours': 'windows.five_hour.minutes_to_reset' } };
+  const u = await readUsage(settings, TS(60.0, 5.0));
+  assert.deepEqual(u.resets, { week: 9927, '5 hours': 27 });
+  assert.equal((await readUsage(TS_SETTINGS, TS(60.0, 5.0))).resets, undefined, 'no resets without the setting');
+  const dir = repo();
+  const start = new Date('2026-11-18T10:00:00Z');
+  await recordUsageStart(dir, 1, u, { now: start });
+  const saved = JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'));
+  assert.deepEqual(saved.resetAt, { week: new Date(start.getTime() + 9927 * 60000).toISOString(), '5 hours': '2026-11-18T10:27:00.000Z' });
+  // 5 hours went 60 → 70, higher at the end, but its reset time (10:27) passed by 10:40.
+  const end = await readUsage(settings, TS(70.0, 5.5));
+  const text = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:40:00Z') });
+  assert.match(text, /- the 5 hours: not measured, it reset during the run/);
+  assert.match(text, /- the week: 0\.5% of the limit \(5% → 5\.5%\)/);
+  const atReset = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:28:00Z') });
+  assert.match(atReset, /- the 5 hours: not measured, it reset during the run/, 'a minute after the reset time counts');
+  const before = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:20:00Z') });
+  assert.match(before, /- the 5 hours: 10\.0% of the limit \(60% → 70%\)/);
+});
+
+test('a start saved with no numbers is replaced by a later one with numbers; one with numbers is kept (#271)', async () => {
+  const dir = repo();
+  const file = join(runDir(dir, 1), 'usage-start.json');
+  assert.equal(await recordUsageStart(dir, 1, { pct: null, said: 'refused' }, { now: new Date('2026-11-18T10:00:00Z') }), true);
+  assert.equal(await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4 } }, { now: new Date('2026-11-18T11:00:00Z') }), true);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { at: '2026-11-18T11:00:00.000Z', pcts: { week: 4 }, replaced: '2026-11-18T10:00:00.000Z' });
+  assert.equal(await recordUsageStart(dir, 1, { pct: 9, pcts: { week: 9 } }, { now: new Date('2026-11-18T12:00:00Z') }), false);
+  assert.equal(await recordUsageStart(dir, 1, { pct: null, said: 'refused' }), false);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pcts, { week: 4 });
+});
+
+test('a run that started earlier and is still running overlaps; one that finished before the start does not (#271)', async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(30) });
+  // #270 started 20 minutes before #1 and still holds its lock.
+  await recordUsageStart(dir, 270, { pcts: { week: 3.9 } }, { now: at(10) });
+  writeFileSync(join(runDir(dir, 270), 'lock'), JSON.stringify({ pid: 9, started: at(10).toISOString() }));
+  // #260 started at 10:00 and wrote its report.md at 10:20, before #1 started: not shared.
+  await recordUsageStart(dir, 260, { pcts: { week: 3.5 } }, { now: at(0) });
+  writeFileSync(join(runDir(dir, 260), 'report.md'), '# report\n');
+  utimesSync(join(runDir(dir, 260), 'report.md'), at(20), at(20));
+  // #261 started at 10:00 with no lock, and wrote its report.md at 10:40, after #1 started: shared.
+  await recordUsageStart(dir, 261, { pcts: { week: 3.5 } }, { now: at(0) });
+  writeFileSync(join(runDir(dir, 261), 'report.md'), '# report\n');
+  utimesSync(join(runDir(dir, 261), 'report.md'), at(40), at(40));
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: (pid) => pid === 9 });
+  assert.match(text, /\n- shared with #261, #270: their runs ran at the same time, so this counts them too$/);
+});
+
+test("an unreadable or empty usage-start.json is not measured, and fleet cost exits 0 (#271)", async () => {
+  const dir = repo();
+  mkdirSync(runDir(dir, 1), { recursive: true });
+  writeFileSync(join(runDir(dir, 1), 'usage-start.json'), '');
+  assert.equal(await runCost(dir, 1, { usage: { pcts: { week: 5 } } }), "## Cost\n- not measured: the start reading couldn't be read");
+  writeFileSync(join(runDir(dir, 1), 'usage-start.json'), '{"at": ');
+  assert.equal(await runCost(dir, 1, { usage: { pcts: { week: 5 } } }), "## Cost\n- not measured: the start reading couldn't be read");
+  const home = mkdtempSync(join(tmpdir(), 'home-'));
+  const cost = spawnSync('node', [PM, 'fleet', 'cost', '1'], { cwd: dir, encoding: 'utf8', env: { ...process.env, HOME: home, SOLOAGILE_DIR: home } });
+  assert.equal(cost.status, 0, cost.stderr);
+  assert.match(cost.stdout, /not measured: the start reading couldn't be read/);
+});
+
+test('the share always has one decimal, and the readings are shown as given (#271)', () => {
+  assert.equal(costLines({ pcts: { week: 60 } }, { pcts: { week: 67 } }), `## Cost\n- the week: 7.0% of the limit (60% → 67%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 40.2 } }, { pcts: { week: 40.8 } }), `## Cost\n- the week: 0.6% of the limit (40.2% → 40.8%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 0.1 + 0.2 } }, { pcts: { week: 5 } }), `## Cost\n- the week: 4.7% of the limit (0.3% → 5%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 12 } }, { pcts: { week: 12 } }), `## Cost\n- the week: 0.0% of the limit (12% → 12%)${NC}`);
+});
+
+test("a usage address's login and query are masked before they are saved or printed (#271)", async () => {
+  const dir = repo();
+  const url = 'http://me:hunter2@u.test/budget?token=abc123';
+  const down = await readUsage({ usageUrl: url }, async () => { throw new Error(`refused ${url}`); });
+  assert.match(down.said, /http:\/\/\*\*\*@u\.test\/budget\?…/);
+  await recordUsageStart(dir, 1, down);
+  const saved = readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8');
+  const printed = await runCost(dir, 1, { usage: down });
+  for (const text of [down.said, saved, printed]) {
+    assert.doesNotMatch(text, /hunter2|abc123|me:/);
+  }
+  const noNumber = await readUsage({ usageUrl: url, usagePath: 'nope' }, async () => ({ json: async () => ({}) }));
+  assert.doesNotMatch(noNumber.said, /hunter2|abc123/);
+  assert.match(noNumber.said, /http:\/\/\*\*\*@u\.test\/budget\?… gave no number at nope/);
+  const plain = await readUsage({ usageUrl: 'http://127.0.0.1:8787/budget' }, async () => { throw new Error('refused'); });
+  assert.equal(plain.said, "couldn't read http://127.0.0.1:8787/budget: refused", 'an address with no login or query is shown as it is');
+});
+
+// Round 2 rework (#271).
+test('round 2: a reset value counts only when it is a number above 0 (#271)', async () => {
+  const settings = { ...TS_SETTINGS, usageResets: { week: 'windows.seven_day.minutes_to_reset', '5 hours': 'windows.five_hour.minutes_to_reset' } };
+  for (const bad of [null, '', 0, -5, '30']) {
+    const u = await readUsage(settings, TS(60.0, 5.0, bad, 9927));
+    assert.deepEqual(u.resets, { week: 9927 }, `5 hours reset ${JSON.stringify(bad)}`);
+  }
+});
+
+test("round 2: a measured window with no reset time says its reset wasn't checked (#271)", () => {
+  const start = { pcts: { week: 4, '5 hours': 54 }, resetAt: { week: '2026-11-25T10:00:00.000Z' } };
+  const text = costLines(start, { pcts: { week: 4.6, '5 hours': 61 } }, { now: new Date('2026-11-18T11:00:00Z') });
+  assert.equal(text, "## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%) (reset not checked: usageResets isn't set)");
+});
+
+test('round 2: a replaced start says so in the cost (#271)', async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, { pct: null, said: 'refused' }, { now: new Date('2026-11-18T10:00:00Z') });
+  await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4 } }, { now: new Date('2026-11-18T11:00:00Z') });
+  const saved = JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'));
+  assert.equal(saved.replaced, '2026-11-18T10:00:00.000Z');
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: new Date('2026-11-18T12:00:00Z') });
+  assert.match(text, /\n- measured from 2026-11-18T11:00:00\.000Z; the first reading at 2026-11-18T10:00:00\.000Z failed$/);
+  // A first start with numbers is never marked replaced.
+  await recordUsageStart(dir, 2, { pct: 4, pcts: { week: 4 } });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 2), 'usage-start.json'), 'utf8')).replaced, undefined);
+});
+
+test("round 2: another run's lock counts only while its pid is alive (#271)", async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(30) });
+  // #270 started before #1 and left a lock behind; its pid is gone.
+  await recordUsageStart(dir, 270, { pcts: { week: 3.9 } }, { now: at(10) });
+  writeFileSync(join(runDir(dir, 270), 'lock'), JSON.stringify({ pid: 4242, started: at(10).toISOString() }));
+  const dead = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: () => false });
+  assert.doesNotMatch(dead, /shared with/);
+  const live = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: (pid) => pid === 4242 });
+  assert.match(live, /- shared with #270:/);
+});
+
+test("round 2: a window whose reading isn't a number is not measured (#271)", () => {
+  const text = costLines({ pcts: { week: null, '5 hours': 'x' } }, { pcts: { week: 5, '5 hours': 61 } });
+  assert.equal(text, "## Cost\n- the week: not measured, the reading isn't a number\n- the 5 hours: not measured, the reading isn't a number");
+  assert.equal(costLines({ pcts: { week: 4 } }, { pcts: { week: '5' } }), "## Cost\n- the week: not measured, the reading isn't a number");
+});
+
+test('round 2: the address hides a # fragment, and any login in the error text (#271)', async () => {
+  assert.equal(maskUrl('http://host/budget#key=x'), 'http://host/budget#…');
+  assert.equal(maskUrl('http://me:pw@host/budget?t=1#k'), 'http://***@host/budget?…');
+  const settings = { usageUrl: 'http://me:pw@host/budget' };
+  const u = await readUsage(settings, async () => { throw new Error('fetch http://me:pw@host/budget/ failed, see https://a:b@other/x'); });
+  assert.doesNotMatch(u.said, /me:pw|a:b/);
+  assert.match(u.said, /http:\/\/\*\*\*@host\/budget\/ failed, see https:\/\/\*\*\*@other\/x/);
+});
+
+test("round 2: a window resets only a minute after its reset time (#271)", () => {
+  const start = { pcts: { week: 60 }, resetAt: { week: '2026-11-18T10:27:00.000Z' } };
+  const end = { pcts: { week: 70 } };
+  assert.match(costLines(start, end, { now: new Date('2026-11-18T10:27:30Z') }), /- the week: 10\.0% of the limit/);
+  assert.match(costLines(start, end, { now: new Date('2026-11-18T10:28:00Z') }), /- the week: not measured, it reset during the run/);
 });
 
 // #267: a fleet branch is brought up to date with main before Milo's review.
