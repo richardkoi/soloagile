@@ -58,7 +58,7 @@ import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
-import { cardBase, dropRun, fleetBranch, mergeCard, preflight, preflightText, scanCard, scanText, sendBack, unlock } from '../src/fleet.js';
+import { cardBase, dropRun, fleetBranch, mergeCard, preflight, preflightText, scanCard, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
 // is installed beside this one, the whole command goes to it, stdin and all, so an old
@@ -100,7 +100,7 @@ const COMMANDS = [
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …] [--press …] [--wait …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
-  ['fleet preflight|branch|scan|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, the security scan of its code against the branch it was built on (scan <card> --base <branch> to choose), the lock's end, and on the user's look: merge, send back to Build, or drop"],
+  ['fleet preflight|branch|update|scan|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, bringing that branch up to date with main before review (exits 1 on a clash, left for the builder), the security scan of its code against the branch it was built on (scan <card> --base <branch> to choose), the lock's end, and on the user's look: merge, send back to Build, or drop"],
   ['herdr [--sound <name or file>] [--dry-run]', 'install or update the Herdr add-ons, keeping their sound, and bind F3 to the board if free'],
 ].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
 
@@ -360,8 +360,8 @@ if (cmd === 'fleet') {
   // soloagile fleet preflight <n> | unlock <n>, in the project's folder (src/fleet.js, #233).
   const [verb, n, ...rest] = process.argv.slice(3);
   const id = Number(String(n ?? '').replace(/^#/, ''));
-  if (!['preflight', 'unlock', 'branch', 'scan', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
-    console.error('usage: soloagile fleet preflight|branch|scan|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>])');
+  if (!['preflight', 'unlock', 'branch', 'update', 'scan', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
+    console.error('usage: soloagile fleet preflight|branch|update|scan|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>])');
     process.exit(2);
   }
   try {
@@ -391,6 +391,11 @@ if (cmd === 'fleet') {
       const { hits, narrow } = scanCard(process.cwd(), id, base);
       console.log(scanText(id, hits, base, { narrow }));
       process.exit(hits.length ? 1 : 0);
+    } else if (verb === 'update') {
+      // Exit 1 on a clash or an uncommitted resolve, so a script can tell; the copy is left mid-merge for Tobin (#267).
+      const u = updateBranch(process.cwd(), id);
+      console.log(updateText(id, u));
+      process.exit(u.state === 'clash' || u.state === 'resolved' ? 1 : 0);
     } else if (verb === 'branch') {
       const b = fleetBranch(process.cwd(), id);
       console.log(`soloagile: ${b.made ? 'made' : 'found'} #${id}'s copy on branch ${b.branch}: ${b.path}`);
