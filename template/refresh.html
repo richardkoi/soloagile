@@ -1,4 +1,35 @@
 <script>
+/* The open tab (#260). On load and on each hashchange: the open tab's link gets
+   aria-current="page" (so a screen reader hears "current page", and the CSS draws its bar
+   from it), the window title names the tab ("soloagile - Settings - PM"; on the home page,
+   "Session flow - PM"), and on a phone, where the strip swipes, the strip slides so the tab
+   is in view. The open tab follows the same rule as the :has() CSS: the anchor the hash
+   targets; a milestone on the Plan tab (#plan-M9) counts as Plan; anything else, the first tab. */
+(function () {
+  var nav = document.querySelector('.dk-nav');
+  if (!nav) return;
+  var links = nav.querySelectorAll('a');
+  var project = nav.getAttribute('data-project');
+  function name(a) {
+    // The link's own words, without its icon or its count badge.
+    return Array.prototype.filter.call(a.childNodes, function (n) { return n.nodeType === 3; })
+      .map(function (n) { return n.textContent; }).join('').trim();
+  }
+  function mark() {
+    // A hash that can't be decoded (#%) throws a URIError; it counts as no target, so the first tab.
+    var target = null;
+    try { target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch (e) {}
+    var href = !target ? '' : target.classList.contains('anchor') ? '#' + target.id : target.classList.contains('ms-fold') ? '#plan' : '';
+    var open = (href && nav.querySelector('a[href="' + href + '"]')) || links[0];
+    links.forEach(function (a) { if (a === open) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    document.title = (project ? project + ' - ' : '') + name(open) + ' - PM';
+    // Only when the strip swipes (a phone); container: 'nearest' scrolls the strip, never the page.
+    if (nav.scrollWidth > nav.clientWidth) open.scrollIntoView({ block: 'nearest', inline: 'nearest', container: 'nearest' });
+  }
+  // The listener goes first, so a later hash still updates the tab even if this first mark() fails.
+  window.addEventListener('hashchange', mark);
+  mark();
+})();
 /* A batch's guess on Up next (#209): the build wrote "likely 3.5 h · surely 5 h"; when it
    would end, "(by 16:30)", is counted from the moment the page is opened, and said only
    when that is today (#229). */
