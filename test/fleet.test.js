@@ -10,7 +10,7 @@ import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
 import { costLines, dropRun, fleetBranch, mergeCard, preflight, recordUsageStart, runCost, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
-import { readUsage } from '../src/usage.js';
+import { maskUrl, readUsage } from '../src/usage.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -371,11 +371,13 @@ test('Orla names the skills each worker loads, and Tobin and Cora can load them'
   }
 });
 
+const NC = " (reset not checked: usageResets isn't set)";
+
 // What a run cost (#271). Never the real TokenSentinel: usage is passed in, or read through a
 // get that throws, or from a settings folder with no usage address.
 test("a run's cost: each window's share, with the numbers it went between (#271)", () => {
   const text = costLines({ pcts: { week: 4, '5 hours': 54 } }, { pcts: { week: 4.6, '5 hours': 61 } });
-  assert.equal(text, '## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%)');
+  assert.equal(text, `## Cost\n- the week: 0.6% of the limit (4% → 4.6%)${NC}\n- the 5 hours: 7.0% of the limit (54% → 61%)${NC}`);
 });
 
 test("a run's cost is not measured when TokenSentinel doesn't answer, or wasn't read at the start (#271)", async () => {
@@ -444,7 +446,7 @@ test("a run's cost through readUsage with TokenSentinel's JSON gives both window
   const dir = repo();
   await recordUsageStart(dir, 1, await readUsage(TS_SETTINGS, TS(60.0, 5.0)));
   const text = await runCost(dir, 1, { usage: await readUsage(TS_SETTINGS, TS(64.0, 5.5)) });
-  assert.equal(text, '## Cost\n- the week: 0.5% of the limit (5% → 5.5%)\n- the 5 hours: 4.0% of the limit (60% → 64%)');
+  assert.equal(text, `## Cost\n- the week: 0.5% of the limit (5% → 5.5%)${NC}\n- the 5 hours: 4.0% of the limit (60% → 64%)${NC}`);
 });
 
 test('usageResets: a window whose reset time passed during the run is not measured (#271)', async () => {
@@ -462,8 +464,8 @@ test('usageResets: a window whose reset time passed during the run is not measur
   const text = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:40:00Z') });
   assert.match(text, /- the 5 hours: not measured, it reset during the run/);
   assert.match(text, /- the week: 0\.5% of the limit \(5% → 5\.5%\)/);
-  const atReset = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:27:00Z') });
-  assert.match(atReset, /- the 5 hours: not measured, it reset during the run/, 'at the reset time counts');
+  const atReset = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:28:00Z') });
+  assert.match(atReset, /- the 5 hours: not measured, it reset during the run/, 'a minute after the reset time counts');
   const before = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:20:00Z') });
   assert.match(before, /- the 5 hours: 10\.0% of the limit \(60% → 70%\)/);
 });
@@ -473,7 +475,7 @@ test('a start saved with no numbers is replaced by a later one with numbers; one
   const file = join(runDir(dir, 1), 'usage-start.json');
   assert.equal(await recordUsageStart(dir, 1, { pct: null, said: 'refused' }, { now: new Date('2026-11-18T10:00:00Z') }), true);
   assert.equal(await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4 } }, { now: new Date('2026-11-18T11:00:00Z') }), true);
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { at: '2026-11-18T11:00:00.000Z', pcts: { week: 4 } });
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { at: '2026-11-18T11:00:00.000Z', pcts: { week: 4 }, replaced: '2026-11-18T10:00:00.000Z' });
   assert.equal(await recordUsageStart(dir, 1, { pct: 9, pcts: { week: 9 } }, { now: new Date('2026-11-18T12:00:00Z') }), false);
   assert.equal(await recordUsageStart(dir, 1, { pct: null, said: 'refused' }), false);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pcts, { week: 4 });
@@ -494,7 +496,7 @@ test('a run that started earlier and is still running overlaps; one that finishe
   await recordUsageStart(dir, 261, { pcts: { week: 3.5 } }, { now: at(0) });
   writeFileSync(join(runDir(dir, 261), 'report.md'), '# report\n');
   utimesSync(join(runDir(dir, 261), 'report.md'), at(40), at(40));
-  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50) });
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: (pid) => pid === 9 });
   assert.match(text, /\n- shared with #261, #270: their runs ran at the same time, so this counts them too$/);
 });
 
@@ -512,10 +514,10 @@ test("an unreadable or empty usage-start.json is not measured, and fleet cost ex
 });
 
 test('the share always has one decimal, and the readings are shown as given (#271)', () => {
-  assert.equal(costLines({ pcts: { week: 60 } }, { pcts: { week: 67 } }), '## Cost\n- the week: 7.0% of the limit (60% → 67%)');
-  assert.equal(costLines({ pcts: { week: 40.2 } }, { pcts: { week: 40.8 } }), '## Cost\n- the week: 0.6% of the limit (40.2% → 40.8%)');
-  assert.equal(costLines({ pcts: { week: 0.1 + 0.2 } }, { pcts: { week: 5 } }), '## Cost\n- the week: 4.7% of the limit (0.3% → 5%)');
-  assert.equal(costLines({ pcts: { week: 12 } }, { pcts: { week: 12 } }), '## Cost\n- the week: 0.0% of the limit (12% → 12%)');
+  assert.equal(costLines({ pcts: { week: 60 } }, { pcts: { week: 67 } }), `## Cost\n- the week: 7.0% of the limit (60% → 67%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 40.2 } }, { pcts: { week: 40.8 } }), `## Cost\n- the week: 0.6% of the limit (40.2% → 40.8%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 0.1 + 0.2 } }, { pcts: { week: 5 } }), `## Cost\n- the week: 4.7% of the limit (0.3% → 5%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 12 } }, { pcts: { week: 12 } }), `## Cost\n- the week: 0.0% of the limit (12% → 12%)${NC}`);
 });
 
 test("a usage address's login and query are masked before they are saved or printed (#271)", async () => {
@@ -534,4 +536,67 @@ test("a usage address's login and query are masked before they are saved or prin
   assert.match(noNumber.said, /http:\/\/\*\*\*@u\.test\/budget\?… gave no number at nope/);
   const plain = await readUsage({ usageUrl: 'http://127.0.0.1:8787/budget' }, async () => { throw new Error('refused'); });
   assert.equal(plain.said, "couldn't read http://127.0.0.1:8787/budget: refused", 'an address with no login or query is shown as it is');
+});
+
+// Round 2 rework (#271).
+test('round 2: a reset value counts only when it is a number above 0 (#271)', async () => {
+  const settings = { ...TS_SETTINGS, usageResets: { week: 'windows.seven_day.minutes_to_reset', '5 hours': 'windows.five_hour.minutes_to_reset' } };
+  for (const bad of [null, '', 0, -5, '30']) {
+    const u = await readUsage(settings, TS(60.0, 5.0, bad, 9927));
+    assert.deepEqual(u.resets, { week: 9927 }, `5 hours reset ${JSON.stringify(bad)}`);
+  }
+});
+
+test("round 2: a measured window with no reset time says its reset wasn't checked (#271)", () => {
+  const start = { pcts: { week: 4, '5 hours': 54 }, resetAt: { week: '2026-11-25T10:00:00.000Z' } };
+  const text = costLines(start, { pcts: { week: 4.6, '5 hours': 61 } }, { now: new Date('2026-11-18T11:00:00Z') });
+  assert.equal(text, "## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%) (reset not checked: usageResets isn't set)");
+});
+
+test('round 2: a replaced start says so in the cost (#271)', async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, { pct: null, said: 'refused' }, { now: new Date('2026-11-18T10:00:00Z') });
+  await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4 } }, { now: new Date('2026-11-18T11:00:00Z') });
+  const saved = JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'));
+  assert.equal(saved.replaced, '2026-11-18T10:00:00.000Z');
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: new Date('2026-11-18T12:00:00Z') });
+  assert.match(text, /\n- measured from 2026-11-18T11:00:00\.000Z; the first reading at 2026-11-18T10:00:00\.000Z failed$/);
+  // A first start with numbers is never marked replaced.
+  await recordUsageStart(dir, 2, { pct: 4, pcts: { week: 4 } });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 2), 'usage-start.json'), 'utf8')).replaced, undefined);
+});
+
+test("round 2: another run's lock counts only while its pid is alive (#271)", async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(30) });
+  // #270 started before #1 and left a lock behind; its pid is gone.
+  await recordUsageStart(dir, 270, { pcts: { week: 3.9 } }, { now: at(10) });
+  writeFileSync(join(runDir(dir, 270), 'lock'), JSON.stringify({ pid: 4242, started: at(10).toISOString() }));
+  const dead = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: () => false });
+  assert.doesNotMatch(dead, /shared with/);
+  const live = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: (pid) => pid === 4242 });
+  assert.match(live, /- shared with #270:/);
+});
+
+test("round 2: a window whose reading isn't a number is not measured (#271)", () => {
+  const text = costLines({ pcts: { week: null, '5 hours': 'x' } }, { pcts: { week: 5, '5 hours': 61 } });
+  assert.equal(text, "## Cost\n- the week: not measured, the reading isn't a number\n- the 5 hours: not measured, the reading isn't a number");
+  assert.equal(costLines({ pcts: { week: 4 } }, { pcts: { week: '5' } }), "## Cost\n- the week: not measured, the reading isn't a number");
+});
+
+test('round 2: the address hides a # fragment, and any login in the error text (#271)', async () => {
+  assert.equal(maskUrl('http://host/budget#key=x'), 'http://host/budget#…');
+  assert.equal(maskUrl('http://me:pw@host/budget?t=1#k'), 'http://***@host/budget?…');
+  const settings = { usageUrl: 'http://me:pw@host/budget' };
+  const u = await readUsage(settings, async () => { throw new Error('fetch http://me:pw@host/budget/ failed, see https://a:b@other/x'); });
+  assert.doesNotMatch(u.said, /me:pw|a:b/);
+  assert.match(u.said, /http:\/\/\*\*\*@host\/budget\/ failed, see https:\/\/\*\*\*@other\/x/);
+});
+
+test("round 2: a window resets only a minute after its reset time (#271)", () => {
+  const start = { pcts: { week: 60 }, resetAt: { week: '2026-11-18T10:27:00.000Z' } };
+  const end = { pcts: { week: 70 } };
+  assert.match(costLines(start, end, { now: new Date('2026-11-18T10:27:30Z') }), /- the week: 10\.0% of the limit/);
+  assert.match(costLines(start, end, { now: new Date('2026-11-18T10:28:00Z') }), /- the week: not measured, it reset during the run/);
 });
