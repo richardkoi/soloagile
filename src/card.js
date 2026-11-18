@@ -3,7 +3,7 @@
 // is refused with the reason and nothing is written. Editing board.md by hand still works;
 // `soloagile build` checks it afterwards. Everything here is text in, text out.
 import { finishedCards, archivedDetails } from './archive.js';
-import { COLUMNS, SCALE, guessText, parseBoard, parseCardLine, parsePlan } from './board.js';
+import { COLUMNS, MARKS, SCALE, guessText, parseBoard, parseCardLine, parsePlan } from './board.js';
 
 // A move that would leave the board wrong. Its message says what to do instead.
 export class Refused extends Error {}
@@ -20,7 +20,7 @@ const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s ?? '');
 
 // "- #12 Title · M1 · 3 pts · test · live 2026-10-02", as board.md writes a card.
 function cardLine(c) {
-  const meta = [c.milestone, c.points !== null && `${c.points} ${c.points === 1 ? 'pt' : 'pts'}`, c.guess != null && guessText(c.guess, c.range), c.stage, c.date && [c.date.label, c.date.value].filter(Boolean).join(' ')];
+  const meta = [c.milestone, c.points !== null && `${c.points} ${c.points === 1 ? 'pt' : 'pts'}`, c.guess != null && guessText(c.guess, c.range), c.mark, c.stage, c.date && [c.date.label, c.date.value].filter(Boolean).join(' ')];
   return `- #${c.id} ${c.title}${meta.filter(Boolean).map((m) => ` · ${m}`).join('')}`;
 }
 
@@ -267,8 +267,8 @@ export function addDecision(decisionsMd, entry) {
 }
 
 // soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"]
-export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, guess, title, doneWhen }) {
-  if ([milestone, points, guess, title, doneWhen].every((v) => v === undefined)) refuse('say what to set: --milestone M3, --points 5, --guess 40, --title "…" or --done-when "…"');
+export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, guess, title, doneWhen, mark }) {
+  if ([milestone, points, guess, title, doneWhen, mark].every((v) => v === undefined)) refuse('say what to set: --milestone M3, --points 5, --guess 40, --title "…", --done-when "…" or --mark fleet|look|none');
   const lines = boardMd.split('\n');
   const found = find(lines, id) ?? refuse(gone(archiveMd, id));
   const { card } = found;
@@ -285,6 +285,11 @@ export function setCard(boardMd, planMd, archiveMd, { id, milestone, points, gue
     card.range = null; // a guess set by hand has no range from the past
   }
   if (title !== undefined) card.title = title.trim() || refuse('a card needs a title');
+  if (mark !== undefined) {
+    // fleet: the crew builds it; look: the short path for visual work; none takes the mark off.
+    if (![...MARKS, 'none'].includes(mark)) refuse(`--mark takes fleet, look or none, not "${mark}"`);
+    card.mark = mark === 'none' ? null : mark;
+  }
   lines[found.at] = cardLine(card);
   if (doneWhen !== undefined) {
     // Replaces the card's "done when:" line, or adds one under it.
@@ -308,7 +313,7 @@ export function showCard(boardMd, archiveMd, { id }) {
 
 // The command line after "soloagile card": a verb, then words and --flags in any order.
 // Returns { verb, args } with every flag by name; --note and --option may repeat.
-const FLAGS = { '--milestone': 'milestone', '-m': 'milestone', '--points': 'points', '-p': 'points', '--lane': 'lane', '--done-when': 'doneWhen', '--note': 'notes', '--option': 'options', '--from': 'from', '--title': 'title', '--guess': 'guess', '--before': 'before', '--after': 'after' };
+const FLAGS = { '--milestone': 'milestone', '-m': 'milestone', '--points': 'points', '-p': 'points', '--lane': 'lane', '--done-when': 'doneWhen', '--note': 'notes', '--option': 'options', '--from': 'from', '--title': 'title', '--guess': 'guess', '--before': 'before', '--after': 'after', '--mark': 'mark' };
 const SWITCHES = { '--design': 'design', '--first': 'first', '--top': 'top' };
 export function parseCardArgs(argv) {
   const [verb, ...rest] = argv;
@@ -352,7 +357,7 @@ export const CARD_USAGE = `soloagile card, run in the project's folder:
   soloagile card reword <number> "<start>" "<new line>"   change the detail line (or the title) that starts so
   soloagile card unnote <number> "<start>"          remove the detail line that starts so
   soloagile card drop <number> "<why>"              take it off the board; the reason goes in decisions.md
-  soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"] [--done-when "…"]
+  soloagile card set <number> [--milestone M3] [--points 5] [--guess 40] [--title "…"] [--done-when "…"] [--mark fleet|look|none]
   soloagile card show <number>                      the card in full, finished or not
   soloagile card <number>                           the card in full, and the commits its work made`;
 

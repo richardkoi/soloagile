@@ -14,6 +14,8 @@ export const SCALE = [1, 2, 3, 5, 8, 13];
 export const STAGES = ['plan', 'design', 'develop', 'test', 'release', 'feedback'];
 // The stages a card passes through while it sits in Doing.
 const DOING_STAGES = STAGES.slice(1, 5);
+// A card's fleet mark (#233): "fleet" runs the whole crew, "look" the short path for visual work.
+export const MARKS = ['fleet', 'look'];
 
 // A guessed build time, in minutes, as a card writes it: "~40 min" under 2 hours, else
 // hours to the half: "~2.5 h".
@@ -34,6 +36,7 @@ export function parseCardLine(text) {
   let range = null;
   let stage = null;
   let date = null;
+  let mark = null;
   while (parts.length > 1) {
     const last = parts.at(-1).trim();
     const d = last.match(DATE);
@@ -50,6 +53,8 @@ export function parseCardLine(text) {
       if (g[3]) range = [Number(g[3]), Number(g[4])];
     } else if (STAGES.includes(last) && !stage) {
       stage = last;
+    } else if (MARKS.includes(last) && !mark) {
+      mark = last;
     } else {
       break;
     }
@@ -66,6 +71,7 @@ export function parseCardLine(text) {
     range,
     stage,
     date,
+    mark,
     details: [],
   };
 }

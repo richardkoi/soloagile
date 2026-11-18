@@ -1,6 +1,6 @@
 // Habits: ways of working that can be switched on or off, for all projects in
 // ~/.soloagile/settings.json or for one project in pm/settings.json, both under "habits".
-// One project's switch beats all projects', and a habit nobody switched is on.
+// One project's switch beats all projects', and a habit nobody switched is on, unless it is marked off.
 // The page's Settings tab shows them; `soloagile set` changes them; the session start
 // tells Claude the built ones, so a change takes effect at the next session.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -31,6 +31,9 @@ export const HABITS = [
     rule: 'A milestone holds about 15 cards at most. When one would pass that, propose a new milestone for the rest; soloagile card add warns when it happens.' },
   { key: 'question-batches', name: 'Questions in batches', what: 'Waiting questions are asked together, up to four at a time.', card: 148,
     rule: 'Ask waiting questions together in one round, up to four to a call, each multiple choice with the recommended option first and an open answer last. Gather the questions before starting work, not one at a time between steps.' },
+  // off: a habit that starts switched off until the user turns it on (#233).
+  { key: 'fleet', name: 'The build fleet', what: 'A crew of helpers plans, builds, reviews and tests a card marked fleet, ending on a waiting branch.', card: 233, off: true,
+    rule: 'When planning a card, mark logic, data and risky cards fleet and pure visual cards look: soloagile card set <n> --mark fleet|look (the user can mark any card, and none takes it off). Before a fleet run, soloagile fleet preflight <n> refuses a card with no done when or a dirty tree, locks the card and says which stage to start at; soloagile fleet unlock <n> when the run ends.' },
 ];
 
 const projectFile = (repo) => join(resolve(repo), 'pm', 'settings.json');
@@ -46,7 +49,7 @@ export function habitStates(repo, { habits = HABITS, settings = readSettings() }
   return habits.map((h) =>
     h.key in mine ? { ...h, on: mine[h.key] !== false, from: 'this project' }
     : h.key in all ? { ...h, on: all[h.key] !== false, from: 'all projects' }
-    : { ...h, on: true, from: 'default' },
+    : { ...h, on: !h.off, from: 'default' },
   );
 }
 
@@ -81,7 +84,7 @@ export function renderSettings(states) {
   const row = (h) => {
     const state = h.rule ? `<span class="habit-state ${h.on ? 'on' : 'off'}">${h.on ? 'on' : 'off'}</span>` : '<span class="habit-state soon">coming</span>';
     const how = h.rule
-      ? `<p class="habit-how">${FROM[h.from]} · <code>soloagile set ${esc(h.key)} ${h.on ? 'off' : 'on'}</code></p>`
+      ? `<p class="habit-how">${h.from === 'default' && h.off ? 'off unless switched on' : FROM[h.from]} · <code>soloagile set ${esc(h.key)} ${h.on ? 'off' : 'on'}</code></p>`
       : `<p class="habit-how">coming with #${h.card} · <code>soloagile set ${esc(h.key)} ${h.on ? 'off' : 'on'}</code> switches it ahead of time</p>`;
     return `<li class="habit"><div class="habit-top"><h3 class="habit-name">${esc(h.name)}</h3>${state}</div><p class="habit-what">${esc(h.what)}</p>${how}</li>`;
   };
