@@ -58,7 +58,7 @@ import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
-import { cardBase, cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, scanDiff, scanText, sendBack, unlock } from '../src/fleet.js';
+import { cardBase, dropRun, fleetBranch, mergeCard, preflight, preflightText, scanCard, scanText, sendBack, unlock } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
 // is installed beside this one, the whole command goes to it, stdin and all, so an old
@@ -386,9 +386,10 @@ if (cmd === 'fleet') {
         process.exit(2);
       }
       const base = at >= 0 ? rest[at + 1] : cardBase(process.cwd(), id);
-      // The whole of each changed file as context, so comments and fences are followed (#269).
-      const hits = scanDiff(cardDiff(process.cwd(), id, base, { context: 'all' }));
-      console.log(scanText(id, hits, base));
+      // The whole of each changed file as context, so comments and fences are followed, or
+      // the 3-line diff when that fails, said in the first line (#269).
+      const { hits, narrow } = scanCard(process.cwd(), id, base);
+      console.log(scanText(id, hits, base, { narrow }));
       process.exit(hits.length ? 1 : 0);
     } else if (verb === 'branch') {
       const b = fleetBranch(process.cwd(), id);

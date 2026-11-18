@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { cardBase, cardDiff, dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { cardBase, cardDiff, dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanCard, scanDiff, scanText, sendBack, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -265,18 +265,17 @@ test('session is not a login word; cookie still is (#260)', () => {
   assert.equal(scanDiff(added('src/a.js', 'const cookie = req.headers.cookie;'))[0]?.why, 'a login or password');
 });
 
-test('the scan skips comments but keeps the code before a trailing comment and URLs (#259, #260)', () => {
+test('the scan skips whole-comment lines, and URLs are code (#259, #260)', () => {
   assert.deepEqual(scanDiff(added('template/guide.html', '<!-- The command guide: one list, in the order of a session. It is a modal <dialog> opened -->')), []);
   assert.deepEqual(scanDiff(added('template/guide.html', '<!-- The command guide: one list, in the order of a session.', 'It is a modal <dialog> opened from the token button', '-->', '<p>a session cookie</p>')).map((h) => h.line), [4], 'a comment over lines is skipped, the line after is not');
   // The comment opened in a context line, before the hunk's added lines.
   assert.deepEqual(scanDiff('--- a/t.html\n+++ b/t.html\n@@ -1,2 +1,3 @@\n <!-- the guide\n+opened from the token button\n -->\n'), []);
   assert.deepEqual(scanDiff(added('template/refresh.js', '  // the "Session flow" tab, and its auth cookie', '  /* the token', '   * and the password */')), []);
   assert.deepEqual(scanDiff(added('deploy.sh', '  # read the api_key from vault')), []);
-  assert.deepEqual(scanDiff(added('config.yml', '# the token lives elsewhere', 'name: app # no password here')), []);
+  assert.deepEqual(scanDiff(added('config.yml', '# the token lives elsewhere', 'name: app')), []);
   assert.equal(scanDiff(added('deploy.sh', '#!/bin/sh token'))[0]?.why, 'a key or token', 'a shebang is not a comment');
   assert.equal(scanDiff(added('src/a.js', '# a token'))[0]?.why, 'a key or token', '# is a comment only in the # languages');
   assert.equal(scanDiff(added('src/a.js', 'const api_key = x; // note'))[0]?.why, 'a key or token');
-  assert.deepEqual(scanDiff(added('src/a.js', 'const x = 1; // the token')), []);
   assert.equal(scanDiff(added('src/a.js', "fetch('https://x.test/token')"))[0]?.why, 'a key or token', 'a URL is not cut as a comment');
 });
 
@@ -356,11 +355,12 @@ test('an extensionless file is a # language unless its shebang is node, deno or 
   const line = 'console.log(`card #${id}`, process.env.X)';
   assert.equal(scanDiff(added('bin/tool', '#!/usr/bin/env node', line))[0]?.why, 'a .env file');
   assert.equal(scanDiff(added('bin/tool', '#!/usr/bin/env -S deno run', line))[0]?.why, 'a .env file');
-  assert.deepEqual(scanDiff(added('bin/tool', '#!/bin/sh', 'echo hi # the token')), []);
+  assert.deepEqual(scanDiff(added('bin/tool', '#!/bin/sh', '# the token')), []);
   assert.deepEqual(scanDiff(added('Dockerfile', '# the token comes later')), []);
 });
 
-// A file on main whose fence and shebang sit far above the card's change.
+// A file on main whose fence and shebang sit far above the card's change. The tool's new
+// line is a JS private field: a # comment unless the node shebang is known.
 test('fleet scan reads the whole file, so a far fence and a node shebang are known', () => {
   const dir = repo();
   execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
@@ -372,7 +372,7 @@ test('fleet scan reads the whole file, so a far fence and a node shebang are kno
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'docs'], { cwd: dir });
   const { path } = fleetBranch(dir, 1);
   writeFileSync(join(path, 'README.md'), readFileSync(join(path, 'README.md'), 'utf8').replace('NAME=x', 'API_KEY=abc'));
-  writeFileSync(join(path, 'bin', 'tool'), readFileSync(join(path, 'bin', 'tool'), 'utf8') + 'console.log(`card #${id}`, process.env.X)\n');
+  writeFileSync(join(path, 'bin', 'tool'), readFileSync(join(path, 'bin', 'tool'), 'utf8') + '#key = process.env.X;\n');
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'x'], { cwd: path });
   assert.deepEqual(scanDiff(cardDiff(dir, 1)), [], "plain cardDiff keeps git's 3 lines of context");
   assert.deepEqual(scanDiff(cardDiff(dir, 1, 'main', { context: 'all' })).map((h) => `${h.file}:${h.line}`), ['README.md:12', 'bin/tool:10']);
@@ -387,6 +387,64 @@ test('fleet scan --base with no branch is a usage error', () => {
   const r = spawnSync('node', [PM, 'fleet', 'scan', '2', '--base'], { cwd: dir, encoding: 'utf8' });
   assert.equal(r.status, 2);
   assert.match(r.stderr, /usage/);
+});
+
+// Round 2 of #269's review: one test per upheld finding.
+test('no trailing comment is cut: a # or // inside a string keeps the rest of the line', () => {
+  assert.equal(scanDiff(added('deploy.sh', 'echo "card #$id"; chmod 777 x'))[0]?.why, 'a permission');
+  assert.equal(scanDiff(added('tool.py', 'print(f"issue #{n}"); os.environ["X"]'))[0]?.why, 'a .env file');
+  assert.equal(scanDiff(added('src/a.js', 'const x = 1; // the token'))[0]?.why, 'a key or token', 'a trailing comment is scanned too');
+});
+
+test('comment syntax goes by file type; any other file is scanned whole', () => {
+  assert.deepEqual(scanDiff(added('deploy.sh', '/* x', 'chmod 777 y')).map((h) => `${h.line} ${h.why}`), ['2 a permission'], '/* opens nothing in a .sh');
+  const rc = '.' + 'npmrc';
+  assert.equal(scanDiff(added(rc, '//registry.npmjs.org/:_auth' + 'Token=${NPM}'))[0]?.why, 'a key or token', '// is no comment in that dotfile');
+  assert.equal(scanDiff(added('data.json', '# the token'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('notes.txt', '<!-- the password -->'))[0]?.why, 'a login or password');
+  assert.equal(scanDiff(added('a.py', '<!-- the password'))[0]?.why, 'a login or password', '<!-- opens nothing in a .py');
+  assert.equal(scanDiff(added('a.css', '# the token'))[0]?.why, 'a key or token', '# is no comment in .css');
+  assert.deepEqual(scanDiff(added('a.go', '// the token', '/* the password */')), []);
+  assert.deepEqual(scanDiff(added('icon.svg', '<!-- the token -->')), []);
+  assert.deepEqual(scanDiff(added('Makefile', '# the token')), []);
+  assert.deepEqual(scanDiff(added('a.rb', '# the token')), []);
+  assert.deepEqual(scanDiff(added('run.zsh', '# the token')), []);
+});
+
+test('an npm token is key material, in a comment too', () => {
+  const npm = 'npm' + '_' + 'a1B2c3D4e5'.repeat(3) + 'f6G7h8';
+  assert.equal(scanDiff(added('conf.txt', 'x=' + npm))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('src/a.js', '// ' + npm))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('README.md', 'like ' + npm))[0]?.why, 'a key or token');
+});
+
+test('a stored base that is gone falls back to the main tree branch, and the scan runs', () => {
+  const dir = stacked();
+  execFileSync('git', ['worktree', 'remove', '--force', join(dir, '.claude', 'worktrees', 'card-1')], { cwd: dir });
+  execFileSync('git', ['branch', '-D', 'card-1'], { cwd: dir });
+  assert.equal(cardBase(dir, 2), 'main');
+  const r = spawnSync('node', [PM, 'fleet', 'scan', '2'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /against main/);
+});
+
+test('when the whole-file diff fails, the scan falls back to the 3-line diff and says so', () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  writeFileSync(join(dir, 'big.js'), Array.from({ length: 300 }, (_, i) => `export const v${i} = ${i};`).join('\n') + '\n');
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'big'], { cwd: dir });
+  const { path } = fleetBranch(dir, 1);
+  writeFileSync(join(path, 'big.js'), readFileSync(join(path, 'big.js'), 'utf8').replace('v150 = 150', 'token = 150'));
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'x'], { cwd: path });
+  assert.throws(() => cardDiff(dir, 1, 'main', { context: 'all', maxBuffer: 2000 }));
+  const narrow = scanCard(dir, 1, 'main', { maxBuffer: 2000 });
+  assert.equal(narrow.narrow, true);
+  assert.deepEqual(narrow.hits.map((h) => `${h.file}:${h.line}`), ['big.js:151']);
+  assert.match(scanText(1, narrow.hits, 'main', narrow).split('\n')[0], /3-line diff/);
+  const whole = scanCard(dir, 1, 'main');
+  assert.equal(whole.narrow, false);
+  assert.doesNotMatch(scanText(1, whole.hits, 'main', whole), /3-line diff/);
 });
 
 test("the fleet's last stage runs the project's checks and links report.md from the card", () => {

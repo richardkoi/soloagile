@@ -131,8 +131,8 @@ export function fleetBranch(repo, id, { from } = {}) {
 // An entry whose third item is true is key material itself: it is checked on every added
 // line, comments and prose too (#269). The rest are words, checked in code only.
 const RISKY = [
-  ['a key or token', /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}/i, true],
-  ['a key or token', /\b(api[_-]?key|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b/i],
+  ['a key or token', /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}|\bnpm_[A-Za-z0-9]{36}\b/i, true],
+  ['a key or token', /\b(api[_-]?key|_?auth[_-]?token|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b/i],
   ['a .env file', /(^|[^\w.])\.env\b|\bprocess\.env\b|\bos\.environ\b|\bdotenv\b/],
   // Not session (#269): the word is all over this plugin's prose and tests ("Session flow").
   ['a login or password', /\b(password|passwd|login|auth|cookie|credential|oauth|jwt)\b/i],
@@ -140,19 +140,32 @@ const RISKY = [
 ];
 
 // Only code is scanned for the words (#269): comments and Markdown prose talk about tokens
-// and logins without holding any. A line wholly a comment is skipped (//, <!-- and /* up to
-// their close, the lines inside an open /* or HTML comment, and # in the # languages, not
-// #!); code after a closing */ or --> on the same line is scanned. A code line is cut at a
-// trailing comment (` //`, never `://`, so URLs stay; ` #` in the # languages). In Markdown
-// only fenced code is scanned. State is followed through added and context lines; the CLI
-// scan reads the whole file as context, so a fence or comment opened far above is known.
-// An extensionless file (bin/soloagile, a Dockerfile) is a # language unless its shebang,
-// on line 1, runs node, deno or bun.
-const HASH_LANG = /\.(sh|bash|py|ya?ml|toml)$/;
+// and logins without holding any. Comment syntax goes by file type: // and /* */ in the
+// SLASH files, # (not #!) in the HASH files, <!-- --> in the HTML files. Any other file
+// (.json, .txt, dotfiles like .npmrc, where // starts a real line) has no comments: every
+// line is scanned. Only a line that is wholly a comment is skipped, or one inside a comment
+// opened above; code after a closing */ or --> is scanned. A trailing comment is never cut,
+// since a # or // inside a string would cut real code off. In Markdown only fenced code is
+// scanned. State is followed through added and context lines; the CLI scan reads the whole
+// file as context, so a fence or comment opened far above is known. An extensionless file
+// (bin/soloagile, a Dockerfile) is a HASH file unless its shebang, on line 1, runs node,
+// deno or bun, which makes it a SLASH file.
+const SLASH = /\.(js|mjs|cjs|ts|tsx|jsx|css|scss|c|h|cpp|go|rs|java|kt|swift)$/;
+const HASH = /\.(sh|bash|zsh|py|rb|ya?ml|toml)$/;
+const HTML = /\.(html?|xml|svg|vue)$/;
 const JS_SHEBANG = /^#!.*\b(node|deno|bun)\b/;
 const MARKDOWN = /\.(md|markdown)$/i;
+const BLOCK = { slash: ['/*', '*/'], html: ['<!--', '-->'] };
 
-const hashLang = (file, st) => HASH_LANG.test(file) || (!/\.[^/]*$/.test(file) && !JS_SHEBANG.test(st.shebang ?? ''));
+// slash, hash, html, or null for a file with no comment syntax known.
+function syntax(file, st) {
+  const name = file.slice(file.lastIndexOf('/') + 1);
+  if (SLASH.test(name)) return 'slash';
+  if (HASH.test(name) || /^(Dockerfile|Makefile)$/.test(name)) return 'hash';
+  if (HTML.test(name)) return 'html';
+  if (!name.includes('.')) return JS_SHEBANG.test(st.shebang ?? '') ? 'slash' : 'hash';
+  return null;
+}
 
 // The part of a line to scan, or null for none; st carries the open fence or comment and
 // the file's shebang.
@@ -166,19 +179,19 @@ function codePart(file, body, st) {
     }
     return st.fence ? body : null;
   }
+  const lang = syntax(file, st);
+  if (!lang) return body;
   // Inside a comment, or one opening the line: skip to its close, then scan what follows.
-  const open = st.html ? '-->' : st.block ? '*/' : t.startsWith('<!--') ? '-->' : t.startsWith('/*') ? '*/' : null;
-  if (open) {
-    // An opener on this line is passed over before looking for its close.
-    const start = st.html || st.block ? 0 : body.indexOf(t) + (open === '-->' ? 4 : 2);
-    const end = body.indexOf(open, start);
-    st.html = open === '-->' && end < 0;
-    st.block = open === '*/' && end < 0;
-    return end < 0 ? null : codePart(file, body.slice(end + open.length), st);
+  const [opener, closer] = BLOCK[lang] ?? [];
+  if (st.open || (opener && t.startsWith(opener))) {
+    const start = st.open ? 0 : body.indexOf(opener) + opener.length;
+    const end = body.indexOf(closer, start);
+    st.open = end < 0;
+    return end < 0 ? null : codePart(file, body.slice(end + closer.length), st);
   }
-  const hash = hashLang(file, st);
-  if (t.startsWith('//') || (hash && t.startsWith('#') && !t.startsWith('#!'))) return null;
-  return body.split(hash ? /[ \t]#/ : /[ \t]\/\//)[0];
+  if (lang === 'slash' && t.startsWith('//')) return null;
+  if (lang === 'hash' && t.startsWith('#') && !t.startsWith('#!')) return null;
+  return body;
 }
 
 export function scanDiff(diff) {
@@ -217,11 +230,13 @@ export function scanDiff(diff) {
 }
 
 // The branch card-<n> was built on (#269): branch.card-<n>.fleetBase in git config when
-// set, otherwise the branch checked out in the main tree (the first worktree listed).
+// set and still there, otherwise the branch checked out in the main tree (the first
+// worktree listed). A stored base that is gone (merged and deleted) falls back the same way.
 export function cardBase(repo, id) {
   const cwd = resolve(repo);
   const set = spawnSync('git', ['config', '--get', `branch.card-${id}.fleetBase`], { cwd, encoding: 'utf8' });
-  if (set.status === 0 && set.stdout.trim()) return set.stdout.trim();
+  const stored = set.status === 0 ? set.stdout.trim() : '';
+  if (stored && spawnSync('git', ['rev-parse', '--verify', '--quiet', `${stored}^{commit}`], { cwd }).status === 0) return stored;
   const list = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd, encoding: 'utf8' }).stdout ?? '';
   return list.split('\n\n')[0].match(/^branch refs\/heads\/(.+)$/m)?.[1] ?? 'main';
 }
@@ -229,16 +244,29 @@ export function cardBase(repo, id) {
 // The change on card-<n> against the branch it came from, as a unified diff. context: 'all'
 // gives each changed file whole as context (the scan's view, so a fence, comment or shebang
 // far from the change is known); otherwise git's usual 3 lines.
-export function cardDiff(repo, id, base = cardBase(repo, id), { context } = {}) {
+// maxBuffer is there for the tests: a small one makes the whole-file diff overflow.
+export function cardDiff(repo, id, base = cardBase(repo, id), { context, maxBuffer = 64 * 1024 * 1024 } = {}) {
   const wide = context === 'all' ? ['-U1000000'] : [];
-  const r = spawnSync('git', ['diff', ...wide, `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  if (r.status !== 0) throw new Error(`git diff ${base}...card-${id}: ${r.stderr.trim()}`);
+  const r = spawnSync('git', ['diff', ...wide, `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer });
+  // An overflow can come back with status 0 and the output cut short, so error is checked too.
+  if (r.error || r.status !== 0) throw new Error(`git diff ${base}...card-${id}: ${r.error?.message ?? r.stderr.trim()}`);
   return r.stdout;
 }
 
+// The CLI scan (#269): the whole-file diff, or, when that fails (too big for maxBuffer),
+// git's plain 3-line diff, with narrow: true so the scan's first line says so.
+export function scanCard(repo, id, base = cardBase(repo, id), { maxBuffer } = {}) {
+  try {
+    return { hits: scanDiff(cardDiff(repo, id, base, { context: 'all', maxBuffer })), narrow: false };
+  } catch {
+    return { hits: scanDiff(cardDiff(repo, id, base)), narrow: true };
+  }
+}
+
 // base, when given, is named in the first line: the branch the change was compared against.
-export const scanText = (id, hits, base) => {
-  const change = `soloagile: #${id}'s change${base ? ` against ${base}` : ''}`;
+// narrow: the scan read the 3-line diff, not whole files, which the first line says too.
+export const scanText = (id, hits, base, { narrow } = {}) => {
+  const change = `soloagile: #${id}'s change${base ? ` against ${base}` : ''}${narrow ? ' (read as a 3-line diff: the whole-file diff failed, so a comment or fence opened far above may be missed)' : ''}`;
   return hits.length
     ? [`${change} has ${hits.length} line${hits.length === 1 ? '' : 's'} for Rufus:`, ...hits.map((h) => `  ${h.file}:${h.line}  ${h.why}: ${h.text.slice(0, 120)}`)].join('\n')
     : `${change} touches no keys, tokens, .env, logins or permissions: no security list needed`;
