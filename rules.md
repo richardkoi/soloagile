@@ -17,9 +17,10 @@ in `pm/`. Follow these rules while you work here.
 - Send card commands in the same turn as other work, never a turn of their own: each turn
   re-reads the whole conversation. Join them with `&&` beside the next test, build or commit.
 - A card note is one short line, under about 100 characters, with the detail in the commit message.
-- Keep the board live: Doing when a card's own build starts, one at a time; Needs your look
-  once live (deployed, or running where the user uses it); Needs your decision when blocked
-  on the user. Only the user's yes moves a card to Done.
+- Keep the board live: Doing when a card's own build starts, one at a time, except fleet
+  runs: each run's card sits in Doing while it runs, so several can be there at once; Needs
+  your look once live (deployed, or running where the user uses it); Needs your decision
+  when blocked on the user. Only the user's yes moves a card to Done.
 - `soloagile board` prints the board without finished cards; `soloagile finished <n or M3>`
   prints finished ones in full.
 - A Doing card ends with its stage: `design`, `develop`, `test` or `release`.

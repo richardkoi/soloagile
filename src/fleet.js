@@ -4,11 +4,18 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
+import { moveCard } from './card.js';
+import { localDate } from './init.js';
 
 // Each stage leaves one file; a run resumes at the first one missing. The security list is
 // written only when the script finds something (#238), so it isn't a stage of its own here.
 export const STAGE_FILES = [['plan', 'plan.md'], ['build', 'build.md'], ['review', 'review.md'], ['verdicts', 'verdicts.md'], ['test', 'report.md']];
+
+// The board's Doing stage for each run stage (#266): the card sits in Doing while it runs.
+// Cora's design comes after the plan, so a run starting at plan is at design too.
+export const DOING_STAGE = { plan: 'design', build: 'develop', review: 'test', verdicts: 'test', test: 'test', done: 'test' };
 
 export const runDir = (repo, id) => join(resolve(repo), 'pm', 'runs', String(id));
 
@@ -38,8 +45,10 @@ export function ownerPid(start = process.ppid) {
   return start;
 }
 
-// Refuses with the reason, or locks the card and says where the run starts.
-// Returns { stage, file, cleared } where cleared is a stale lock that was removed.
+// Refuses with the reason, or locks the card, moves it to Doing at its stage (#266) and says
+// where the run starts. Fleet cards may sit in Doing together, one per run.
+// Returns { stage, file, cleared, said } where cleared is a stale lock that was removed and
+// said is the board's line about the move.
 export function preflight(repo, id, { pid = ownerPid(), now = new Date(), isAlive = alive } = {}) {
   const board = readFileSync(join(resolve(repo), 'pm', 'board.md'), 'utf8');
   const card = parseBoard(board).columns.flatMap((c) => c.cards).find((c) => c.id === id);
@@ -57,10 +66,15 @@ export function preflight(repo, id, { pid = ownerPid(), now = new Date(), isAliv
     if (isAlive(lock.pid)) throw new Error(`#${id} is already running (pid ${lock.pid}, since ${lock.started}); soloagile fleet unlock ${id} if it isn't`);
     cleared = lock; // its run crashed or was stopped: the files it left stay, and the run resumes
   }
+  const next = STAGE_FILES.find(([, file]) => !existsSync(join(dir, file)));
+  const stage = next ? next[0] : 'done';
+  // Worked out before the lock is written, so a card the board refuses (no points, say)
+  // leaves neither a lock nor a changed board.
+  const moved = moveCard(board, readArchive(repo), { id, lane: 'doing', stage: DOING_STAGE[stage], today: localDate(now) });
   mkdirSync(dir, { recursive: true });
   writeFileSync(lockFile, `${JSON.stringify({ pid, started: now.toISOString() })}\n`);
-  const next = STAGE_FILES.find(([, file]) => !existsSync(join(dir, file)));
-  return { stage: next ? next[0] : 'done', file: next ? next[1] : null, cleared };
+  writeFileSync(join(resolve(repo), 'pm', 'board.md'), moved.board);
+  return { stage, file: next ? next[1] : null, cleared, said: moved.said };
 }
 
 export function unlock(repo, id) {
@@ -70,11 +84,12 @@ export function unlock(repo, id) {
   return was;
 }
 
-export function preflightText(id, { stage, file, cleared }) {
+export function preflightText(id, { stage, file, cleared, said }) {
   return [
     cleared && `soloagile: cleared #${id}'s old lock (pid ${cleared.pid}, from ${cleared.started}): that run had stopped`,
     `soloagile: #${id} is locked for its fleet run`,
     stage === 'done' ? `soloagile: every stage file is there; the run is at its end` : `soloagile: start at ${stage}: pm/runs/${id}/${file} isn't written yet`,
+    said && `soloagile: ${said}`,
   ].filter(Boolean).join('\n');
 }
 
