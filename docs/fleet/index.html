@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The build fleet</title>
+<style>
+  :root {
+    --bg: #faf6ee; --card: #ffffff; --ink: #2b2620; --soft: #6b6157; --line: #e6dccb;
+    --accent: #b5562b; --accent-soft: #f6e6d8; --you: #2f6f5e; --you-soft: #dcefe8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1915; --card: #26221d; --ink: #f1ebe2; --soft: #b3a796; --line: #3a342c;
+      --accent: #e08a5c; --accent-soft: #3a2a20; --you: #7cc8b0; --you-soft: #1f342d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 17px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+  a { color: var(--accent); }
+  .back { font-size: 15px; }
+  h1 { font-size: 34px; line-height: 1.15; margin: 12px 0 8px; }
+  h2 { font-size: 24px; margin: 44px 0 6px; }
+  .lead { font-size: 19px; color: var(--soft); margin: 0 0 12px; max-width: 40em; }
+  .sub { color: var(--soft); margin: 0 0 18px; }
+  .status { display: inline-block; font-size: 14px; padding: 3px 10px; border-radius: 99px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  /* The crew */
+  .crew { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .who { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+    display: grid; grid-template-columns: 76px 1fr; gap: 12px; align-items: start; }
+  .who img { width: 76px; height: 76px; border-radius: 12px; display: block; }
+  .who h3 { margin: 0; font-size: 18px; }
+  .who .job { margin: 0 0 6px; color: var(--accent); font-weight: 600; font-size: 15px; }
+  .who p { margin: 0 0 4px; font-size: 15px; }
+  .who .never { color: var(--soft); }
+
+  /* One run */
+  ol.run { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.run > li { counter-increment: step; display: grid; grid-template-columns: 48px 1fr; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--line); align-items: start; }
+  ol.run > li img { width: 48px; height: 48px; border-radius: 10px; }
+  ol.run .num { width: 48px; height: 48px; border-radius: 10px; display: grid; place-items: center;
+    font-weight: 700; font-size: 20px; background: var(--you-soft); color: var(--you); }
+  ol.run h3 { margin: 0; font-size: 17px; }
+  ol.run h3::before { content: counter(step) ". "; color: var(--soft); font-weight: 400; }
+  ol.run p { margin: 2px 0 0; font-size: 15px; }
+  ol.run li.you h3 { color: var(--you); }
+  .file { font-family: ui-monospace, monospace; font-size: 13px; background: var(--accent-soft);
+    padding: 1px 6px; border-radius: 6px; white-space: nowrap; }
+  .loop { margin: 6px 0 0; font-size: 14px; color: var(--soft); border-left: 3px solid var(--accent);
+    padding-left: 10px; }
+
+  /* Where you come in */
+  .moments { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .moment { background: var(--you-soft); border-radius: 14px; padding: 14px 16px; }
+  .moment h3 { margin: 0 0 4px; font-size: 17px; color: var(--you); }
+  .moment p, .moment ul { margin: 0; font-size: 15px; }
+  .moment ul { padding-left: 18px; }
+
+  ul.rules { padding-left: 20px; }
+  ul.rules li { margin: 6px 0; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .box p { margin: 0 0 8px; } .box p:last-child { margin: 0; }
+  footer { margin-top: 48px; font-size: 14px; color: var(--soft); }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="../">&larr; soloagile's page</a>
+  <h1>The build fleet</h1>
+  <p class="lead">A crew of five that takes one card from plan to finished code, checks it
+  three different ways, and then waits for you. Nothing goes into the main code until you say yes.</p>
+  <span class="status">Planned: milestone M34, not built yet</span>
+
+  <h2>Meet the crew</h2>
+  <p class="sub">Each worker is an animal from Aesop's Fables. The animal tells you its job.</p>
+  <div class="crew">
+    <div class="who"><img src="orla-owl.webp" alt="Orla the Owl">
+      <div><h3>Orla the Owl</h3><p class="job">The Lead</p>
+      <p>Plans the work, sends out the others, checks what they say against the real code, runs the tests and writes the report.</p>
+      <p class="never">Never writes the code herself, and never merges.</p></div></div>
+    <div class="who"><img src="ada-ant.webp" alt="Ada the Ant">
+      <div><h3>Ada the Ant</h3><p class="job">The gate check</p>
+      <p>Goes down a checklist before anyone starts: the card says when it's done, the code is tidy, no other run is going.</p>
+      <p class="never">A plain script, not an AI. Costs nothing.</p></div></div>
+    <div class="who"><img src="tobin-tortoise.webp" alt="Tobin the Tortoise">
+      <div><h3>Tobin the Tortoise</h3><p class="job">The Builder</p>
+      <p>The only one who writes code, slow and steady, in his own copy of the project, with a test for each thing the card asks for.</p>
+      <p class="never">Never touches passwords or keys, or anything outside the card.</p></div></div>
+    <div class="who"><img src="milo-mole.webp" alt="Milo the Mole">
+      <div><h3>Milo the Mole</h3><p class="job">The blind reviewer</p>
+      <p>Sees only the changes and what the card asked for, and feels along every line for a weak spot. He's a different AI model, so he doesn't share Tobin's blind spots.</p>
+      <p class="never">Can't open other files or run anything.</p></div></div>
+    <div class="who"><img src="rufus-watchdog.webp" alt="Rufus the Watchdog">
+      <div><h3>Rufus the Watchdog</h3><p class="job">The security lister</p>
+      <p>Barks at every changed line that touches logins, keys or passwords, and lists them for you to read.</p>
+      <p class="never">Never says "it's safe". You read those lines yourself.</p></div></div>
+  </div>
+
+  <h2>One run, step by step</h2>
+  <p class="sub">For a card of 3 points or more. Every step writes a short file, so you can see what happened.</p>
+  <ol class="run">
+    <li><img src="ada-ant.webp" alt=""><div><h3>Ada checks the gate</h3>
+      <p>Is the card ready? If any box isn't ticked, the run stops here. <span class="file">doctor.md</span></p></div></li>
+    <li><img src="orla-owl.webp" alt=""><div><h3>Orla writes the plan</h3>
+      <p>She reads the card and the code around it. If there's a real choice to make, it becomes a question for you on the board and the run waits. <span class="file">plan.md</span></p></div></li>
+    <li><img src="tobin-tortoise.webp" alt=""><div><h3>Tobin builds it</h3>
+      <p>In his own copy of the code, on a branch named after the card, with a test for each "done when". <span class="file">build.md</span></p></div></li>
+    <li><img src="milo-mole.webp" alt=""><div><h3>Milo reviews it blind</h3>
+      <p>He sees only the changes and lists the problems he finds. <span class="file">review.md</span></p></div></li>
+    <li><img src="orla-owl.webp" alt=""><div><h3>Orla checks each finding</h3>
+      <p>Each of Milo's points is checked against the real code: upheld, rejected or can't tell. <span class="file">verdicts.md</span></p>
+      <p class="loop">Upheld problems go back to Tobin to fix, at most twice. After that, Orla stops and asks you.</p></div></li>
+    <li><img src="rufus-watchdog.webp" alt=""><div><h3>Rufus lists the risky lines</h3>
+      <p>Every change near logins, keys or passwords, with the file and line. <span class="file">security-list.md</span></p></div></li>
+    <li><img src="orla-owl.webp" alt=""><div><h3>Orla tests and writes it up</h3>
+      <p>Runs the project's checks, takes phone pictures for anything on screen, writes what was and wasn't tested, and opens a pull request. <span class="file">report.md</span></p></div></li>
+    <li class="you"><span class="num">You</span><div><h3>You decide</h3>
+      <p>The card waits in <b>Needs your look</b>. Read the report and Rufus's list, then merge it, send it back with a note, or drop it.</p></div></li>
+  </ol>
+
+  <h2>Where you come in</h2>
+  <div class="moments">
+    <div class="moment"><h3>Before</h3>
+      <p>Write the card with a clear "done when". No "done when", no run. Answer any design questions up front.</p></div>
+    <div class="moment"><h3>During</h3>
+      <p>Nothing, unless Orla hits a real choice. Then it shows up in <b>Needs your decision</b>, as a multiple-choice question.</p></div>
+    <div class="moment"><h3>After</h3>
+      <ul><li>Read <span class="file">report.md</span></li><li>Read Rufus's lines</li><li>Merge, send back or drop</li></ul></div>
+  </div>
+
+  <h2>While you're away</h2>
+  <div class="box">
+    <p>Say you're off to bed and away mode answers its questions with you first, then builds.
+    Big cards go through the crew; small ones are built as they are today.</p>
+    <p>Everything builds on one <b>away branch</b>, each card on top of the last. In the morning
+    there's one pull request waiting, with a report for each card.</p>
+  </div>
+
+  <h2>House rules</h2>
+  <ul class="rules">
+    <li><b>Only you merge.</b> The crew never moves a card to Done.</li>
+    <li><b>Only Orla sends anything to GitHub.</b> The helpers can't push.</li>
+    <li><b>No helper can read your passwords or keys.</b> A guard blocks it, and the first run proves the guard works.</li>
+    <li><b>Spotted something else?</b> It becomes an Ideas card, never a sneaky extra fix.</li>
+    <li><b>It knows when to stop:</b> at 98% of your usage, after a set number of turns per step, and after two rounds of fixes.</li>
+    <li><b>Small cards skip it.</b> Under 3 points (a setting), the crew costs more than the card is worth.</li>
+  </ul>
+
+  <footer>Pictures made in Gemini. The crew in full: docs/fleet-crew.md in the soloagile repo.
+  The plan: milestone M34 on the board.</footer>
+</main>
+</body>
+</html>
