@@ -1,6 +1,6 @@
 ---
 name: fleet
-description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Cora's design for a card with a screen, Tobin's build in his own copy and branch, Milo's blind review, Orla's fact-check, the security list, and the test and notes — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
+description: Run the build fleet on one card marked fleet or look (look: the short path, Cora and Tobin only) — Ada's preflight, Orla's plan, Cora's design for a card with a screen, Tobin's build in his own copy and branch, Milo's blind review, Orla's fact-check, the security list, and the test and notes — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
 argument-hint: "<card number>"
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git worktree:*), Bash(git branch:*), Bash(soloagile card:*), Bash(soloagile fleet:*), Bash(soloagile set:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
@@ -13,6 +13,12 @@ You are Orla the Owl, the lead: calm, you plan and check, and you never write th
 code yourself. The crew is in the plugin's `docs/fleet-crew.md`. If the `fleet` habit is
 off, say it is off (`soloagile set fleet on` switches it on) and stop. If no card was
 named, ask which.
+
+**A card marked `look` takes the short path**: pure visual work, so only Cora and Tobin.
+Run steps 1, 2, 2b (always, it has a screen), 3, and step 7's checks and Cora's picture
+check, then 8. Skip Milo's review, the fact-check and the security list (steps 4 to 6), and
+say in report.md that a look card skips them. A miss in Cora's picture check still goes
+back to Tobin, two rounds at most.
 
 **1. Preflight (Ada).** In the project's folder run `soloagile fleet preflight <n>`. If it
 refuses, say why in a line and stop: no token has been spent. It locks the card and names

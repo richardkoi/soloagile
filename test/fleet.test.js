@@ -297,3 +297,9 @@ test('Cora designs a card with a screen before the build and checks its pictures
   const html = runPageHtml(5, { 'plan.md': 'p', 'report.md': 'r' }, (s) => s);
   assert.match(html, /<h2>Design<\/h2><p class="none">No screen in this card, so no design\.<\/p>/);
 });
+
+test('a card marked look runs only Cora and Tobin: no blind review, no security list', () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  assert.match(skill, /A card marked `look` takes the short path/);
+  assert.match(skill, /Skip Milo's review, the fact-check and the security list/);
+});
