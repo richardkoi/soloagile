@@ -56,7 +56,7 @@ to Light or Dark instead.
 | "I'm off to bed" | Claude asks every waiting question now, then builds Up next while you're away, and saves |
 | "build these in parallel" | Helpers build independent cards at once, each in its own copy of the code, then Claude merges them |
 | "what order should we build these in?" | Claude suggests an order for the milestones and Up next with a reason each, asks you questions to tweak it, then applies it. "Put #12 first" just moves that card |
-| "run the fleet on #12" | A crew of helpers designs, builds and reviews one card on its own branch, and leaves it for your yes. Off until you switch on the fleet habit (`soloagile set fleet on`); see [the crew](docs/fleet-crew.md) |
+| "run the fleet on #12" | A crew of helpers designs, builds and reviews one card on its own branch, and leaves it for your yes. Each run's report says what it cost of your week and 5 hours. Off until you switch on the fleet habit (`soloagile set fleet on`); see [the crew](docs/fleet-crew.md) |
 
 Each habit, away mode among them, can be switched off on the page's Settings tab.
 
