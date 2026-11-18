@@ -34,17 +34,17 @@ function bigBoard() {
   return buildProject(repo, new Date('2026-10-02T12:00:00.000Z')).out;
 }
 
-test('on a 1400×900 desktop the header is under 108px, and a card reached by Tab sits below it (#257)', { skip: !findBrowser() && 'no browser here' }, async () => {
-  const out = bigBoard();
-  const seen = await withPage(pathToFileURL(out).href, async (page) => {
-    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+// Load the board at one window size, measure the header, then Tab onto a card that sits
+// just under the header, as it does when Tab moves along a lane the page has been scrolled past.
+// The browser only scrolls it into view if it knows the header covers that band (scroll-padding-top).
+async function tabUnderHeader(out, width, height) {
+  return withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
     await page.send('Page.reload');
     await new Promise((ok) => setTimeout(ok, 500));
     const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
     const header = await run(`document.querySelector('header.header').getBoundingClientRect().height`);
-    // Tab from one card to the next while the next card sits just under the header, as it
-    // does when Tab moves along a lane the page has been scrolled past. The browser only
-    // scrolls it into view if it knows the header covers that band (scroll-padding-top).
+    const band = await run(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-h'))`);
     await run(`(() => {
       const cards = [...document.querySelectorAll('.lane-up-next .card-x')];
       cards[4].querySelector('.card-open').focus({ preventScroll: true });
@@ -59,9 +59,25 @@ test('on a 1400×900 desktop the header is under 108px, and a card reached by Ta
       const head = document.querySelector('header.header').getBoundingClientRect();
       return { id: card && card.dataset.id, cardTop: card && card.getBoundingClientRect().top, headBottom: head.bottom };
     })()`);
-    return { header, ...focus };
+    return { header, band, ...focus };
   });
+}
+
+test('on a 1400×900 desktop the header is under 108px, and a card reached by Tab sits below it (#257)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const seen = await tabUnderHeader(bigBoard(), 1400, 900);
   assert.equal(seen.id, '55', 'Tab reached the next card in the lane');
   assert.ok(seen.header < 108, `the header is under 12% of 900px: ${Math.round(seen.header)}px`);
+  assert.ok(seen.header <= seen.band, `the header (${seen.header}px) fits its --header-h (${seen.band}px)`);
   assert.ok(seen.cardTop >= seen.headBottom, `the focused card's top (${Math.round(seen.cardTop)}px) is below the header's bottom (${Math.round(seen.headBottom)}px)`);
 });
+
+// Narrower windows wrap the tabs onto more lines; each band of --header-h must still cover
+// the header's real height, or Tab could leave a card under it.
+for (const [width, band] of [[1100, '≤1200'], [800, '≤860'], [720, '≤760']]) {
+  test(`at ${width} wide (the ${band} band) the header fits --header-h, and a card reached by Tab sits below it (#257)`, { skip: !findBrowser() && 'no browser here' }, async () => {
+    const seen = await tabUnderHeader(bigBoard(), width, 900);
+    assert.equal(seen.id, '55', 'Tab reached the next card in the lane');
+    assert.ok(seen.header <= seen.band, `the header (${seen.header}px) fits its --header-h (${seen.band}px)`);
+    assert.ok(seen.cardTop >= seen.headBottom, `the focused card's top (${Math.round(seen.cardTop)}px) is below the header's bottom (${Math.round(seen.headBottom)}px)`);
+  });
+}
