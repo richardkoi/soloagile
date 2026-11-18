@@ -204,6 +204,8 @@ test("the browser's find finds a card past Show all, shows it and opens its lane
     const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
     const state = () => run(`({ shown: document.querySelector('[data-id="12"]').offsetHeight > 0,
       hidden: document.querySelector('[data-id="12"]').getAttribute('hidden'),
+      display: getComputedStyle(document.querySelector('[data-id="12"]')).display === 'none' ? 'none' : 'shown',
+      cv: getComputedStyle(document.querySelector('[data-id="12"]')).contentVisibility,
       all: [...document.querySelectorAll('.lane-up-next .card-x')].filter((li) => li.offsetHeight > 0).length,
       button: document.querySelector('.lane-up-next .lane-more').textContent })`);
     const steps = { before: await state() };
@@ -212,8 +214,8 @@ test("the browser's find finds a card past Show all, shows it and opens its lane
     steps.after = await state();
     return steps;
   });
-  assert.deepEqual(seen.before, { shown: false, hidden: 'until-found', all: 10, button: 'Show all 15' }, 'past the first 10, hidden until found');
-  assert.deepEqual(seen.after, { shown: true, hidden: null, all: 15, button: 'Show the first 10' }, 'found: the card shows and its lane opens in full');
+  assert.deepEqual(seen.before, { shown: false, hidden: 'until-found', display: 'shown', cv: 'hidden', all: 10, button: 'Show all 15' }, 'past the first 10, hidden until found: not display none, so find in page can reach it');
+  assert.deepEqual(seen.after, { shown: true, hidden: null, display: 'shown', cv: 'visible', all: 15, button: 'Show the first 10' }, 'found: the card shows and its lane opens in full');
 });
 
 test("on a phone a long lane shows its first 5 cards and a Show all button, so Done's heading comes near the top (#220)", { skip: !findBrowser() && 'no browser here' }, async () => {
