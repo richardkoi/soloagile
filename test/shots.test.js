@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import './isolate.js';
-import { FULL_MAX, findBrowser, findShell, isLocal, parseShotArgs, takeShots } from '../src/shots.js';
+import { FULL_MAX, cardPage, findBrowser, findShell, isLocal, parseShotArgs, takeShots } from '../src/shots.js';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'pm-shots-test-'));
 
@@ -97,6 +98,37 @@ test('reads the clicks and typing to do before the picture, in the order written
   for (const bad of [[], ['--full'], ['http://x/', '--wait'], ['--click', 'Go'], ['http://x/', '--click'], ['http://x/', '--type', 'no box'], ['http://x/', '--tap', 'Go'], ['a', 'b', 'c'], ['http://x/', '--press'], ['http://x/', '--press', 'Enterr']]) {
     assert.throws(() => parseShotArgs(bad), /usage: soloagile shots/, bad.join(' '));
   }
+});
+
+test('shots --card <n> takes a card copy in place of the url, with an optional fragment and folder (#270)', () => {
+  assert.deepEqual(parseShotArgs(['--card', '7']), { card: 7, hash: '', dir: undefined, steps: [] });
+  assert.deepEqual(parseShotArgs(['--card', '#7#plan', 'out', '--click', 'Plan']), {
+    card: 7, hash: '#plan', dir: 'out', steps: [{ do: 'click', what: 'Plan' }],
+  });
+  for (const bad of [['--card'], ['--card', 'x'], ['--card', '0'], ['--card', '1.5'], ['--card', '7', 'a', 'b'], ['--card', '--full']]) {
+    assert.throws(() => parseShotArgs(bad), /usage: soloagile shots .*--card <n>/, bad.join(' '));
+  }
+});
+
+test("cardPage builds the project's page from card-<n>'s copy into a temp folder, leaving pm/ alone (#270)", () => {
+  const repo = tmp();
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n');
+  // The copy's own bin/soloagile, a stub: its build writes a page with a marker.
+  const bin = join(repo, '.claude', 'worktrees', 'card-1', 'bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'soloagile'), `const fs = require('node:fs');
+const [cmd, dir] = process.argv.slice(2);
+if (cmd !== 'build') process.exit(2);
+fs.writeFileSync(dir + '/pm/index.html', 'built by the copy: ' + fs.readFileSync(dir + '/pm/board.md', 'utf8'));
+`);
+  const page = cardPage(repo, 1, { hash: '#plan' });
+  assert.match(page.url, /^file:\/\/.*soloagile-card-1-[^/]+\/pm\/index\.html#plan$/);
+  const file = fileURLToPath(page.url.replace(/#.*$/, ''));
+  assert.equal(readFileSync(file, 'utf8'), 'built by the copy: # Board\n', "the copy's code built the main tree's board");
+  assert.equal(page.dir, join(file, '..', '..', 'shots'));
+  assert.equal(existsSync(join(repo, 'pm', 'index.html')), false, "the main tree's pm/ is unchanged");
+  assert.throws(() => cardPage(repo, 2), /no copy for #2: run soloagile fleet branch 2 first/);
 });
 
 // A page with a pop-up to open, a box to fill in and a button that sends what was typed.

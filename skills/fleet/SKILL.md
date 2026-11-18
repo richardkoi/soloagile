@@ -50,7 +50,8 @@ Needs your decision card with those options, a picture of each
 stop. Otherwise add her recommendation to plan.md, so Tobin builds to it.
 
 **3. Build (Tobin), writes `pm/runs/<n>/build.md`.** Run `soloagile fleet branch <n>`:
-it makes Tobin's own copy of the code on branch `card-<n>` and prints its path. Start Tobin
+it makes Tobin's own copy of the code on branch `card-<n>` and prints its path. A card built
+on another unmerged card uses `soloagile fleet branch <n> --from <m>`. Start Tobin
 with the Agent tool, `subagent_type: "soloagile:tobin"`, giving him the card, plan.md in
 full, his copy's path and the full path to write build.md to, and telling him to load the
 skills plan.md names for him with the Skill tool before anything else (the same for Cora
@@ -105,7 +106,7 @@ security-list.md word for word. It is a reading list for the user, never a sign-
 
 **7. Test and notes (Orla), `pm/runs/<n>/report.md`.** In Tobin's copy, run the project's
 checks from `## Checks` in `pm/overview.md`, as for any card; for anything in a browser,
-run `soloagile shots <url>` on the copy's build and read its pictures. A card with a
+run `soloagile shots --card <n>` (it builds the page from the copy's code and shoots it) and read its pictures. A card with a
 design.md: start a new Cora with the four pictures' paths and design.md, to write
 `pm/runs/<n>/picture-check.md`; what she finds off goes in report.md, and a clear miss goes
 back to Tobin as a rework round (step 5's limit of two counts it). Write report.md:

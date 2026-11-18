@@ -11,8 +11,8 @@
 // It drives a headless browser (findBrowser: Playwright's headless Chromium, or a Chrome,
 // Chromium, Edge or Brave already on the machine), over the DevTools protocol with Node's
 // built-in WebSocket, so this repo still has no npm dependencies. An ordinary browser window can't shrink to phone width, so it is headless.
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, join } from 'node:path';
 
@@ -50,11 +50,14 @@ const keyFor = (name) => KEYS[name] ? { key: name, ...KEYS[name] }
 export const FULL_MAX = 16000;
 
 // `soloagile shots <url> [dir] [--click <words>] [--type <box>=<text>] [--press <key>] ... [--full]` -> { url, dir, steps }.
-// The steps keep the order they were written in. --full comes back as one more step,
+// `--card <n>[#fragment]` stands in for the url (#270): -> { card, hash, dir, steps }, the
+// page being built from card-<n>'s copy by cardPage. The steps keep the order they were written in. --full comes back as one more step,
 // { do: 'full' }, at the end: it is the last thing done before each picture.
 export function parseShotArgs(args) {
-  const usage = new Error('usage: soloagile shots <url> [dir] [--click "<words on it>"] [--type "<box>=<text>"] [--press <key>] [--wait "<words or selector>"] ... [--full]');
+  const usage = new Error('usage: soloagile shots <url> [dir] | --card <n>[#fragment] [dir]   [--click "<words on it>"] [--type "<box>=<text>"] [--press <key>] [--wait "<words or selector>"] ... [--full]');
   let full = false;
+  let card;
+  let hash = '';
   const plain = [];
   const steps = [];
   for (let i = 0; i < args.length; i++) {
@@ -75,15 +78,40 @@ export function parseShotArgs(args) {
       }
     } else if (args[i] === '--full') {
       full = true;
+    } else if (args[i] === '--card') {
+      // "7", "#7" or "#7#plan": the part after the number's own # is the page's fragment.
+      const m = /^#?(\d+)(#.*)?$/.exec(args[++i] ?? '');
+      if (!m || Number(m[1]) < 1) throw usage;
+      card = Number(m[1]);
+      hash = m[2] ?? '';
     } else if (args[i].startsWith('--')) {
       throw usage;
     } else {
       plain.push(args[i]);
     }
   }
-  if (plain.length < 1 || plain.length > 2) throw usage;
   if (full) steps.push({ do: 'full' });
+  // With --card the only plain argument is an optional folder; without it, the url and a folder.
+  if (card) {
+    if (plain.length > 1) throw usage;
+    return { card, hash, dir: plain[0], steps };
+  }
+  if (plain.length < 1 || plain.length > 2) throw usage;
   return { url: plain[0], dir: plain[1], steps };
+}
+
+// The page `shots --card <n>` shoots (#270, in place of pm/runs/shoot-branch.sh): the main
+// tree's pm/ copied to a fresh temp folder and built there with card-<n>'s own code, so a
+// card's pictures can be taken before it is merged. -> { url, dir }, dir being where the
+// pictures go unless a folder is given.
+export function cardPage(repo, n, { hash = '' } = {}) {
+  const copy = join(repo, '.claude', 'worktrees', `card-${n}`);
+  if (!existsSync(copy)) throw new Error(`no copy for #${n}: run soloagile fleet branch ${n} first`);
+  const out = mkdtempSync(join(tmpdir(), `soloagile-card-${n}-`));
+  cpSync(join(repo, 'pm'), join(out, 'pm'), { recursive: true });
+  const built = spawnSync(process.execPath, [join(copy, 'bin', 'soloagile'), 'build', out], { cwd: repo, encoding: 'utf8' });
+  if (built.status !== 0) throw new Error(`card-${n}'s copy could not build the page: ${(built.stderr || built.stdout).trim()}`);
+  return { url: `file://${join(out, 'pm', 'index.html')}${hash}`, dir: join(out, 'shots') };
 }
 
 // The newest chromium_headless_shell-<build> in Playwright's cache, or null. The cache is
