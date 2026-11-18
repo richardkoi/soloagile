@@ -165,9 +165,13 @@
       li.classList.toggle('find-dim', !!q && !hit);
       if (hit && !li.hidden) n++;
     });
-    var text = !q ? '' : /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
-    clearTimeout(noteTimer);
-    noteTimer = setTimeout(function () { note.textContent = text; }, 300);
+    // An emptied box clears the note at once, so an old count never outlives the lit cards.
+    if (!q) say('');
+    else {
+      var text = /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(function () { note.textContent = text; }, 300);
+    }
     if (window.soloagileLimit) window.soloagileLimit(!!q && !/^#?\d+$/.test(q));
   }
   box.addEventListener('input', light);

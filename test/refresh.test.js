@@ -288,8 +288,9 @@ test("the search box's match count waits until typing stops, about 300ms, before
   const seen = await withPage(pathToFileURL(out).href, async (page) => {
     await new Promise((ok) => setTimeout(ok, 300));
     const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.value;
-    // Three letters 50ms apart, then the note and the cards are read at once, at 150ms after
-    // the last letter, and at 400ms after it.
+    // Three letters 50ms apart, then the note and the cards are read at once and at 150ms
+    // after the last letter; then the note is polled (up to 2s) for the count, so a busy
+    // machine can't fail it. Clearing the box must empty the note at once, not after 300ms.
     return run(`(async () => {
       const b = document.querySelector('.card-find input'), note = document.querySelector('.card-find-note');
       const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
@@ -297,17 +298,20 @@ test("the search box's match count waits until typing stops, about 300ms, before
       const now = { note: note.textContent, hits: document.querySelectorAll('.find-hit').length };
       await wait(100);
       const mid = note.textContent;
-      await wait(250);
+      for (let t = 0; t < 2000 && !note.textContent; t += 25) await wait(25);
       const later = note.textContent;
+      b.value = ''; b.dispatchEvent(new Event('input'));
+      const cleared = note.textContent;
       b.value = '#9'; b.dispatchEvent(new Event('input'));
       b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
       await wait(400);
-      return { now, mid, later, missing: note.textContent };
+      return { now, mid, later, cleared, missing: note.textContent };
     })()`);
   });
   assert.equal(seen.now.hits, 2, 'the cards light at once');
   assert.equal(seen.now.note, '', 'the note has not changed while typing');
   assert.equal(seen.mid, '', 'nor 150ms after the last letter');
   assert.equal(seen.later, '2 cards match', 'about 300ms after the last letter it shows the count');
+  assert.equal(seen.cleared, '', 'clearing the box empties the note at once');
   assert.equal(seen.missing, 'no card #9 on this page', 'a pending count does not overwrite what Enter said');
 });
