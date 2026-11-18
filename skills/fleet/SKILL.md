@@ -1,6 +1,6 @@
 ---
 name: fleet
-description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Tobin's build in his own copy and branch — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
+description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Tobin's build in his own copy and branch, Milo's blind review and Orla's fact-check — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
 argument-hint: "<card number>"
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git worktree:*), Bash(git branch:*), Bash(soloagile card:*), Bash(soloagile fleet:*), Bash(soloagile set:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
@@ -38,9 +38,25 @@ don't restart or message him for more turns (a restarted helper gets a fresh cap
 say how far he got and stop. A question in build.md goes to the user as a Needs your
 decision card.
 
-**4. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
-`card-<n>`, unmerged and unpushed. The stages after Build (blind review, security list,
-test and notes) come with later cards; until then say plainly that they didn't run. Move
+**4. Blind review (Milo), `pm/runs/<n>/review.md`.** Get the change with
+`git diff main...card-<n>` and start Milo with the Agent tool, `subagent_type:
+"soloagile:milo"`, giving him only the card's "done when" lines and that diff: not the
+card's title, the plan, build.md or any other code. He has no tools and runs on a different
+model from Tobin. Write his reply into review.md word for word.
+
+**5. Fact-check (Orla), `pm/runs/<n>/verdicts.md`.** For each of Milo's findings, read the
+real code in Tobin's copy and decide: **upheld** (it's real, with the line that proves it)
+or **rejected** (with the reason, such as the code he couldn't see that handles it). Write
+one verdict per finding. With none upheld, go on. With some upheld, start a new Tobin (a
+new Agent call, never a message to the old one) with the upheld findings, to fix them on
+the same branch and add to build.md; then review the new diff and write the new verdicts
+under a `## Round 2` heading. Two rework rounds at most: if findings are still upheld after
+the second, move the card to Needs your decision with them, run `soloagile fleet unlock
+<n>`, and stop.
+
+**6. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
+`card-<n>`, unmerged and unpushed. The stages after the fact-check (security list, test
+and notes) come with later cards; until then say plainly that they didn't run. Move
 the card to Needs your look with a `tested:` line naming what ran and a `not tested:`
 line for the rest, and tell the user the branch and the run's files.
 

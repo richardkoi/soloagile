@@ -125,3 +125,15 @@ test('Tobin is a plugin agent with set tools, a turn cap and the strongest model
   assert.match(skill, /soloagile fleet preflight <n>/);
   assert.match(skill, /don't restart or message him for more turns/);
 });
+
+test('Milo reviews blind: no tools, a different model from Tobin, and two rework rounds at most', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const milo = readFileSync(join(root, 'agents', 'milo.md'), 'utf8');
+  assert.match(milo, /^model: sonnet$/m);
+  assert.match(milo, /^tools: \[\]$/m);
+  const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  assert.match(skill, /subagent_type:\s+"soloagile:milo"/);
+  assert.match(skill, /only\s+the\s+card.s\s+"done\s+when"\s+lines\s+and\s+that\s+diff/);
+  assert.match(skill, /Two\s+rework\s+rounds\s+at\s+most/);
+  assert.match(skill, /a\s+new\s+Agent\s+call,\s+never\s+a\s+message\s+to\s+the\s+old\s+one/);
+});
