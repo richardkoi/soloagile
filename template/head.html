@@ -133,6 +133,36 @@ button { font-family: inherit; }
 .header-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); }
 .updated { font-size: var(--font-xs); color: var(--text-muted); }
 @media (max-width: 1100px) { .header { flex-wrap: wrap; } .header-right { justify-content: flex-start; } }
+/* The desktop header in two slim rows (#257), so it stays under 12% of the screen.
+   Row 1: the title with the subtitle beside it, the time at the right.
+   Row 2: the tabs, with ?, Awake and Dark/Light at the right end.
+   Desktop only: the phone keeps its own short header (#227) further down. */
+@media (min-width: 701px) {
+  :root { --header-pad-y: 10px; --header-h: 100px; }   /* 99px measured at 1400 wide */
+  .header { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "title right" "nav right"; row-gap: 6px; column-gap: var(--space-lg); align-items: center; }
+  .header-left { display: contents; }
+  .header-left > div { grid-area: title; display: flex; align-items: baseline; gap: var(--space-md); min-width: 0; }
+  .header-title { font-size: var(--font-xl); flex: none; }
+  /* A long subtitle ends in "…" instead of wrapping, so the header's height never changes. */
+  .header-subtitle { margin: 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dk-nav { grid-area: nav; }
+  /* The time on row 1; the buttons under it. The ? popover's div is display:none while
+     closed, so it takes no cell. */
+  .header-right { grid-area: right; display: grid; grid-auto-flow: column; justify-content: end; justify-items: end;
+    align-items: center; gap: 6px var(--space-sm); align-self: stretch; grid-template-rows: auto auto; }
+  .header-right .updated { grid-row: 1; grid-column: 1 / -1; }
+  .header-right > :not(.updated) { grid-row: 2; }
+  /* The sticky header covers the top of the window: a focused card or a #plan-M9 target is
+     scrolled to land below it rather than under it. */
+  html { scroll-padding-top: calc(var(--header-h) + var(--space-sm)); }
+}
+/* Narrower, the tabs wrap onto more lines (measured on soloagile's and weatherglider's pages:
+   a second line below about 1190px, a third below 855px, a fourth below 730px), so the band
+   kept clear grows with them, with a little room to spare at each step. */
+@media (min-width: 701px) and (max-width: 1200px) { :root { --header-h: 148px; } }
+@media (min-width: 701px) and (max-width: 860px) { :root { --header-h: 196px; } }
+@media (min-width: 701px) and (max-width: 760px) { :root { --header-h: 244px; } }
 
 /* ---------- nav (the page's tabs) ----------
    Each link targets an empty anchor at the top of the page, so switching never
