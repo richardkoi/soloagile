@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { cardBase, cardDiff, dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -255,6 +255,73 @@ test('soloagile fleet scan reads card-<n> against main and exits 1 on a hit', ()
   const loud = spawnSync('node', [PM, 'fleet', 'scan', '1'], { cwd: dir, encoding: 'utf8' });
   assert.equal(loud.status, 1);
   assert.match(loud.stdout, /quiet\.js:2  a key or token/);
+});
+
+// #269: the words that tripped the scan on #259, #260, #265 and #266, none of them in code.
+const added = (file, ...lines) => `--- a/${file}\n+++ b/${file}\n@@ -0,0 +1,${lines.length} @@\n${lines.map((l) => `+${l}`).join('\n')}\n`;
+
+test('session is not a login word; cookie still is (#260)', () => {
+  assert.deepEqual(scanDiff(added('test/refresh.test.js', "  assert.equal(seen.flow.title, 'Session flow - PM');")), []);
+  assert.equal(scanDiff(added('src/a.js', 'const cookie = req.headers.cookie;'))[0]?.why, 'a login or password');
+});
+
+test('the scan skips comments but keeps the code before a trailing comment and URLs (#259, #260)', () => {
+  assert.deepEqual(scanDiff(added('template/guide.html', '<!-- The command guide: one list, in the order of a session. It is a modal <dialog> opened -->')), []);
+  assert.deepEqual(scanDiff(added('template/guide.html', '<!-- The command guide: one list, in the order of a session.', 'It is a modal <dialog> opened from the token button', '-->', '<p>a session cookie</p>')).map((h) => h.line), [4], 'a comment over lines is skipped, the line after is not');
+  // The comment opened in a context line, before the hunk's added lines.
+  assert.deepEqual(scanDiff('--- a/t.html\n+++ b/t.html\n@@ -1,2 +1,3 @@\n <!-- the guide\n+opened from the token button\n -->\n'), []);
+  assert.deepEqual(scanDiff(added('template/refresh.js', '  // the "Session flow" tab, and its auth cookie', '  /* the token', '   * and the password */')), []);
+  assert.deepEqual(scanDiff(added('deploy.sh', '  # read the api_key from vault')), []);
+  assert.deepEqual(scanDiff(added('config.yml', '# the token lives elsewhere', 'name: app # no password here')), []);
+  assert.equal(scanDiff(added('deploy.sh', '#!/bin/sh token'))[0]?.why, 'a key or token', 'a shebang is not a comment');
+  assert.equal(scanDiff(added('src/a.js', '# a token'))[0]?.why, 'a key or token', '# is a comment only in the # languages');
+  assert.equal(scanDiff(added('src/a.js', 'const api_key = x; // note'))[0]?.why, 'a key or token');
+  assert.deepEqual(scanDiff(added('src/a.js', 'const x = 1; // the token')), []);
+  assert.equal(scanDiff(added('src/a.js', "fetch('https://x.test/token')"))[0]?.why, 'a key or token', 'a URL is not cut as a comment');
+});
+
+test('Markdown prose is skipped, its fenced code is scanned (#266)', () => {
+  assert.deepEqual(scanDiff(added('skills/fleet/SKILL.md', 'the run stops here: no token has been spent.', 'Use `api_key` in prose.')), []);
+  const hits = scanDiff(added('README.md', 'Set the key:', '', '```bash', 'export API_KEY=abc', '```', 'and the token is set.'));
+  assert.deepEqual(hits.map((h) => `${h.line} ${h.why}`), ['4 a key or token']);
+  // A fence opened in a context line before the hunk.
+  assert.equal(scanDiff('--- a/a.md\n+++ b/a.md\n@@ -1,2 +1,3 @@\n ~~~\n+password = 1\n ~~~\n')[0]?.why, 'a login or password');
+});
+
+// A repo on main where card-1 adds a risky line and card-2, made from card-1, a quiet one.
+const stacked = () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  const commit = (path, file, text) => {
+    writeFileSync(join(path, file), text);
+    execFileSync('git', ['add', file], { cwd: path });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', file], { cwd: path });
+  };
+  commit(fleetBranch(dir, 1).path, 'risky.js', 'export const key = process.env.SECRET;\n');
+  execFileSync('git', ['branch', 'card-2', 'card-1'], { cwd: dir });
+  commit(fleetBranch(dir, 2, { from: 'card-1' }).path, 'quiet.js', 'export const two = 2;\n');
+  return dir;
+};
+
+test("the scan compares a card against the branch it was built on (#265)", () => {
+  const dir = stacked();
+  assert.equal(execFileSync('git', ['config', '--get', 'branch.card-2.fleetBase'], { cwd: dir, encoding: 'utf8' }).trim(), 'card-1');
+  assert.equal(cardBase(dir, 2), 'card-1');
+  assert.equal(cardBase(dir, 1), 'main', 'unset, it is the branch checked out in the main tree');
+  assert.equal(cardBase(join(dir, '.claude', 'worktrees', 'card-1'), 1), 'main', 'the main tree, even from a copy');
+  assert.deepEqual(scanDiff(cardDiff(dir, 2)), []);
+  assert.deepEqual(scanDiff(cardDiff(dir, 2, 'main')).map((h) => h.file), ['risky.js']);
+});
+
+test('soloagile fleet scan names its base, and --base overrides it', () => {
+  const dir = stacked();
+  const own = spawnSync('node', [PM, 'fleet', 'scan', '2'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(own.status, 0, own.stderr);
+  assert.match(own.stdout, /against card-1/);
+  const main = spawnSync('node', [PM, 'fleet', 'scan', '2', '--base', 'main'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(main.status, 1);
+  assert.match(main.stdout, /against main/);
+  assert.match(main.stdout, /risky\.js:1  a key or token/);
 });
 
 test("the fleet's last stage runs the project's checks and links report.md from the card", () => {

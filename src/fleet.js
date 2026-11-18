@@ -97,7 +97,9 @@ export function preflightText(id, { stage, file, cleared, said }) {
 // .claude/worktrees/ where soloagile cleanup clears merged ones. That folder is added to
 // the repo's own .git/info/exclude, never to a committed file, so the copy doesn't make the
 // main tree look dirty to the next preflight. A second call finds the copy already there.
-export function fleetBranch(repo, id) {
+// from: the branch the card was made from, kept in git config as branch.card-<n>.fleetBase
+// so the scan compares against it (#269). Making the branch from it is #270's job.
+export function fleetBranch(repo, id, { from } = {}) {
   const root = resolve(repo);
   const git = (...args) => {
     const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
@@ -112,6 +114,7 @@ export function fleetBranch(repo, id) {
     mkdirSync(dirname(exclude), { recursive: true });
     writeFileSync(exclude, `${excluded}${excluded && !excluded.endsWith('\n') ? '\n' : ''}.claude/worktrees/\n`);
   }
+  if (from) git('config', `branch.${branch}.fleetBase`, from);
   if (existsSync(path)) return { path, branch, made: false };
   const known = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root }).status === 0;
   if (known) git('worktree', 'add', path, branch);
@@ -125,14 +128,49 @@ export function fleetBranch(repo, id) {
 const RISKY = [
   ['a key or token', /\b(api[_-]?key|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}/i],
   ['a .env file', /(^|[^\w.])\.env\b|\bprocess\.env\b|\bos\.environ\b|\bdotenv\b/],
-  ['a login or password', /\b(password|passwd|login|auth|session|cookie|credential|oauth|jwt)\b/i],
+  // Not session (#269): the word is all over this plugin's prose and tests ("Session flow").
+  ['a login or password', /\b(password|passwd|login|auth|cookie|credential|oauth|jwt)\b/i],
   ['a permission', /\b(chmod\w*|chown\w*|sudo|setuid|permissions?|allow(ed)?[-_ ]?tools|cors|access[-_ ]control)\b|\b(0o?)?777\b/i],
 ];
+
+// Only code is scanned (#269): comments and Markdown prose talk about tokens and logins
+// without holding any. A line wholly a comment is skipped (//, /*, *, <!--, the lines of an
+// HTML comment that spans lines, and # in the # languages, not #!); a code line is cut at a
+// trailing comment (` //`, never `://`, so URLs stay; ` #` in the # languages). In Markdown
+// only fenced code is scanned. State is followed through a hunk's added and context lines.
+const HASH_LANG = /\.(sh|bash|py|ya?ml|toml)$|(^|\/)bin\/[^/.]+$/;
+const MARKDOWN = /\.(md|markdown)$/i;
+
+// The part of a line to scan, or null for none; st carries the open fence or HTML comment.
+function codePart(file, body, st) {
+  const t = body.trim();
+  if (MARKDOWN.test(file)) {
+    const fence = t.match(/^(`{3,}|~{3,})/);
+    if (fence && (!st.fence || fence[1][0] === st.fence[0])) {
+      st.fence = st.fence ? null : fence[1];
+      return null;
+    }
+    return st.fence ? body : null;
+  }
+  if (st.html) {
+    if (!body.includes('-->')) return null;
+    st.html = false;
+    return codePart(file, body.slice(body.indexOf('-->') + 3), st);
+  }
+  if (t.startsWith('<!--')) {
+    if (!t.slice(4).includes('-->')) st.html = true;
+    return null;
+  }
+  const hash = HASH_LANG.test(file);
+  if (/^(\/\/|\/\*|\*)/.test(t) || (hash && t.startsWith('#') && !t.startsWith('#!'))) return null;
+  return body.split(hash ? /[ \t]#/ : /[ \t]\/\//)[0];
+}
 
 export function scanDiff(diff) {
   const hits = [];
   let file = null;
   let line = 0;
+  let st = {};
   for (const text of diff.split('\n')) {
     const to = text.match(/^\+\+\+ (?:b\/)?(.+)$/);
     if (to) {
@@ -144,29 +182,47 @@ export function scanDiff(diff) {
     const hunk = text.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
     if (hunk) {
       line = Number(hunk[1]);
+      st = {};
       continue;
     }
     if (!file || text.startsWith('---')) continue;
     if (text.startsWith('+')) {
-      const why = RISKY.find(([, re]) => re.test(text.slice(1)))?.[0];
+      const code = codePart(file, text.slice(1), st);
+      const why = code && RISKY.find(([, re]) => re.test(code))?.[0];
       if (why) hits.push({ file, line, text: text.slice(1).trim(), why });
       line++;
-    } else if (!text.startsWith('-') && !text.startsWith('\\')) line++;
+    } else if (!text.startsWith('-') && !text.startsWith('\\')) {
+      codePart(file, text.slice(1), st);
+      line++;
+    }
   }
   return hits;
 }
 
+// The branch card-<n> was built on (#269): branch.card-<n>.fleetBase in git config when
+// set, otherwise the branch checked out in the main tree (the first worktree listed).
+export function cardBase(repo, id) {
+  const cwd = resolve(repo);
+  const set = spawnSync('git', ['config', '--get', `branch.card-${id}.fleetBase`], { cwd, encoding: 'utf8' });
+  if (set.status === 0 && set.stdout.trim()) return set.stdout.trim();
+  const list = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd, encoding: 'utf8' }).stdout ?? '';
+  return list.split('\n\n')[0].match(/^branch refs\/heads\/(.+)$/m)?.[1] ?? 'main';
+}
+
 // The change on card-<n> against the branch it came from, as a unified diff.
-export function cardDiff(repo, id, base = 'main') {
+export function cardDiff(repo, id, base = cardBase(repo, id)) {
   const r = spawnSync('git', ['diff', `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`git diff ${base}...card-${id}: ${r.stderr.trim()}`);
   return r.stdout;
 }
 
-export const scanText = (id, hits) =>
-  hits.length
-    ? [`soloagile: #${id}'s change has ${hits.length} line${hits.length === 1 ? '' : 's'} for Rufus:`, ...hits.map((h) => `  ${h.file}:${h.line}  ${h.why}: ${h.text.slice(0, 120)}`)].join('\n')
-    : `soloagile: #${id}'s change touches no keys, tokens, .env, logins or permissions: no security list needed`;
+// base, when given, is named in the first line: the branch the change was compared against.
+export const scanText = (id, hits, base) => {
+  const change = `soloagile: #${id}'s change${base ? ` against ${base}` : ''}`;
+  return hits.length
+    ? [`${change} has ${hits.length} line${hits.length === 1 ? '' : 's'} for Rufus:`, ...hits.map((h) => `  ${h.file}:${h.line}  ${h.why}: ${h.text.slice(0, 120)}`)].join('\n')
+    : `${change} touches no keys, tokens, .env, logins or permissions: no security list needed`;
+};
 
 // After the user's look (#240). merge: the user said yes, so card-<n> is merged into the
 // branch checked out in the main tree, and its copy and branch go. sendBack: the card
