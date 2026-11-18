@@ -292,6 +292,23 @@ test('the open tab has aria-current, a 3px bar and its name in the window title,
   assert.deepEqual(seen.none.on, ['#board'], 'back to no hash: Board again');
 });
 
+test('a hash that cannot be decoded (#%) marks Board, and later tab changes still mark the tab and title (#260)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = project('A card');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const name = readFileSync(out, 'utf8').match(/<title>(.*?) - PM<\/title>/)[1];
+  const seen = await withPage(pathToFileURL(out).href + '#%', async (page) => {
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const start = { hash: await run('location.hash'), ...(await run(tabState)) };
+    await run(`location.hash = '#settings'`);
+    await nap(150);
+    return { start, settings: await run(tabState) };
+  });
+  assert.equal(seen.start.hash, '#%', 'the page really opened on #%');
+  assert.deepEqual(seen.start.on, ['#board'], 'an undecodable hash counts as no target: Board');
+  assert.deepEqual(seen.settings.on, ['#settings'], 'the hashchange listener is still there');
+  assert.equal(seen.settings.title, `${name} - Settings - PM`);
+});
+
 test("the home page's open tab has aria-current and names the window (#260)", { skip: !findBrowser() && 'no browser here' }, async () => {
   const out = join(mkdtempSync(join(tmpdir(), 'pm-home-tabs-')), 'index.html');
   buildHome({ root: mkdtempSync(join(tmpdir(), 'pm-home-root-')), out });

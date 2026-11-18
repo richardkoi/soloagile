@@ -16,7 +16,9 @@
       .map(function (n) { return n.textContent; }).join('').trim();
   }
   function mark() {
-    var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    // A hash that can't be decoded (#%) throws a URIError; it counts as no target, so the first tab.
+    var target = null;
+    try { target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch (e) {}
     var href = !target ? '' : target.classList.contains('anchor') ? '#' + target.id : target.classList.contains('ms-fold') ? '#plan' : '';
     var open = (href && nav.querySelector('a[href="' + href + '"]')) || links[0];
     links.forEach(function (a) { if (a === open) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
@@ -24,8 +26,9 @@
     // Only when the strip swipes (a phone); container: 'nearest' scrolls the strip, never the page.
     if (nav.scrollWidth > nav.clientWidth) open.scrollIntoView({ block: 'nearest', inline: 'nearest', container: 'nearest' });
   }
-  mark();
+  // The listener goes first, so a later hash still updates the tab even if this first mark() fails.
   window.addEventListener('hashchange', mark);
+  mark();
 })();
 /* A batch's guess on Up next (#209): the build wrote "likely 3.5 h · surely 5 h"; when it
    would end, "(by 16:30)", is counted from the moment the page is opened, and said only
