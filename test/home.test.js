@@ -150,13 +150,14 @@ test('with no pages it says so', () => {
   assert.match(html, /0 projects · nothing waiting on you/);
 });
 
-test('the home page has the shared styles, theme toggle and live refresh', () => {
+test('the home page has the shared styles, theme and keep-awake switches, and live refresh', () => {
   const { html } = renderHome({ projects: [], builtAt, template });
   assert.match(html, /<title>Projects - PM<\/title>/);
   assert.match(html, /<link rel="icon" href="data:image\/svg\+xml,/);
   assert.doesNotMatch(html, /\{\{/);
   assert.match(html, /--bg-canvas/);
   assert.match(html, /toggleTheme\(\)/);
+  assert.match(html, /onclick="toggleAwake\(\)"/);
   assert.match(html, /Live refresh/);
 });
 

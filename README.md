@@ -39,6 +39,9 @@ Claude gives the project a `pm/` folder and builds its page. A project that alre
 notes or a to-do list gets its board built from those. Claude prints the page's link:
 open it in a browser and leave it open. It refreshes itself as cards move.
 
+For a long session, press **Awake** in the page's header: while the page is on screen, the
+computer won't go to sleep. The screen stays lit too, and each browser remembers the choice.
+
 ## What you say
 
 | You say | What happens |

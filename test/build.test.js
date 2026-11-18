@@ -287,11 +287,23 @@ test('web links open in a new tab; file links do not', () => {
   assert.match(html, /<a href="file:\/\/\/tmp\/x.html">/);
 });
 
-test('names HTML-escape, and the only scripts are the theme toggle and the one for days waiting, full-size pictures and live refresh', () => {
+test('names HTML-escape, and the only scripts are the theme and keep-awake switches and the one for days waiting, full-size pictures and live refresh', () => {
   const { html } = renderPage({ name: '<b>x</b>', md, builtAt, template });
   assert.match(html, /<h1 class="header-title">&lt;b&gt;x&lt;\/b&gt;<\/h1>/);
   assert.equal((html.match(/<script/gi) || []).length, 2);
   assert.match(html, /function toggleTheme\(\)/);
+  assert.match(html, /function toggleAwake\(\)/);
+});
+
+test('an Awake button sits between the "?" and the Dark/Light switch, off until this browser turns it on', () => {
+  const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  const header = html.match(/<header class="header">[^]*?<\/header>/)[0];
+  assert.match(header, /<button class="btn btn-ghost awake" type="button" onclick="toggleAwake\(\)" aria-pressed="false" aria-label="Keep the screen awake">/);
+  assert.ok(header.indexOf('popovertarget="guide"') < header.indexOf('toggleAwake()'), 'after the guide');
+  assert.ok(header.indexOf('toggleAwake()') < header.indexOf('toggleTheme()'), 'before the Dark/Light switch');
+  assert.match(html, /localStorage\.getItem\('pm-awake'\) === 'on'/, 'each browser remembers it, off by default');
+  assert.match(html, /\[data-awake="none"\] \.awake \{ display: none; \}/, 'hidden where the browser has no wake lock');
+  assert.match(html, /document\.addEventListener\('visibilitychange', holdAwake\)/, 'taken again when the page shows');
 });
 
 test('an open page asks the server for its ETag and reloads when it changes', () => {
