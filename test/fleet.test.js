@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -507,6 +507,30 @@ test('fleet update refuses a branch that still holds conflict markers (#267)', (
   assert.throws(() => updateBranch(dir, 1), (e) => /conflict markers/.test(e.message) && /app\.js/.test(e.message) && !/ok\.txt/.test(e.message));
   commitIn(dir, 'b.txt', 'main moved\n');
   assert.throws(() => updateBranch(dir, 1), /conflict markers[\s\S]*app\.js/, 'after a clean merge too');
+});
+
+test('only a full set of markers in order counts, so a setext heading passes (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'README.md', 'Status\n=======\n\nAll good.\n');
+  assert.equal(updateBranch(dir, 1).state, 'current');
+  commitIn(path, 'notes.md', '>>>>>>> late\n=======\n<<<<<<< early\n');
+  assert.equal(updateBranch(dir, 1).state, 'current', 'out of order is not a set');
+  commitIn(path, 'README.md', 'Status\n=======\n<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> main\n');
+  assert.throws(() => updateBranch(dir, 1), /conflict markers[\s\S]*README\.md/);
+});
+
+test('the marker check reads a non-ASCII name and skips a symlink or directory (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  mkdirSync(join(path, 'sub'));
+  commitIn(path, 'sub/a.txt', 'fine\n');
+  symlinkSync('sub', join(path, 'link'));
+  execFileSync('git', ['add', 'link'], { cwd: path });
+  execFileSync('git', [...T, 'commit', '-qm', 'link'], { cwd: path });
+  assert.equal(updateBranch(dir, 1).state, 'current', 'a symlink to a directory is not read');
+  commitIn(path, 'café.js', '<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> main\n');
+  assert.throws(() => updateBranch(dir, 1), /conflict markers[\s\S]*café\.js/);
 });
 
 test('a merge resolved but not committed says to commit it, and the CLI exits 1 (#267)', () => {

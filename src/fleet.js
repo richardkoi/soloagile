@@ -2,7 +2,7 @@
 // runs once at a time, and the stage a run starts or resumes at. A run's files live in
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
@@ -214,8 +214,10 @@ function baseBranch(git) {
   return base;
 }
 
-// A line git leaves in a clashing file: <<<<<<< , ======= alone, or >>>>>>> .
-const MARKER = /^(<<<<<<< |=======$|>>>>>>> )/m;
+// A clash git leaves in a file: at column 0 and in order, a line starting <<<<<<< , a later
+// line that is ======= alone, and a later line starting >>>>>>> . A lone ======= (a setext
+// heading) doesn't count.
+const MARKER = /^<<<<<<< [^\n]*\n(?:[^\n]*\n)*?=======\r?\n(?:[^\n]*\n)*?>>>>>>> /m;
 
 // Before Milo's review (#267): card-<n> is brought up to date with the branch checked out in
 // the main tree, by a merge inside its copy, so the diff he reads is the change as it will
@@ -240,8 +242,10 @@ export function updateBranch(repo, id) {
   const dirty = git('status', '--porcelain').split('\n').filter((l) => l.trim());
   if (dirty.length) throw new Error(`${branch}'s copy has uncommitted changes, so it wasn't updated:\n${dirty.join('\n')}`);
   const level = (state) => {
-    const marked = git('diff', '--name-only', `${base}...HEAD`).split('\n').filter(Boolean)
-      .filter((f) => existsSync(join(path, f)) && MARKER.test(readFileSync(join(path, f), 'utf8')));
+    // -z keeps odd names (café.js) unquoted; only regular files are read, not a symlink or directory.
+    const marked = git('diff', '-z', '--name-only', `${base}...HEAD`).split('\0').filter(Boolean)
+      .filter((f) => existsSync(join(path, f)) && lstatSync(join(path, f)).isFile()
+        && MARKER.test(readFileSync(join(path, f), 'utf8')));
     if (marked.length) throw new Error(`${branch} still has conflict markers in these files, so it isn't ready for review; resolve them in ${path} and commit:\n${marked.join('\n')}`);
     return { state, base, path };
   };
