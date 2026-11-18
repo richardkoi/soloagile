@@ -2,12 +2,13 @@
 // runs once at a time, and the stage a run starts or resumes at. A run's files live in
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
 import { moveCard } from './card.js';
 import { localDate } from './init.js';
+import { readUsage } from './usage.js';
 
 // Each stage leaves one file; a run resumes at the first one missing. The security list is
 // written only when the script finds something (#238), so it isn't a stage of its own here.
@@ -91,6 +92,99 @@ export function preflightText(id, { stage, file, cleared, said }) {
     stage === 'done' ? `soloagile: every stage file is there; the run is at its end` : `soloagile: start at ${stage}: pm/runs/${id}/${file} isn't written yet`,
     said && `soloagile: ${said}`,
   ].filter(Boolean).join('\n');
+}
+
+// What a run cost (#271). TokenSentinel gives each window's used share, so a run's cost is
+// the end reading minus the one at its start. The start is kept in pm/runs/<n>/usage-start.json
+// as { at, pcts, resetAt }, or { at, said } when there were no numbers. A resumed run keeps a
+// start with numbers; a start with none (or one that can't be read) gives way to a later one
+// that has them, and keeps the failed one's time as replaced. resetAt is each window's reset
+// time, from usageResets.
+export async function recordUsageStart(repo, id, usage, { now = new Date() } = {}) {
+  const file = join(runDir(repo, id), 'usage-start.json');
+  const u = usage ?? (await readUsage());
+  const numbers = u.pcts && Object.keys(u.pcts).length;
+  let old = null;
+  if (existsSync(file)) {
+    try { old = JSON.parse(readFileSync(file, 'utf8')); } catch {}
+    if (!numbers || (old?.pcts && Object.keys(old.pcts).length)) return false;
+  }
+  let start = { at: now.toISOString(), said: u.said };
+  if (numbers) {
+    start = { at: now.toISOString(), pcts: u.pcts };
+    if (typeof old?.at === 'string') start.replaced = old.at;
+    if (u.resets && Object.keys(u.resets).length) {
+      start.resetAt = Object.fromEntries(Object.entries(u.resets).map(([n, min]) => [n, new Date(now.getTime() + min * 60000).toISOString()]));
+    }
+  }
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(start)}\n`);
+  return true;
+}
+
+// The report's ## Cost section. start and end are { pcts } or { said }; now is the end's
+// time. The share always has one decimal (0.6%, 7.0%); the readings are shown as given,
+// trimmed to one decimal against float noise (4% → 4.6%). A window lower at the end than at
+// the start, or whose reset time (start.resetAt) had come by now, reset during the run, so
+// its share is unknown; a minute's grace after resetAt allows for the reading's rounding to
+// whole minutes. A window with no resetAt says its reset wasn't checked. A start that replaced
+// a failed one (start.replaced) says when each was read, as ISO times.
+// others: cards whose runs overlapped, whose cost is in the same numbers.
+export function costLines(start, end, { others = [], now = new Date() } = {}) {
+  const lines = ['## Cost'];
+  const has = (u) => u?.pcts && Object.keys(u.pcts).length;
+  const reading = (x) => String(Math.round(x * 10) / 10);
+  if (!has(start) || !has(end)) lines.push(`- not measured: ${(!has(start) ? start?.said : end?.said) || 'no usage numbers'}`);
+  else {
+    for (const [name, from] of Object.entries(start.pcts)) {
+      const to = end.pcts[name];
+      const resetAt = Date.parse(start.resetAt?.[name]);
+      const unchecked = Number.isFinite(resetAt) ? '' : " (reset not checked: usageResets isn't set)";
+      if (to == null) lines.push(`- the ${name}: not measured, no reading at the end`);
+      else if (!Number.isFinite(from) || !Number.isFinite(to)) lines.push(`- the ${name}: not measured, the reading isn't a number`);
+      else if (to < from || now.getTime() >= resetAt + 60000) lines.push(`- the ${name}: not measured, it reset during the run`);
+      else lines.push(`- the ${name}: ${(to - from).toFixed(1)}% of the limit (${reading(from)}% → ${reading(to)}%)${unchecked}`);
+    }
+    if (start.replaced) lines.push(`- measured from ${start.at}; the first reading at ${start.replaced} failed`);
+  }
+  if (others.length) lines.push(`- shared with ${others.map((n) => `#${n}`).join(', ')}: their runs ran at the same time, so this counts them too`);
+  return lines.join('\n');
+}
+
+// The cost of card id's run up to now: usage is the end reading (readUsage's result). Another
+// run overlapped when it started (its usage-start.json or lock) before now and either started
+// inside this run, still holds a lock whose pid is alive, or wrote its report.md after this
+// run's start. A lock left by a dead process says nothing about now.
+export async function runCost(repo, id, { usage, now = new Date(), isAlive = alive } = {}) {
+  const file = join(runDir(repo, id), 'usage-start.json');
+  let start = { said: "no usage was recorded at the run's start" };
+  if (existsSync(file)) {
+    try { start = JSON.parse(readFileSync(file, 'utf8')); } catch { start = null; }
+    if (!start || typeof start !== 'object') start = { said: "the start reading couldn't be read" };
+  }
+  const end = usage ?? (await readUsage());
+  const others = [];
+  const runs = join(resolve(repo), 'pm', 'runs');
+  const from = Date.parse(start.at);
+  if (Number.isFinite(from) && existsSync(runs)) {
+    for (const m of readdirSync(runs).filter((d) => /^\d+$/.test(d) && Number(d) !== id).sort((a, b) => a - b)) {
+      const dir = join(runs, m);
+      const times = [];
+      let held = false;
+      try { times.push(Date.parse(JSON.parse(readFileSync(join(dir, 'usage-start.json'), 'utf8')).at)); } catch {}
+      try {
+        const lock = JSON.parse(readFileSync(join(dir, 'lock'), 'utf8'));
+        times.push(Date.parse(lock.started));
+        held = isAlive(lock.pid);
+      } catch {}
+      const began = Math.min(...times.filter(Number.isFinite));
+      if (!(began <= now.getTime())) continue;
+      let reported = false;
+      try { reported = statSync(join(dir, 'report.md')).mtimeMs > from; } catch {}
+      if (began >= from || held || reported) others.push(Number(m));
+    }
+  }
+  return costLines(start, end, { others, now });
 }
 
 // Tobin's own copy of the code (#235): a git worktree on branch card-<n>, under
