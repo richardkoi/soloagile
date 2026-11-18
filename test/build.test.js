@@ -293,7 +293,7 @@ test('names HTML-escape, and the only scripts are the theme and keep-awake switc
   const { html } = renderPage({ name: '<b>x</b>', md, builtAt, template });
   assert.match(html, /<h1 class="header-title">&lt;b&gt;x&lt;\/b&gt;<\/h1>/);
   assert.equal((html.match(/<script/gi) || []).length, 2);
-  assert.match(html, /function toggleTheme\(\)/);
+  assert.match(html, /function setTheme\(choice\)/);
   assert.match(html, /function toggleAwake\(\)/);
 });
 
@@ -302,7 +302,7 @@ test('an Awake button sits between the "?" and the Dark/Light switch, off until 
   const header = html.match(/<header class="header">[^]*?<\/header>/)[0];
   assert.match(header, /<button class="btn btn-ghost awake" type="button" onclick="toggleAwake\(\)" aria-pressed="false" aria-label="Keep the screen awake">/);
   assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('toggleAwake()'), 'after the guide');
-  assert.ok(header.indexOf('toggleAwake()') < header.indexOf('toggleTheme()'), 'before the Dark/Light switch');
+  assert.ok(header.indexOf('toggleAwake()') < header.indexOf('popovertarget="theme-menu"'), 'before the theme button');
   assert.match(html, /localStorage\.getItem\('pm-awake'\) === 'on'/, 'each browser remembers it, off by default');
   assert.match(html, /\[data-awake="none"\] \.awake \{ display: none; \}/, 'hidden where the browser has no wake lock');
   assert.match(html, /document\.addEventListener\('visibilitychange', holdAwake\)/, 'taken again when the page shows');
@@ -356,10 +356,11 @@ test('a "?" in the header opens the command guide: one list, in the order of a s
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   const header = html.match(/<header class="header">[^]*?<\/header>/)[0];
   assert.match(header, /<button class="btn btn-ghost help" type="button" commandfor="guide" command="show-modal" aria-label="What you can say">\?<\/button>/);
-  assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('toggleTheme()'), 'it sits before the Dark/Light switch');
+  assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('popovertarget="theme-menu"'), 'it sits before the theme button');
   const guide = html.match(/<dialog class="card-modal guide" id="guide" closedby="any" aria-labelledby="guide-h">[^]*?<\/ul>\s*<\/dialog>/)[0];
   assert.match(guide, /commandfor="guide" command="close" aria-label="Close"/);
-  assert.doesNotMatch(header + guide, /popover/, 'a dialog, not a popover (#259)');
+  // The guide and its button are a dialog, not a popover (#259); the theme menu (#258) is a popover.
+  assert.doesNotMatch(header.match(/<button class="btn btn-ghost help"[^>]*>/)[0] + guide, /popover/, 'a dialog, not a popover (#259)');
   const rows = [...guide.matchAll(/<li>(.*)<\/li>/g)].map((m) => m[1]);
   assert.deepEqual(rows.map((r) => r.match(/<b class="guide-say">(.*?)<\/b>/)[1]),
     ['“catch me up”', '“what needs me”', '“#7 yes”', '“commit”', '“ship it”', '“retro”', '“done for today”', '/clear', 'Esc Esc']);
@@ -376,7 +377,7 @@ test('each milestone has its own colour, one of eight taken in turn by its numbe
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   assert.match(html, /<span class="tag tag-proj ms-c\d"><svg[^>]*>.*?<\/svg>M\d+<\/span><span class="card-id">/, "a card's milestone tag carries its colour");
   for (const n of [0, 1, 2, 3, 4, 5, 6, 7]) {
-    assert.equal(html.match(new RegExp(`--ms-${n}: #`, 'g'))?.length, 2, `colour ${n} is set for dark and for light`);
+    assert.match(html, new RegExp(`--ms-${n}: light-dark\\(#[0-9A-F]{6}, #[0-9A-F]{6}\\);`), `colour ${n} is set for light and for dark`);
     assert.match(html, new RegExp(`\\.ms-c${n} \\{ --m: var\\(--ms-${n}\\); \\}`));
   }
 });

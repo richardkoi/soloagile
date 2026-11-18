@@ -156,7 +156,7 @@ test('the home page has the shared styles, theme and keep-awake switches, and li
   assert.match(html, /<link rel="icon" href="data:image\/svg\+xml,/);
   assert.doesNotMatch(html, /\{\{/);
   assert.match(html, /--bg-canvas/);
-  assert.match(html, /toggleTheme\(\)/);
+  assert.match(html, /popovertarget="theme-menu"/);
   assert.match(html, /onclick="toggleAwake\(\)"/);
   assert.match(html, /Live refresh/);
 });

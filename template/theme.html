@@ -1,0 +1,10 @@
+<!-- The theme: Light, Dark or System (the computer's setting, the default). The button says the
+     choice and opens a small list of three radios; its script and styles are in head.html. -->
+<button class="btn btn-ghost theme-btn" type="button" popovertarget="theme-menu"><span class="theme-swatch"></span><span class="theme-name"><span class="visually-hidden">Theme: </span><span class="theme-word theme-word-light">Light</span><span class="theme-word theme-word-dark">Dark</span><span class="theme-word theme-word-system">System</span></span></button>
+<div class="theme-menu" id="theme-menu" popover>
+  <fieldset><legend>Theme</legend>
+    <label class="theme-opt"><input type="radio" name="pm-theme-pick" value="light"> Light</label>
+    <label class="theme-opt"><input type="radio" name="pm-theme-pick" value="dark"> Dark</label>
+    <label class="theme-opt"><input type="radio" name="pm-theme-pick" value="system" checked> System <span class="theme-now"><span class="theme-now-dark">dark now</span><span class="theme-now-light">light now</span></span></label>
+  </fieldset>
+</div>
