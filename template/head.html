@@ -110,9 +110,6 @@ a { color: var(--accent-link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; border-radius: var(--radius-sm); }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: 0.01ms !important; }
-}
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dk-skip { position: absolute; left: -9999px; top: 0; z-index: 999; background: var(--bg-surface); color: var(--accent-link);
   border: 1px solid var(--accent-link); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md); font-size: var(--font-sm); }
@@ -176,7 +173,7 @@ body:has(#settings:target) .tab-settings { display: block; }
 /* ---------- buttons ---------- */
 .btn { display: inline-flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md); border: 1px solid transparent; font-size: var(--font-sm); cursor: pointer;
-  transition: all var(--transition-fast); }
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast); }
 .btn-ghost { background: none; border-color: var(--border-default); color: var(--text-muted); }
 .btn-ghost:hover { background: var(--bg-overlay); border-color: var(--accent-link); color: var(--text-secondary); }
 .theme-swatch { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border-default);
@@ -445,7 +442,9 @@ body:has(#settings:target) .tab-settings { display: block; }
 .ms-fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
 .ms-fold > summary::-webkit-details-marker { display: none; }
 .ms-fold > summary::before { content: ""; flex: none; width: 9px; height: 9px; margin: 0 4px 0 2px; border-right: 3px solid var(--text-muted);
-  border-bottom: 3px solid var(--text-muted); transform: rotate(-45deg); transition: transform 0.15s; }
+  border-bottom: 3px solid var(--text-muted); transform: rotate(-45deg);
+  /* Reduced motion: the arrow turns at once (colour changes elsewhere still fade). */
+  @media (prefers-reduced-motion: no-preference) { transition: transform 0.15s; } }
 .ms-fold[open] > summary::before { transform: rotate(45deg); }
 .ms-fold > summary h3 { margin: var(--space-sm) 0; flex: 1; }
 .ms-fold > summary:focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; }
