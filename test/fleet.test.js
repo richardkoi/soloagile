@@ -9,7 +9,8 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { costLines, dropRun, fleetBranch, mergeCard, preflight, recordUsageStart, runCost, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { readUsage } from '../src/usage.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -368,4 +369,67 @@ test('Orla names the skills each worker loads, and Tobin and Cora can load them'
     assert.match(agent, /^tools: .*\bSkill$/m, name);
     assert.match(agent, /load each with the Skill tool/, name);
   }
+});
+
+// What a run cost (#271). Never the real TokenSentinel: usage is passed in, or read through a
+// get that throws, or from a settings folder with no usage address.
+test("a run's cost: each window's share, with the numbers it went between (#271)", () => {
+  const text = costLines({ pcts: { week: 4, '5 hours': 54 } }, { pcts: { week: 4.6, '5 hours': 61 } });
+  assert.equal(text, '## Cost\n- the week: 0.6% of the limit (4.0% → 4.6%)\n- the 5 hours: 7% of the limit (54% → 61%)');
+});
+
+test("a run's cost is not measured when TokenSentinel doesn't answer, or wasn't read at the start (#271)", async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4, '5 hours': 54 } });
+  const down = await readUsage({ usageUrl: 'http://u.test/budget' }, async () => { throw new Error('refused'); });
+  const text = await runCost(dir, 1, { usage: down });
+  assert.equal(text, "## Cost\n- not measured: couldn't read http://u.test/budget: refused");
+  const said = costLines({ said: 'no usage address set' }, { pcts: { week: 5 } });
+  assert.equal(said, '## Cost\n- not measured: no usage address set');
+  assert.match(await runCost(dir, 2, { usage: { pcts: { week: 5 } } }), /not measured: no usage was recorded at the run's start/);
+});
+
+test("a window that reset during the run isn't measured (#271)", () => {
+  const text = costLines({ pcts: { week: 40, '5 hours': 90 } }, { pcts: { week: 41, '5 hours': 12 } });
+  assert.match(text, /- the 5 hours: not measured, it reset during the run/);
+  assert.match(text, /- the week: 1% of the limit \(40% → 41%\)/);
+});
+
+test("other runs that overlapped are named, since their cost is in it too (#271)", async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(0) });
+  await recordUsageStart(dir, 268, { pcts: { week: 4.1 } }, { now: at(5) });
+  mkdirSync(runDir(dir, 269), { recursive: true });
+  writeFileSync(join(runDir(dir, 269), 'lock'), JSON.stringify({ pid: 9, started: at(10).toISOString() }));
+  await recordUsageStart(dir, 250, { pcts: { week: 3 } }, { now: new Date(Date.UTC(2026, 10, 17)) }); // the day before: not shared
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(30) });
+  assert.match(text, /\n- shared with #268, #269: their runs ran at the same time, so this counts them too$/);
+});
+
+test('a resumed run keeps the usage from its first start (#271)', async () => {
+  const dir = repo();
+  assert.equal(await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: new Date('2026-11-18T10:00:00Z') }), true);
+  assert.equal(await recordUsageStart(dir, 1, { pcts: { week: 9 } }, { now: new Date('2026-11-18T12:00:00Z') }), false);
+  assert.deepEqual(JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8')), { at: '2026-11-18T10:00:00.000Z', pcts: { week: 4 } });
+  await recordUsageStart(dir, 2, { pct: null, said: 'no usage address set' });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 2), 'usage-start.json'), 'utf8')).said, 'no usage address set');
+});
+
+test('soloagile fleet cost <n> says not measured with no usage address, and exits 0 (#271)', () => {
+  const dir = repo();
+  const home = mkdtempSync(join(tmpdir(), 'home-'));
+  const env = { ...process.env, HOME: home, SOLOAGILE_DIR: home };
+  const run = (...a) => spawnSync('node', [PM, 'fleet', ...a], { cwd: dir, encoding: 'utf8', env });
+  assert.equal(run('preflight', '1').status, 0);
+  assert.match(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'), /no usage address set/, 'preflight records the start');
+  const cost = run('cost', '1');
+  assert.equal(cost.status, 0, cost.stderr);
+  assert.match(cost.stdout, /^## Cost\n- not measured: no usage address set/);
+});
+
+test("the fleet skill's report ends with soloagile fleet cost (#271)", () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  const step7 = skill.slice(skill.indexOf('**7. Test and notes'), skill.indexOf('**8. '));
+  assert.match(step7, /report\.md ends with the output of\s+`soloagile fleet cost <n>`/);
 });

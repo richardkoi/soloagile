@@ -93,7 +93,8 @@ the card and its done when, each stage with what it did and its file (security l
 hits, not needed" when the scan was quiet), the checks with their results, and what wasn't
 tested. Then the card's lines, as today: `soloagile card note <n> "tested: …"`, a `not
 tested:` line for the rest, and `soloagile card note <n> "report: pm/runs/<n>/report.md"`
-so the card links it.
+so the card links it. report.md ends with the output of `soloagile fleet cost <n>`, pasted
+as it is: the run's share of the week and the 5 hours, or a not measured line.
 
 **8. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
 `card-<n>`, unmerged and unpushed. Move

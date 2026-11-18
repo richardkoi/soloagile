@@ -8,6 +8,7 @@ import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
 import { moveCard } from './card.js';
 import { localDate } from './init.js';
+import { readUsage } from './usage.js';
 
 // Each stage leaves one file; a run resumes at the first one missing. The security list is
 // written only when the script finds something (#238), so it isn't a stage of its own here.
@@ -91,6 +92,62 @@ export function preflightText(id, { stage, file, cleared, said }) {
     stage === 'done' ? `soloagile: every stage file is there; the run is at its end` : `soloagile: start at ${stage}: pm/runs/${id}/${file} isn't written yet`,
     said && `soloagile: ${said}`,
   ].filter(Boolean).join('\n');
+}
+
+// What a run cost (#271). TokenSentinel gives each window's used share, so a run's cost is
+// the end reading minus the one at its start. The start is kept in pm/runs/<n>/usage-start.json
+// as { at, pcts }, or { at, said } when there were no numbers; a resumed run keeps its first.
+export async function recordUsageStart(repo, id, usage, { now = new Date() } = {}) {
+  const file = join(runDir(repo, id), 'usage-start.json');
+  if (existsSync(file)) return false;
+  const u = usage ?? (await readUsage());
+  const start = u.pcts && Object.keys(u.pcts).length ? { at: now.toISOString(), pcts: u.pcts } : { at: now.toISOString(), said: u.said };
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(start)}\n`);
+  return true;
+}
+
+// The report's ## Cost section. start and end are { pcts } or { said }. Each line's numbers
+// get one decimal when its readings are under 10, whole ones above (4.0% → 4.6%, 54% → 61%).
+// A window lower at the end than at the start reset during the run, so its share is unknown.
+// others: cards whose runs overlapped, whose cost is in the same numbers.
+export function costLines(start, end, { others = [] } = {}) {
+  const lines = ['## Cost'];
+  const has = (u) => u?.pcts && Object.keys(u.pcts).length;
+  if (!has(start) || !has(end)) lines.push(`- not measured: ${(!has(start) ? start?.said : end?.said) || 'no usage numbers'}`);
+  else {
+    for (const [name, from] of Object.entries(start.pcts)) {
+      const to = end.pcts[name];
+      if (to == null) lines.push(`- the ${name}: not measured, no reading at the end`);
+      else if (to < from) lines.push(`- the ${name}: not measured, it reset during the run`);
+      else {
+        const fmt = (x) => (Math.max(from, to) < 10 ? x.toFixed(1) : String(Math.round(x)));
+        lines.push(`- the ${name}: ${fmt(to - from)}% of the limit (${fmt(from)}% → ${fmt(to)}%)`);
+      }
+    }
+  }
+  if (others.length) lines.push(`- shared with ${others.map((n) => `#${n}`).join(', ')}: their runs ran at the same time, so this counts them too`);
+  return lines.join('\n');
+}
+
+// The cost of card id's run up to now: usage is the end reading (readUsage's result). Other
+// runs overlapped when their usage-start.json or lock was written between this start and now.
+export async function runCost(repo, id, { usage, now = new Date() } = {}) {
+  const file = join(runDir(repo, id), 'usage-start.json');
+  const start = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { said: "no usage was recorded at the run's start" };
+  const end = usage ?? (await readUsage());
+  const others = [];
+  const runs = join(resolve(repo), 'pm', 'runs');
+  if (start.at && existsSync(runs)) {
+    const from = Date.parse(start.at);
+    for (const m of readdirSync(runs).filter((d) => /^\d+$/.test(d) && Number(d) !== id).sort((a, b) => a - b)) {
+      const times = [];
+      try { times.push(JSON.parse(readFileSync(join(runs, m, 'usage-start.json'), 'utf8')).at); } catch {}
+      try { times.push(JSON.parse(readFileSync(join(runs, m, 'lock'), 'utf8')).started); } catch {}
+      if (times.some((t) => Date.parse(t) >= from && Date.parse(t) <= now.getTime())) others.push(Number(m));
+    }
+  }
+  return costLines(start, end, { others });
 }
 
 // Tobin's own copy of the code (#235): a git worktree on branch card-<n>, under
