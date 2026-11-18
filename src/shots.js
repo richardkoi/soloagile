@@ -1,6 +1,9 @@
 // `soloagile shots <url>`: four screenshots of a page with nobody watching, for the wheel's Test
 // stage: desktop and phone width, each in dark and light. Claude reads the pictures.
 //
+// --wait "<words or CSS selector>" holds everything after it until that shows on the page, for a
+// page that draws its content after loading, such as a map fetching its data.
+//
 // Steps given with --click, --type and --press run first, in order, on every one of the four,
 // so a pop-up can be opened or a box filled in and Enter pressed before the picture. With --full each picture is the
 // whole height of the page, not only the top, up to FULL_MAX pixels.
@@ -21,6 +24,9 @@ export const THEMES = ['dark', 'light'];
 const TIMEOUT_MS = 20000;
 // How long a click or typed text is given to show on the page before the next step.
 const SETTLE_MS = 300;
+// How long --wait gives a page to show what it names, and how often it looks.
+export const WAIT_MS = 30000;
+const WAIT_EVERY_MS = 250;
 // The keys --press knows by name, as the DevTools protocol wants them. Any one character
 // works too. Enter carries "\r" as its text so a form is sent, as a real key would.
 const KEYS = {
@@ -47,15 +53,17 @@ export const FULL_MAX = 16000;
 // The steps keep the order they were written in. --full comes back as one more step,
 // { do: 'full' }, at the end: it is the last thing done before each picture.
 export function parseShotArgs(args) {
-  const usage = new Error('usage: soloagile shots <url> [dir] [--click "<words on it>"] [--type "<box>=<text>"] [--press <key>] ... [--full]');
+  const usage = new Error('usage: soloagile shots <url> [dir] [--click "<words on it>"] [--type "<box>=<text>"] [--press <key>] [--wait "<words or selector>"] ... [--full]');
   let full = false;
   const plain = [];
   const steps = [];
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--click' || args[i] === '--type' || args[i] === '--press') {
+    if (args[i] === '--click' || args[i] === '--type' || args[i] === '--press' || args[i] === '--wait') {
       const value = args[++i];
       if (!value) throw usage;
-      if (args[i - 1] === '--press') {
+      if (args[i - 1] === '--wait') {
+        steps.push({ do: 'wait', what: value });
+      } else if (args[i - 1] === '--press') {
         if (!KEYS[value] && [...value].length !== 1) throw new Error(`${usage.message}\n--press takes one character or a key: ${Object.keys(KEYS).join(', ')}`);
         steps.push({ do: 'press', what: value });
       } else if (args[i - 1] === '--click') {
@@ -290,6 +298,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Does one step with a real mouse click, real typing or a real key press, then gives the page
 // a moment. A key goes to whatever has focus, such as the box just typed in.
 async function runStep(page, step) {
+  if (step.do === 'wait') return waitFor(page, step.what, step.ms ?? WAIT_MS); // ms: only the tests shorten it
   if (step.do === 'press') {
     const { text, keyCode, ...key } = keyFor(step.what);
     const both = { ...key, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode };
@@ -313,6 +322,27 @@ async function runStep(page, step) {
     await page.send('Input.insertText', { text: step.text });
   }
   return settle(page, step);
+}
+
+// Runs inside the page: does something shown match `what`, as a CSS selector or as words?
+function shows(what) {
+  const shown = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  try {
+    if ([...document.querySelectorAll(what)].some(shown)) return true;
+  } catch {} // not a selector: look for the words
+  const norm = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return norm(document.body?.innerText).includes(norm(what));
+}
+
+// Looks for `what` until it shows, or gives up after `ms` saying what it waited for.
+async function waitFor(page, what, ms) {
+  const until = Date.now() + ms;
+  for (;;) {
+    const { result } = await page.send('Runtime.evaluate', { expression: `(${shows})(${JSON.stringify(what)})`, returnByValue: true }).catch(() => ({}));
+    if (result?.value === true) return sleep(SETTLE_MS);
+    if (Date.now() >= until) throw new Error(`waited ${Math.round(ms / 1000)} s and "${what}" never showed on the page`);
+    await sleep(WAIT_EVERY_MS);
+  }
 }
 
 async function settle(page, step) {

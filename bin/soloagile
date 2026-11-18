@@ -24,6 +24,7 @@
 //        soloagile shots <url> [dir]  four screenshots with nobody watching: desktop and phone, dark and light
 //          --click "<words>"     first click what says that; --type "<box>=<text>" fills a box;
 //                                --press <key> presses a key, such as Enter or Escape.
+//                                --wait "<words or selector>" waits up to 30 s for a slow page to show it.
 //                                Any number of each, done in the order written
 //        soloagile design <card> <letter> <mock-up> [width]
 //                            a picture of a mock-up, shown under that option of a design card
@@ -97,7 +98,7 @@ const COMMANDS = [
   ['guess [repo] [--replay]', "a new card's time range from the finished cards; --replay checks it on the past"],
   ['guess --batch next|M3|<n>', 'a batch of cards: likely and surely, and when it would end'],
   ['link [repo]', "print the address of the project's page"],
-  ['shots <url> [dir] [--click …] [--type …] [--press …]', 'four screenshots: desktop and phone, dark and light'],
+  ['shots <url> [dir] [--click …] [--type …] [--press …] [--wait …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
   ['fleet preflight|branch|scan|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, the security scan of its change, the lock's end, and on the user's look: merge, send back to Build, or drop"],
   ['herdr [--sound <name or file>] [--dry-run]', 'install or update the Herdr add-ons, keeping their sound, and bind F3 to the board if free'],

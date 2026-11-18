@@ -91,7 +91,10 @@ test('reads the clicks and typing to do before the picture, in the order written
   assert.deepEqual(parseShotArgs(['http://x/', '--type', 'Find=12', '--press', 'Enter', '--press', 'x']).steps, [
     { do: 'type', what: 'Find', text: '12' }, { do: 'press', what: 'Enter' }, { do: 'press', what: 'x' },
   ], 'a named key or one character');
-  for (const bad of [[], ['--full'], ['--click', 'Go'], ['http://x/', '--click'], ['http://x/', '--type', 'no box'], ['http://x/', '--tap', 'Go'], ['a', 'b', 'c'], ['http://x/', '--press'], ['http://x/', '--press', 'Enterr']]) {
+  assert.deepEqual(parseShotArgs(['http://x/', '--wait', '#map canvas', '--click', 'Go']).steps, [
+    { do: 'wait', what: '#map canvas' }, { do: 'click', what: 'Go' },
+  ], '--wait keeps its place among the steps');
+  for (const bad of [[], ['--full'], ['http://x/', '--wait'], ['--click', 'Go'], ['http://x/', '--click'], ['http://x/', '--type', 'no box'], ['http://x/', '--tap', 'Go'], ['a', 'b', 'c'], ['http://x/', '--press'], ['http://x/', '--press', 'Enterr']]) {
     assert.throws(() => parseShotArgs(bad), /usage: soloagile shots/, bad.join(' '));
   }
 });
@@ -130,6 +133,29 @@ test('clicks and types before each picture', { skip: !findBrowser() && 'no headl
     await assert.rejects(takeShots(url, tmp(), [{ do: 'click', what: 'Nope' }]), /nothing to click named "Nope"\. The page has: open the menu, search, go, far down the page/);
     await assert.rejects(takeShots(url, tmp(), [{ do: 'type', what: 'Room', text: 'Attic' }]), /"Room" has no choice "Attic"/);
     await assert.rejects(takeShots(url, tmp(), [{ do: 'click', what: 'Open the menu' }, { do: 'click', what: 'Go' }]), /"Go" can't be clicked: something else covers it/);
+  } finally {
+    server.close();
+  }
+});
+
+// A page that draws its content 1.5 s after it has loaded, as a map fetching its data does.
+const LATE = `<!doctype html><body style="background:#fff"><script>
+setTimeout(() => { document.body.innerHTML = '<div id="map" style="width:100%;height:600px;background:#c00">Map ready</div>'; }, 1500);
+</script>`;
+
+test('waits for a slow page before the pictures', { skip: !findBrowser() && 'no headless Chromium here' }, async () => {
+  const server = createServer((req, res) => res.end(req.url === '/' ? LATE : '')).listen(0, '127.0.0.1');
+  await new Promise((r) => server.once('listening', r));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/`;
+    const early = await takeShots(url, tmp());
+    const bySelector = await takeShots(url, tmp(), [{ do: 'wait', what: '#map' }]);
+    const byWords = await takeShots(url, tmp(), [{ do: 'wait', what: 'map ready' }]);
+    for (const i of [0, 2]) {
+      assert.notDeepEqual(readFileSync(bySelector[i]), readFileSync(early[i]), 'without --wait the picture is taken before the map; with it, after');
+      assert.deepEqual(readFileSync(byWords[i]), readFileSync(bySelector[i]), 'words wait just as a selector does');
+    }
+    await assert.rejects(takeShots(url, tmp(), [{ do: 'wait', what: 'Never here', ms: 500 }]), /waited 1 s and "Never here" never showed on the page/);
   } finally {
     server.close();
   }
