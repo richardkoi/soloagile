@@ -237,7 +237,8 @@ const RISKY = [
 
 // Only code is scanned for the words (#269): comments and Markdown prose talk about tokens
 // and logins without holding any. Comment syntax goes by file type: // and /* */ in the
-// SLASH files, # (not #!) in the HASH files, <!-- --> in the HTML files. Any other file
+// SLASH files, # (not #!) in the HASH files, <!-- --> in the HTML files, only /* */ in .css
+// (CSS has no // comments, and url(//cdn...) is code; .scss has them and is a SLASH file). Any other file
 // (.json, .txt, dotfiles like .npmrc, where // starts a real line) has no comments: every
 // line is scanned. Only a line that is wholly a comment is skipped, or one inside a comment
 // opened above; code after a closing */ or --> is scanned. A trailing # or // comment is cut
@@ -247,19 +248,21 @@ const RISKY = [
 // file as context, so a fence or comment opened far above is known. An extensionless file
 // (bin/soloagile, a Dockerfile) is a HASH file unless its shebang, on line 1, runs node,
 // deno or bun, which makes it a SLASH file.
-const SLASH = /\.(js|mjs|cjs|ts|tsx|jsx|css|scss|c|h|cpp|go|rs|java|kt|swift)$/;
+const SLASH = /\.(js|mjs|cjs|ts|tsx|jsx|scss|c|h|cpp|go|rs|java|kt|swift)$/;
 const HASH = /\.(sh|bash|zsh|py|rb|ya?ml|toml)$/;
 const HTML = /\.(html?|xml|svg|vue)$/;
+const CSS = /\.css$/;
 const JS_SHEBANG = /^#!.*\b(node|deno|bun)\b/;
 const MARKDOWN = /\.(md|markdown)$/i;
-const BLOCK = { slash: ['/*', '*/'], html: ['<!--', '-->'] };
+const BLOCK = { slash: ['/*', '*/'], css: ['/*', '*/'], html: ['<!--', '-->'] };
 
-// slash, hash, html, or null for a file with no comment syntax known.
+// slash, hash, html, css, or null for a file with no comment syntax known.
 function syntax(file, st) {
   const name = file.slice(file.lastIndexOf('/') + 1);
   if (SLASH.test(name)) return 'slash';
   if (HASH.test(name) || /^(Dockerfile|Makefile)$/.test(name)) return 'hash';
   if (HTML.test(name)) return 'html';
+  if (CSS.test(name)) return 'css';
   if (!name.includes('.')) return JS_SHEBANG.test(st.shebang ?? '') ? 'slash' : 'hash';
   return null;
 }
@@ -288,7 +291,7 @@ function codePart(file, body, st) {
   }
   if (lang === 'slash' && t.startsWith('//')) return null;
   if (lang === 'hash' && t.startsWith('#') && !t.startsWith('#!')) return null;
-  return lang === 'html' ? body : cutTrailing(body, lang);
+  return lang === 'html' || lang === 'css' ? body : cutTrailing(body, lang);
 }
 
 // A line with its trailing comment cut off (#275). The walk follows '…', "…" and `…`

@@ -432,6 +432,25 @@ test('a trailing comment outside quotes is not scanned (#275)', () => {
   assert.equal(scanDiff(added('src/a.js', 'fetch(u, { auth }); // https://x'))[0]?.why, 'a login or password');
 });
 
+// Round 1 of #275's review: the cutting rules hide code from the scan, so each has a test.
+test('what the comment cut leaves as code (#275 round 1)', () => {
+  assert.equal(scanDiff(added('src/a.js', 'const u = http://x; chmod(f, 0o777)'))[0]?.why, 'a permission', 'an unquoted http:// is not a comment');
+  assert.equal(scanDiff(added('deploy.sh', 'echo ${#x}; chmod 777 x'))[0]?.why, 'a permission', '${#x} is code');
+  assert.equal(scanDiff(added('deploy.sh', 'echo $# ; chmod 777 x'))[0]?.why, 'a permission', '$# is code');
+  assert.equal(scanDiff(added('run.sh', '#!/usr/bin/env -S sudo bash'))[0]?.why, 'a permission', 'a #! line is code');
+  assert.equal(scanDiff(added('deploy.sh', 'echo `date # x`; chmod 777 x'))[0]?.why, 'a permission', 'a # in backticks is code');
+  assert.equal(scanDiff(added('src/a.js', 'const s = `a // b`; chmod(f, 0o777)'))[0]?.why, 'a permission', 'a // in backticks is code');
+  assert.equal(scanDiff(added('src/a.css', 'a { background: url(//cdn.x/token.png); }'))[0]?.why, 'a key or token', 'CSS has no // comments');
+  assert.deepEqual(scanDiff(added('src/a.css', '/* the token */ a { color: red; }')), [], 'CSS keeps its /* */ comments');
+  assert.deepEqual(scanDiff(added('src/a.scss', 'a { color: red; } // the token')), [], 'SCSS cuts at //');
+});
+
+test('tokens, author and authority give no hit (#275 round 1)', () => {
+  assert.deepEqual(scanDiff(added('src/a.js', 'const n = tokens.length;')), []);
+  assert.deepEqual(scanDiff(added('src/a.js', 'const a = author;')), []);
+  assert.deepEqual(scanDiff(added('src/a.js', 'const b = authority;')), []);
+});
+
 test('token and login words hit inside _ names and after :_ (#275)', () => {
   const rc = '.' + 'npmrc';
   assert.equal(scanDiff(added('deploy.sh', 'export NPM_AUTH' + '_TOKEN=x'))[0]?.why, 'a key or token');
