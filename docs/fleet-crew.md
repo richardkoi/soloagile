@@ -1,15 +1,16 @@
 # The fleet's crew
 
-The build fleet (M34) is five workers, each an animal from Aesop's Fables. The fables are
+The build fleet (M34, M36) is six workers, each an animal from Aesop's Fables. The fables are
 about 2,500 years old and free to use; the names and pictures are our own. Each animal
 says, at a glance, what its worker does.
 
 | Worker | Animal | Job in a run | Runs as |
 |---|---|---|---|
-| **Orla** | Owl | Lead: plans, fact-checks, tests, writes the notes, opens the PR | the main session |
+| **Orla** | Owl | Lead: plans, picks the skills each worker loads, fact-checks, tests, writes the notes, opens the PR | the main session |
 | **Ada** | Ant | Preflight: checks the card is ready before anyone starts | a script, no AI |
 | **Tobin** | Tortoise | Builder: the only one who writes code | a helper, strongest model |
 | **Milo** | Mole | Blind reviewer: judges the change by feel alone | a helper, a different model |
+| **Cora** | Crane | Designer: designs first, checks the pictures after | a helper, strong model |
 | **Rufus** | Watchdog | Security lister: barks at every risky line | a helper, mid model |
 
 ## Orla the Owl, the Lead
@@ -48,6 +49,18 @@ says, at a glance, what its worker does.
   doesn't share Tobin's blind spots.
 - **Never:** reads the rest of the code, runs commands, or edits anything. He has no tools.
 
+## Cora the Crane, the Designer
+
+- **Fable:** the Peacock and the Crane: the peacock boasts of his feathers, the plain crane
+  flies high above the clouds. Useful beats showy.
+- **Character:** sees the whole screen from above, thinks of the person using it, plain
+  over pretty.
+- **Does:** before Tobin builds anything on screen, makes a small mock-up with one
+  recommendation (`design.md`); a real choice becomes a Needs your decision card with
+  pictures. After the build, checks the phone and desktop pictures, light and dark,
+  against her design and lists what's off. On a look card she and Tobin are the whole run.
+- **Never:** writes the code, or approves a look. Rich's eye is the last word.
+
 ## Rufus the Watchdog, the Security lister
 
 - **Fable:** the Dog and the Wolf: the watchdog guards the house.
@@ -69,4 +82,6 @@ its job. Square, readable at 64px on a phone and fine in dark mode.
 - **Ada the Ant:** a clipboard with a ticked checklist.
 - **Tobin the Tortoise:** a builder's hard hat and a small trowel, a few bricks beside him.
 - **Milo the Mole:** eyes closed, one paw feeling along a line of text.
+- **Cora the Crane:** tall and slender, a small sketchbook under one wing, looking out
+  as if from high up.
 - **Rufus the Watchdog:** a guard's collar with a bell, ears up, one paw raised.
