@@ -448,9 +448,12 @@ test("the fleet skill gives Milo the review pack, and he still has no tools (#26
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
   const step4 = skill.split('**4. Blind review')[1].split('**5.')[0];
   assert.match(step4, /soloagile fleet review <n>/);
-  assert.match(step4, /over\s+300\s+lines,\s+or\s+any\s+file\s+over\s+60\s+KB,\s+comes\s+as\s+its\s+changed\s+regions\s+with\s+20\s+lines/);
-  assert.match(step4, /files\s+under\s+`pm\/`\s+are\s+in\s+the\s+diff\s+alone/);
+  assert.match(step4, /non-code\s+file\s+over\s+300\s+lines\s+or\s+60\s+KB\s+comes\s+as\s+its\s+changed\s+regions\s+with\s+20\s+lines/);
+  assert.match(step4, /code\s+file\s+keeps\s+whole\s+blocks\s+whatever\s+its\s+size/);
+  assert.match(step4, /Files\s+under\s+a\s+top-level\s+`pm\/`\s+are\s+left\s+out\s+of\s+the\s+pack\s+entirely,\s+named\s+only/);
   assert.match(step4, /over\s+120\s+KB\s+it\s+gives\s+the\s+diff\s+alone/);
+  assert.match(step4, /too\s+big\s+for\s+a\s+blind\s+review/);
+  assert.match(step4, /`git\s+diff\s+--stat`\s+line/);
   assert.doesNotMatch(step4, /git diff main\.\.\.card-<n>/);
   const milo = readFileSync(join(root, 'agents', 'milo.md'), 'utf8');
   assert.match(milo, /^tools: \[\]$/m);
@@ -500,59 +503,162 @@ test("a long non-code file gives its changed regions with 20 lines around, numbe
   assert.doesNotMatch(full, /"k179"|"k221"|\(whole file\)/);
 });
 
-test("a file over 60 KB gives its changed regions only, even when short (#268)", () => {
-  const long = Array.from({ length: 100 }, (_, i) => `const v${i + 1} = '${'x'.repeat(700)}';`).join('\n') + '\n';
+test("a non-code file over 60 KB gives its changed regions only, even when short (#268)", () => {
+  const long = Array.from({ length: 100 }, (_, i) => `v${i + 1} = '${'x'.repeat(700)}'`).join('\n') + '\n';
   const dir = packRepo((d, git) => {
     git('checkout', '-q', 'main');
-    writeFileSync(join(d, 'wide.js'), long);
-    git('add', 'wide.js');
+    writeFileSync(join(d, 'wide.txt'), long);
+    git('add', 'wide.txt');
     git('commit', '-qm', 'wide');
     git('checkout', '-q', 'card-1');
     git('rebase', '-q', 'main');
-    edit(d, 'wide.js', "const v50 = '", "const v50 = 'y");
+    edit(d, 'wide.txt', "v50 = '", "v50 = 'y");
   });
   const full = fullPart(reviewPack(dir, 1));
-  assert.deepEqual(full.match(/### wide\.js[^\n]*/g), ['### wide.js lines 30-70']);
+  assert.deepEqual(full.match(/### wide\.txt[^\n]*/g), ['### wide.txt lines 30-70']);
 });
 
 test("over 120 KB the pack gives the diff alone, with a note saying so (#268)", () => {
   const dir = packRepo((d, git) => {
-    for (const name of ['a.js', 'b.js', 'c.js']) writeFileSync(join(d, name), `${`// ${'z'.repeat(500)}\n`.repeat(100)}`);
-    git('add', 'a.js', 'b.js', 'c.js');
+    // two new files of 35 KB: the diff alone is 70 KB, with the code in full 140 KB
+    for (const name of ['a.js', 'b.js']) writeFileSync(join(d, name), `${`// ${'z'.repeat(350)}\n`.repeat(100)}`);
+    git('add', 'a.js', 'b.js');
   });
   const pack = reviewPack(dir, 1);
   const full = fullPart(pack);
   assert.doesNotMatch(full, /###/);
   assert.match(full, /would be \d+ KB, over 120 KB, so Milo has the diff alone/);
-  assert.match(pack.split('## Changed code in full')[0], /\+\/\/ z{500}/, 'the diff is still there');
+  assert.match(pack.split('## Changed code in full')[0], /\+\/\/ z{350}/, 'the diff is still there');
   sizeLine(pack);
 });
 
-test("files under pm/ are left out of the changed code in full, but stay in the diff (#268)", () => {
+test("files under pm/ are left out of the pack entirely, named by path only (#268)", () => {
   const dir = packRepo((d, git) => {
     mkdirSync(join(d, 'pm', 'runs', '1'), { recursive: true });
     writeFileSync(join(d, 'pm', 'runs', '1', 'build.md'), 'ZEBRABUILD: built\n');
-    edit(d, 'pm/board.md', '## Ideas\n', '## Ideas\n- #3 ZEBRABOARD · M1 · 1 pt\n');
+    // the board change carries the card's title, as a moved card would
+    edit(d, 'pm/board.md', '## Doing\n', '## Doing\n- #1 Parse the feed · M1 · 3 pts · fleet\n');
     edit(d, 'big.js', '  return 150;', '  return 150 + 1;');
     git('add', 'pm');
   });
   const pack = reviewPack(dir, 1);
+  assert.doesNotMatch(pack, /ZEBRABUILD/, 'no build notes, in the diff or anywhere');
+  assert.doesNotMatch(pack, /Parse the feed/, 'no card title');
+  assert.doesNotMatch(pack, /### pm\/|diff --git a\/pm\//);
+  assert.match(pack, /\nLeft out of the pack: pm\/board\.md, pm\/runs\/1\/build\.md\n/);
+  assert.match(fullPart(pack), /### big\.js lines 201-204/);
+  assert.match(pack, /\+  return 150 \+ 1;/, 'the code change is still in the diff');
+  sizeLine(pack);
+});
+
+test("only a top-level pm/ is left out: src/pm/x.js is shown in full (#268)", () => {
+  const dir = packRepo((d, git) => {
+    mkdirSync(join(d, 'src', 'pm'), { recursive: true });
+    writeFileSync(join(d, 'src', 'pm', 'x.js'), 'export const x = 1;\n');
+    git('add', 'src');
+  });
+  const pack = reviewPack(dir, 1);
+  assert.match(pack, /\+export const x = 1;/);
+  assert.match(fullPart(pack), /### src\/pm\/x\.js \(whole file\)\n`{3,}\nexport const x = 1;/);
+  assert.doesNotMatch(pack, /Left out of the pack/);
+});
+
+test("a deleted pm/ file is named only, not in the diff (#268)", () => {
+  const dir = packRepo((d, git) => {
+    git('checkout', '-q', 'main');
+    mkdirSync(join(d, 'pm', 'runs', '1'), { recursive: true });
+    writeFileSync(join(d, 'pm', 'runs', '1', 'old.md'), 'ZEBRAOLD notes\n');
+    git('add', 'pm');
+    git('commit', '-qm', 'old notes');
+    git('checkout', '-q', 'card-1');
+    git('rebase', '-q', 'main');
+    git('rm', '-q', 'pm/runs/1/old.md');
+    edit(d, 'big.js', '  return 150;', '  return 150 + 1;');
+  });
+  const pack = reviewPack(dir, 1);
+  assert.doesNotMatch(pack, /ZEBRAOLD/);
+  assert.match(pack, /\nLeft out of the pack: pm\/runs\/1\/old\.md\n/);
+});
+
+test("a diff alone over 120 KB gives each file's stat line and says it is too big for a blind review (#268)", () => {
+  const dir = packRepo((d, git) => {
+    writeFileSync(join(d, 'huge.js'), `${'// ZEBRAHUGE '.repeat(40)}\n`.repeat(300));
+    git('add', 'huge.js');
+    edit(d, 'big.js', '  return 150;', '  return 150 + 1;');
+  });
+  const pack = reviewPack(dir, 1);
+  assert.doesNotMatch(pack, /ZEBRAHUGE/, 'neither the diff nor the code');
+  assert.match(pack, /^## Done when\n\ndone when: the feed parses\n/);
+  assert.match(pack, /Too big for a blind review/);
+  assert.match(pack, /\n ?big\.js +\| +2 \+-\n/);
+  assert.match(pack, /\n ?huge\.js +\| +300 \++\n/);
+  assert.doesNotMatch(pack, /### /);
+  sizeLine(pack);
+});
+
+test("a code file over 60 KB keeps the whole function round its changed line (#268)", () => {
+  const body = Array.from({ length: 200 }, (_, i) => `  total += ${i}; // ${'w'.repeat(400)}`).join('\n');
+  const src = `function long() {\n  let total = 0;\n${body}\n  return total;\n}\n\nfunction other() {\n  return 2;\n}\n`;
+  const dir = packRepo((d, git) => {
+    git('checkout', '-q', 'main');
+    writeFileSync(join(d, 'long.js'), src);
+    git('add', 'long.js');
+    git('commit', '-qm', 'long');
+    git('checkout', '-q', 'card-1');
+    git('rebase', '-q', 'main');
+    edit(d, 'long.js', '  total += 100;', '  total += 1000;');
+  });
+  const full = fullPart(reviewPack(dir, 1));
+  assert.deepEqual(full.match(/### long\.js[^\n]*/g), ['### long.js lines 1-204']);
+  assert.match(full, /\n {2}1 {2}function long\(\) \{\n/);
+  assert.match(full, /\n204 {2}\}\n/);
+  assert.doesNotMatch(full, /function other/);
+});
+
+test("an indented changed comment stays in its own block, not the one below (#268)", () => {
+  const filler = Array.from({ length: 300 }, (_, i) => `v${i} = ${i}`).join('\n');
+  const dir = packRepo((d, git) => {
+    git('checkout', '-q', 'main');
+    writeFileSync(join(d, 'mod.py'), `def f():\n    x = 1\n    # note\ndef g():\n    return 2\n${filler}\n`);
+    git('add', 'mod.py');
+    git('commit', '-qm', 'py');
+    git('checkout', '-q', 'card-1');
+    git('rebase', '-q', 'main');
+    edit(d, 'mod.py', '    # note\n', '    # a note\n');
+  });
+  const full = fullPart(reviewPack(dir, 1));
+  assert.deepEqual(full.match(/### mod\.py[^\n]*/g), ['### mod.py lines 1-3']);
+  assert.doesNotMatch(full, /def g/);
+});
+
+test("a pure deletion at the end of a long non-code file gives the region before it (#268)", () => {
+  const md = Array.from({ length: 400 }, (_, i) => `Note line ${i + 1}`).join('\n') + '\n';
+  const dir = packRepo((d, git) => {
+    git('checkout', '-q', 'main');
+    writeFileSync(join(d, 'notes.md'), md);
+    git('add', 'notes.md');
+    git('commit', '-qm', 'notes');
+    git('checkout', '-q', 'card-1');
+    git('rebase', '-q', 'main');
+    edit(d, 'notes.md', 'Note line 400\n', '');
+  });
+  const pack = reviewPack(dir, 1);
+  assert.match(pack, /-Note line 400\n/);
   const full = fullPart(pack);
-  assert.doesNotMatch(full, /ZEBRABUILD|ZEBRABOARD|### pm\//);
-  assert.match(full, /### big\.js lines 201-204/);
-  assert.match(pack.split('## Changed code in full')[0], /\+ZEBRABUILD[\s\S]*\+- #3 ZEBRABOARD|\+- #3 ZEBRABOARD[\s\S]*\+ZEBRABUILD/, 'both are in the diff');
+  assert.deepEqual(full.match(/### notes\.md[^\n]*/g), ['### notes.md lines 379-399']);
+  assert.match(full, /399 {2}Note line 399\n`/);
 });
 
 test("an empty changed-code part says why: only deletions, only pm/, or both (#268)", () => {
   const del = packRepo((d, git) => git('rm', '-q', 'old.js'));
   assert.match(fullPart(reviewPack(del, 1)), /^\n\nNone: the change only deletes files, so they are in the diff alone\.\n/);
   const pm = packRepo((d) => edit(d, 'pm/board.md', '## Ideas\n', '## Ideas\n- #3 Idea\n'));
-  assert.match(fullPart(reviewPack(pm, 1)), /^\n\nNone: the change only touches files under pm\/, which are in the diff alone\.\n/);
+  assert.match(fullPart(reviewPack(pm, 1)), /^\n\nNone: the change only touches files under pm\/, which are left out of the pack\.\n/);
   const both = packRepo((d, git) => {
     git('rm', '-q', 'old.js');
     edit(d, 'pm/board.md', '## Ideas\n', '## Ideas\n- #3 Idea\n');
   });
-  assert.match(fullPart(reviewPack(both, 1)), /^\n\nNone: the change only deletes files and touches files under pm\/, which are in the diff alone\.\n/);
+  assert.match(fullPart(reviewPack(both, 1)), /^\n\nNone: the change only deletes files, which are in the diff alone, and touches files under pm\/, which are left out of the pack\.\n/);
 });
 
 test("a binary file and a mode change are listed by name (#268)", () => {

@@ -167,20 +167,23 @@ export function cardDiff(repo, id, base = 'main') {
 // when it is short or not code, else each changed top-level block whole with line numbers.
 // A three-line diff context hid the guard a line above a hunk, so most of his findings were
 // "the code he couldn't see handles it". Still no title, plan, build notes or other files:
-// files under pm/ (the board, run notes) are in the diff alone.
+// files under the top-level pm/ (the board, run notes) are left out entirely, named only.
 const WHOLE_LINES = 300;
 const NOT_CODE = /\.(md|markdown|json|ya?ml|txt)$/i;
-// A long non-code file, or any file over 60 KB, gives its changed regions with this many
-// lines either side. Over 120 KB in all, the pack drops the code in full for the diff alone.
+// A code file over 300 lines or 60 KB gives its changed blocks whole, whatever their size; a
+// non-code one gives its changed regions with this many lines either side. Over 120 KB in
+// all, the pack drops the code in full for the diff alone; when even the diff is over 120 KB,
+// it gives each file's --stat line instead, and says the change is too big for a blind review.
 const AROUND = 20;
 const REGIONS_ONLY = 60 * 1024;
 const PACK_MAX = 120 * 1024;
 // A top-level block starts at column 0 on a line that isn't blank, a closing bracket, a
 // closing keyword (shell's fi, done and esac, Ruby's and Lua's end), a comment or a decorator.
-// Comment and @decorator lines directly above a start belong to it. Language-blind on purpose.
-const COMMENT = /^\s*(\/\/|#|\/\*|\*|--)/;
+// Comment and @decorator lines at column 0 directly above a start belong to it, as do a
+// /** comment's " * " lines; an indented comment belongs to the body it sits in.
+// Language-blind on purpose.
 const CLOSER = /^(?:fi|done|esac|end)\b(?!\s*=(?!=))/;
-const attaches = (line) => (COMMENT.test(line) && line.trim() !== '') || line.startsWith('@');
+const attaches = (line) => /^(?:\/\/|#|\/\*|--|@| \*)/.test(line);
 const starts = (line) => /^[^\s})\]]/.test(line) && !CLOSER.test(line) && !attaches(line);
 
 // The new side's changed line numbers, from a -U0 diff of one file. A pure deletion marks
@@ -261,6 +264,7 @@ export function reviewPack(repo, id, base = 'main') {
   };
   const branch = `card-${id}`;
   const range = `${base}...${branch}`;
+  const notPm = ['--', '.', ':(exclude)pm/']; // only the top-level pm/, from the repo's root
   // --raw gives each entry's modes ("…:100644 100755 <old> <new> M", then its path); -z
   // keeps odd file names unquoted; --no-renames shows a move as a deletion and an addition.
   const raw = git('diff', '--no-renames', '--raw', '-z', range).split('\0').filter(Boolean);
@@ -271,16 +275,16 @@ export function reviewPack(repo, id, base = 'main') {
   }));
   const parts = [];
   let deleted = 0;
-  let underPm = 0;
+  const underPm = [];
   for (let i = 0; i < raw.length; i += 2) {
     const [, newMode, , , kind] = raw[i].split(' ');
     const path = raw[i + 1];
-    if (kind === 'D') {
-      deleted++; // a deleted file is only in the diff
+    if (path.startsWith('pm/')) {
+      underPm.push(path); // the board and run notes, deleted or not: named, never shown
       continue;
     }
-    if (path.startsWith('pm/')) {
-      underPm++; // the board and run notes: in the diff alone, never whole
+    if (kind === 'D') {
+      deleted++; // a deleted file is only in the diff
       continue;
     }
     if (newMode === '160000') {
@@ -311,7 +315,7 @@ export function reviewPack(repo, id, base = 'main') {
       continue;
     }
     const changed = changedLines(git('diff', '-U0', range, '--', path));
-    const ranges = big || NOT_CODE.test(path) ? regionRanges(lines.length, changed) : blockRanges(lines, changed);
+    const ranges = NOT_CODE.test(path) ? regionRanges(lines.length, changed) : blockRanges(lines, changed);
     for (const [a, b] of ranges) {
       const width = String(b).length;
       const body = lines.slice(a - 1, b).map((l, k) => `${String(a + k).padStart(width)}  ${l}`).join('\n');
@@ -320,19 +324,29 @@ export function reviewPack(repo, id, base = 'main') {
   }
   // An empty part says which of the two reasons holds (a binary, submodule or mode change
   // is listed by name, so only deleted files and files under pm/ leave nothing to show).
-  const none = deleted && underPm
-    ? 'None: the change only deletes files and touches files under pm/, which are in the diff alone.'
-    : underPm
-      ? 'None: the change only touches files under pm/, which are in the diff alone.'
+  const none = deleted && underPm.length
+    ? 'None: the change only deletes files, which are in the diff alone, and touches files under pm/, which are left out of the pack.'
+    : underPm.length
+      ? 'None: the change only touches files under pm/, which are left out of the pack.'
       : deleted
         ? 'None: the change only deletes files, so they are in the diff alone.'
         : 'None: the change has no files.';
-  const head = [`## Done when\n\n${doneWhen.join('\n')}`, `## The change\n\n${fenced(git('diff', range))}`];
-  let pack = [...head, `## Changed code in full\n\n${parts.join('\n\n') || none}`].join('\n\n');
   const kb = (bytes) => Math.round(bytes / 1024);
-  if (Buffer.byteLength(pack) > PACK_MAX) {
-    const note = `Left out: with the changed code in full the pack would be ${kb(Buffer.byteLength(pack))} KB, over 120 KB, so Milo has the diff alone.`;
-    pack = [...head, `## Changed code in full\n\n${note}`].join('\n\n');
+  const doneWhenPart = `## Done when\n\n${doneWhen.join('\n')}`;
+  const leftOut = underPm.length ? [`Left out of the pack: ${underPm.join(', ')}`] : [];
+  const head = [doneWhenPart, `## The change\n\n${fenced(git('diff', range, ...notPm))}`];
+  let pack;
+  if (Buffer.byteLength(head.join('\n\n')) > PACK_MAX) {
+    // Even the diff is too big: each file's stat line, and a note for Orla's report.
+    const stat = git('diff', '--stat=1000', range, ...notPm);
+    const note = `Too big for a blind review: the done when and the diff alone would be ${kb(Buffer.byteLength(head.join('\n\n')))} KB, over 120 KB, so here is each changed file's line from git diff --stat.`;
+    pack = [doneWhenPart, `## The change\n\n${note}\n\n${fenced(stat)}`, ...leftOut].join('\n\n');
+  } else {
+    pack = [...head, ...leftOut, `## Changed code in full\n\n${parts.join('\n\n') || none}`].join('\n\n');
+    if (Buffer.byteLength(pack) > PACK_MAX) {
+      const note = `Left out: with the changed code in full the pack would be ${kb(Buffer.byteLength(pack))} KB, over 120 KB, so Milo has the diff alone.`;
+      pack = [...head, ...leftOut, `## Changed code in full\n\n${note}`].join('\n\n');
+    }
   }
   const bytes = Buffer.byteLength(pack);
   return `${pack}\n\nSize: ${bytes} bytes (${kb(bytes)} KB) above this line.`;

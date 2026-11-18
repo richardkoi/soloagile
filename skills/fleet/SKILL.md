@@ -64,9 +64,12 @@ decision card.
 **4. Blind review (Milo), `pm/runs/<n>/review.md`.** Run `soloagile fleet review <n>`: it
 prints the card's "done when" lines, the diff of `main...card-<n>`, and every changed file
 in full (or, in a long code file, every changed top-level function whole, with line
-numbers). A non-code file over 300 lines, or any file over 60 KB, comes as its changed
-regions with 20 lines either side; files under `pm/` are in the diff alone; the pack ends
-with its size, and over 120 KB it gives the diff alone with a note saying so. Start Milo with the Agent tool, `subagent_type: "soloagile:milo"`, and give Milo
+numbers). A code file keeps whole blocks whatever its size; a non-code file over 300 lines
+or 60 KB comes as its changed regions with 20 lines either side. Files under a top-level
+`pm/` are left out of the pack entirely, named only: no board, plan or run notes reach him.
+The pack ends with its size; over 120 KB it gives the diff alone with a note saying so, and
+when even the diff is over 120 KB it gives each changed file's `git diff --stat` line and
+says the change is too big for a blind review: then say so in report.md. Start Milo with the Agent tool, `subagent_type: "soloagile:milo"`, and give Milo
 its output whole and nothing else: not the card's title, the plan, build.md or any other
 code. He has no tools and runs on a different model from Tobin. Write his reply into
 review.md word for word.
