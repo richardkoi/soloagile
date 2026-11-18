@@ -275,3 +275,11 @@ test("a fleet run gets one page, its files stacked, and the card's pop-up links 
   assert.match(page, /href="docs\/run-1\.html"[^>]*>.*Fleet run<\/a>/);
   assert.doesNotMatch(page, /docs\/run-2\.html/);
 });
+
+test('an away run hands a fleet card to the fleet skill, never to a parallel helper', () => {
+  const away = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'away', 'SKILL.md'), 'utf8');
+  assert.match(away, /run the fleet\s+skill on it \(`\/soloagile:fleet <n>`\)/);
+  assert.match(away, /never give a fleet card to a helper/);
+  const tools = away.match(/^allowed-tools: (.*)$/m)[1];
+  for (const t of ['Agent', 'Skill', 'Bash(soloagile fleet:*)', 'Bash(git worktree:*)']) assert.ok(tools.includes(t), t);
+});
