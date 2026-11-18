@@ -69,8 +69,12 @@ clashing files, the copy's path, and both sides' intent: the card's done when, a
 commits that touched those files (`git log card-<n>..main -- <files>`). Tell him to resolve
 them in the copy keeping both sides' intent, run the checks, commit the merge, and add a
 `## Merge with main` section to build.md. Then run `soloagile fleet update <n>` again; it
-must say up to date. Say in report.md whether the update was current, clean or a clash,
-and its files.
+must say up to date (it refuses a branch whose changed files still hold conflict markers,
+and says to commit a merge resolved but not committed). Say in report.md whether the update
+was current, clean or a clash, and its files. The user's yes merges later with `soloagile
+fleet merge <n>`, which refuses a branch main has moved past since (another card merged
+first): it goes back through this step, a resolving Tobin and Milo's review before it
+merges.
 
 **4. Blind review (Milo), `pm/runs/<n>/review.md`.** Get the change with
 `git diff main...card-<n>` and start Milo with the Agent tool, `subagent_type:

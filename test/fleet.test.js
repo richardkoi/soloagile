@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock, updateBranch } from '../src/fleet.js';
+import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -388,10 +388,10 @@ test('fleet update brings a branch level with main, then says it is current (#26
   const { path } = fleetBranch(dir, 1);
   commitIn(path, 'a.txt', 'card one\n');
   commitIn(dir, 'b.txt', 'main moved\n');
-  assert.deepEqual(updateBranch(dir, 1), { state: 'merged', base: 'main' });
+  assert.deepEqual(updateBranch(dir, 1), { state: 'merged', base: 'main', path });
   assert.equal(spawnSync('git', ['merge-base', '--is-ancestor', 'main', 'card-1'], { cwd: dir }).status, 0, 'main is in card-1');
   assert.ok(existsSync(join(path, 'b.txt')));
-  assert.deepEqual(updateBranch(dir, 1), { state: 'current', base: 'main' });
+  assert.deepEqual(updateBranch(dir, 1), { state: 'current', base: 'main', path });
 });
 
 test('two cards changing the same file both reach review clashing-free (#267)', () => {
@@ -404,13 +404,13 @@ test('two cards changing the same file both reach review clashing-free (#267)', 
   assert.ok(['current', 'merged'].includes(updateBranch(dir, 1).state));
   mergeCard(dir, 1);
   const clash = updateBranch(dir, 2);
-  assert.deepEqual(clash, { state: 'clash', base: 'main', files: ['app.js'] });
+  assert.deepEqual(clash, { state: 'clash', base: 'main', path: two, files: ['app.js'] });
   assert.match(readFileSync(join(two, 'app.js'), 'utf8'), /^<<<<<<< /m, 'left mid-merge for Tobin');
   // Tobin resolves it, keeping both sides' intent, and commits the merge.
   writeFileSync(join(two, 'app.js'), 'one\ntwo\n');
   execFileSync('git', ['add', 'app.js'], { cwd: two });
   execFileSync('git', [...T, 'commit', '-q', '--no-edit'], { cwd: two });
-  assert.deepEqual(updateBranch(dir, 2), { state: 'current', base: 'main' });
+  assert.deepEqual(updateBranch(dir, 2), { state: 'current', base: 'main', path: two });
   const diff = execFileSync('git', ['diff', 'main...card-2'], { cwd: dir, encoding: 'utf8' });
   assert.doesNotMatch(diff, /^[+-]?(<<<<<<<|=======|>>>>>>>)/m, 'what Milo sees has no clash in it');
   assert.equal(mergeCard(dir, 2).into, 'main');
@@ -466,4 +466,81 @@ test('the fleet skill brings the branch up to date before the blind review, and 
   assert.match(step, /resolve/);
   assert.match(step, /## Merge with main/);
   assert.match(skill.replace(/\n\s*/g, ' '), /after each rework round[^.]*step 3b/i);
+});
+
+// #267 round 1: the findings Orla upheld.
+test('a card main has moved past is refused at merge until fleet update and a resolve (#267)', () => {
+  const dir = onMain();
+  const one = fleetBranch(dir, 1).path;
+  const two = fleetBranch(dir, 2).path;
+  commitIn(one, 'app.js', 'one\n');
+  commitIn(two, 'app.js', 'two\n');
+  // Both reviewed side by side against the old main.
+  assert.equal(updateBranch(dir, 1).state, 'current');
+  assert.equal(updateBranch(dir, 2).state, 'current');
+  assert.equal(mergeCard(dir, 1).into, 'main');
+  const before = execFileSync('git', ['rev-parse', 'main'], { cwd: dir, encoding: 'utf8' });
+  assert.throws(() => mergeCard(dir, 2), /card-2 doesn't have main's latest[\s\S]*soloagile fleet update 2[\s\S]*review/);
+  assert.equal(execFileSync('git', ['rev-parse', 'main'], { cwd: dir, encoding: 'utf8' }), before, 'nothing merged');
+  assert.ok(branches(dir).includes('card-2'));
+  assert.equal(updateBranch(dir, 2).state, 'clash');
+  writeFileSync(join(two, 'app.js'), 'one\ntwo\n');
+  execFileSync('git', ['add', 'app.js'], { cwd: two });
+  execFileSync('git', [...T, 'commit', '-q', '--no-edit'], { cwd: two });
+  assert.equal(mergeCard(dir, 2).into, 'main');
+  assert.equal(readFileSync(join(dir, 'app.js'), 'utf8'), 'one\ntwo\n');
+});
+
+test('the skills send a refused merge back through fleet update, a resolving Tobin and review (#267)', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const fleet = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(fleet, /`soloagile fleet merge <n>`[^.]*refuses[^.]*Tobin[^.]*Milo/);
+  const needs = readFileSync(join(root, 'skills', 'needs', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(needs, /refused[^.]*`soloagile fleet update <number>`[^.]*Tobin[^.]*Milo/);
+});
+
+test('fleet update refuses a branch that still holds conflict markers (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'app.js', '<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> main\n');
+  commitIn(path, 'ok.txt', 'fine\n');
+  assert.throws(() => updateBranch(dir, 1), (e) => /conflict markers/.test(e.message) && /app\.js/.test(e.message) && !/ok\.txt/.test(e.message));
+  commitIn(dir, 'b.txt', 'main moved\n');
+  assert.throws(() => updateBranch(dir, 1), /conflict markers[\s\S]*app\.js/, 'after a clean merge too');
+});
+
+test('a merge resolved but not committed says to commit it, and the CLI exits 1 (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  assert.equal(updateBranch(dir, 1).state, 'clash');
+  writeFileSync(join(path, 'app.js'), 'card\nmain\n');
+  execFileSync('git', ['add', 'app.js'], { cwd: path });
+  const r = updateBranch(dir, 1);
+  assert.deepEqual(r, { state: 'resolved', base: 'main', path });
+  assert.match(updateText(1, r), /commit the merge/);
+  const cli = spawnSync('node', [PM, 'fleet', 'update', '1'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(cli.status, 1, cli.stderr);
+  assert.match(cli.stdout, /commit the merge/);
+});
+
+test('fleet update on a detached main tree says it is not on a branch (#267)', () => {
+  const dir = onMain();
+  fleetBranch(dir, 1);
+  execFileSync('git', ['checkout', '-q', '--detach'], { cwd: dir });
+  assert.throws(() => updateBranch(dir, 1), /the main tree isn't on a branch/);
+});
+
+test("fleet update gives the copy's path in every state, and the text uses it (#267)", () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  assert.equal(updateBranch(dir, 1).path, path);
+  commitIn(dir, 'b.txt', 'b\n');
+  assert.equal(updateBranch(dir, 1).path, path);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  const clash = updateBranch(dir, 1);
+  assert.equal(clash.path, path);
+  assert.match(updateText(1, { ...clash, path: '/somewhere/else' }), /left mid-merge in \/somewhere\/else for Tobin/);
 });
