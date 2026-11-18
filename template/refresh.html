@@ -119,11 +119,14 @@
     fold.querySelector('.ms-body').addEventListener('beforematch', function () { set(fold, true); });
   });
   function fromHash() {
-    var t = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    // A hash that can't be decoded (such as #%) names no milestone, rather than throwing.
+    var id = '';
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
+    var t = id && document.getElementById(id);
     if (t && t.classList.contains('ms-fold')) set(t, true);
   }
-  fromHash();
   window.addEventListener('hashchange', fromHash);
+  fromHash();
 })();
 /* Long lanes (#219, #220): Up next, Ideas and Done show their first 10 cards (5 on a phone,
    where lanes stack), then a "Show all N" button. The count is of the cards the milestone menu leaves; while the search box has

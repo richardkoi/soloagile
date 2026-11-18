@@ -291,3 +291,21 @@ test('the fold button folds a lane and names it; a milestone heading opens and s
   assert.deepEqual(seen.linked, { expanded: 'true', shown: true }, '#plan-M1 opens that milestone');
   assert.equal(seen.planShown, true);
 });
+
+test("a page opened at a hash that can't be decoded (#%) still opens a folded milestone from a later #plan-M1 (#261)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-badhash261-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), board('A card'));
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n## Milestones\n### M1 — Old one · done 2026-09-30\nOld words.\n\n### M2 — New one · in progress\nNew words.\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href + '#%', async (page) => {
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const hash = await run('location.hash');
+    await run(`location.hash = '#plan-M1'`);
+    await new Promise((ok) => setTimeout(ok, 200));
+    return { hash, m1: await run(`document.querySelector('#plan-M1 .ms-toggle').getAttribute('aria-expanded') + ' ' + !document.querySelector('#plan-M1 .ms-body').hidden`) };
+  });
+  assert.equal(seen.hash, '#%', 'the page really opened at #%');
+  assert.equal(seen.m1, 'true true', '#plan-M1 opens the folded milestone after a bad hash');
+});
