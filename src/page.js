@@ -165,8 +165,10 @@ function detailLine(d) {
 
 // laneKey picks the card's colour; decisions and looks get their own within Waiting on you.
 // A card with detail lines opens them in a modal: its title becomes a button that the CSS
-// stretches over the whole card, and the browser's Popover API opens and closes the modal
-// (modalId is its id), so no script is needed.
+// stretches over the whole card. The modal is a <dialog> (modalId is its id) that the button
+// opens with command="show-modal": the page behind goes inert, so Tab stays inside, and
+// closedby="any" closes it on Esc or a tap outside, with focus back on the card (#259).
+// No script is needed.
 // shorts: each milestone's short name, by id (parsePlan).
 function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts) {
   // Ideas and Up next are all at Plan, so their bar would say nothing; it shows from Doing on (#222).
@@ -202,10 +204,10 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   if (!c.details.length) {
     return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${picturePage(c, pictures)}</li>`;
   }
-  const open = `<button class="card-open" type="button" popovertarget="${modalId}">${title}</button>`;
-  const close = `<button class="modal-close" type="button" popovertarget="${modalId}" popovertargetaction="hide" aria-label="Close">${icon('x')}</button>`;
+  const open = `<button class="card-open" type="button" commandfor="${modalId}" command="show-modal">${title}</button>`;
+  const close = `<button class="modal-close" type="button" commandfor="${modalId}" command="close" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(detailLine(d))}${optionPicture(c, d, pictures)}</li>`).join('');
-  const modal = `<div class="card-modal" id="${modalId}" popover role="dialog" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${rangeLine}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></div>`;
+  const modal = `<dialog class="card-modal" id="${modalId}" closedby="any" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${rangeLine}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></dialog>`;
   return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
 }
 

@@ -206,7 +206,7 @@
     if (li.hidden && menu) { menu.value = ''; menu.dispatchEvent(new Event('change')); }
     if (li.classList.contains('over') && window.soloagileLimit) window.soloagileLimit(false, li);
     var modal = li.querySelector('.card-modal');
-    if (modal) modal.showPopover(); else li.scrollIntoView({ block: 'center' });
+    if (modal) modal.showModal(); else li.scrollIntoView({ block: 'center' });
   });
 })();
 /* Live refresh. Served over http: every 3 seconds, ask the server for this file's ETag and
@@ -253,7 +253,7 @@
 })();
 (function () {
   function reload() {
-    if (document.querySelector('.card-modal:popover-open')) return;
+    if (document.querySelector('.card-modal[open]')) return;
     location.reload();
   }
   if (location.protocol === 'file:') {
