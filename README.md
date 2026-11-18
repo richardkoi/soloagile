@@ -55,6 +55,8 @@ computer won't go to sleep. The screen stays lit too, and each browser remembers
 | "build these in parallel" | Helpers build independent cards at once, each in its own copy of the code, then Claude merges them |
 | "what order should we build these in?" | Claude suggests an order for the milestones and Up next with a reason each, asks you questions to tweak it, then applies it. "Put #12 first" just moves that card |
 
+| "run the fleet on #12" | A crew of helpers designs, builds and reviews one card on its own branch, and leaves it for your yes. Off until you switch on the fleet habit (`soloagile set fleet on`); see [the crew](docs/fleet-crew.md) |
+
 Each habit, away mode among them, can be switched off on the page's Settings tab.
 
 Each one is also a command, such as `/soloagile:catchup`.
@@ -98,6 +100,14 @@ The format of every file, and each rule Claude follows, is in [SPEC.md](SPEC.md)
 At the Test stage Claude takes four screenshots of anything seen in a browser: desktop
 and phone width, dark and light. That needs Chrome, Chromium, Edge or Brave on the
 computer. Without one, everything else still works.
+
+`soloagile shots <url>` takes them. It can click, type and press a key first (`--click`,
+`--type`, `--press`), take the whole page (`--full`), and wait for a slow page, such as a
+map that draws after its data arrives (`--wait "<words or selector>"`).
+
+## Release notes
+
+What each version brings is on [GitHub's Releases page](https://github.com/richardkoi/soloagile/releases).
 
 ## Licence
 

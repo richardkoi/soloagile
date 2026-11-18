@@ -16,3 +16,4 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 12. Before releasing a new command, run it on the biggest board (weatherglider) through the reader that will use it. (From retro of M25, #195.)
 13. Before building a visual card, ask what it should show, even when it copies an existing look. (From retro of M25, #194.)
 14. Release soloagile only with tools/release.sh: it runs the tests, validate and the trigger tests first. (From retro of M10 and M22, #169; card #192.)
+15. Before each release, update README.md for what the release changes; tools/release.sh publishes the GitHub release note. (From Rich, 2026-11-18.)
