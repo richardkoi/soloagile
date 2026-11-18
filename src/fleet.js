@@ -152,3 +152,51 @@ export const scanText = (id, hits) =>
   hits.length
     ? [`soloagile: #${id}'s change has ${hits.length} line${hits.length === 1 ? '' : 's'} for Rufus:`, ...hits.map((h) => `  ${h.file}:${h.line}  ${h.why}: ${h.text.slice(0, 120)}`)].join('\n')
     : `soloagile: #${id}'s change touches no keys, tokens, .env, logins or permissions: no security list needed`;
+
+// After the user's look (#240). merge: the user said yes, so card-<n> is merged into the
+// branch checked out in the main tree, and its copy and branch go. sendBack: the card
+// returns to Build, so the files from Build on are removed and the next run resumes there,
+// keeping plan.md. drop: the work goes, copy, branch and run files with it.
+function gitIn(repo) {
+  return (...args) => {
+    const r = spawnSync('git', args, { cwd: resolve(repo), encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${(r.stderr || r.stdout).trim()}`);
+    return r.stdout.trim();
+  };
+}
+
+function removeCopy(repo, id, git) {
+  const path = join(resolve(repo), '.claude', 'worktrees', `card-${id}`);
+  if (existsSync(path)) git('worktree', 'remove', '--force', path);
+}
+
+export function mergeCard(repo, id) {
+  const git = gitIn(repo);
+  const branch = `card-${id}`;
+  git('rev-parse', '--verify', '--quiet', `refs/heads/${branch}`);
+  const dirty = git('status', '--porcelain').split('\n').filter((l) => l.trim() && !/^.. pm\//.test(l));
+  if (dirty.length) throw new Error(`the main tree has uncommitted changes, so nothing was merged:\n${dirty.join('\n')}`);
+  const into = git('branch', '--show-current');
+  const r = spawnSync('git', ['merge', '--no-ff', '--no-edit', branch], { cwd: resolve(repo), encoding: 'utf8' });
+  if (r.status !== 0) {
+    spawnSync('git', ['merge', '--abort'], { cwd: resolve(repo) });
+    throw new Error(`card-${id} doesn't merge cleanly into ${into}, so the merge was undone; send it back: soloagile fleet sendback ${id}`);
+  }
+  removeCopy(repo, id, git);
+  git('branch', '-d', branch);
+  return { into };
+}
+
+export function sendBack(repo, id) {
+  const dir = runDir(repo, id);
+  const gone = STAGE_FILES.slice(1).map(([, f]) => f).concat('security-list.md').filter((f) => existsSync(join(dir, f)));
+  for (const f of gone) rmSync(join(dir, f));
+  return gone;
+}
+
+export function dropRun(repo, id) {
+  const git = gitIn(repo);
+  removeCopy(repo, id, git);
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/card-${id}`], { cwd: resolve(repo) }).status === 0) git('branch', '-D', `card-${id}`);
+  rmSync(runDir(repo, id), { recursive: true, force: true });
+}

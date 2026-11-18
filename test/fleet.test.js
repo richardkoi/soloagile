@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { fleetBranch, preflight, runDir, scanDiff, unlock } from '../src/fleet.js';
+import { dropRun, fleetBranch, mergeCard, preflight, runDir, scanDiff, sendBack, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -207,4 +207,50 @@ test("the fleet's last stage runs the project's checks and links report.md from 
   assert.match(skill, /pm\/runs\/<n>\/report\.md/);
   assert.match(skill, /`## Checks` in `pm\/overview\.md`/);
   assert.match(skill, /soloagile card note <n> "report: pm\/runs\/<n>\/report\.md"/);
+});
+
+const built = () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  const { path } = fleetBranch(dir, 1);
+  writeFileSync(join(path, 'sum.js'), 'export const sum = (xs) => xs.reduce((a, b) => a + b, 0);\n');
+  execFileSync('git', ['add', 'sum.js'], { cwd: path });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'sum'], { cwd: path });
+  mkdirSync(runDir(dir, 1), { recursive: true });
+  for (const f of ['plan.md', 'build.md', 'review.md', 'verdicts.md', 'security-list.md', 'report.md']) writeFileSync(join(runDir(dir, 1), f), f);
+  return { dir, path };
+};
+const branches = (dir) => execFileSync('git', ['branch', '--format=%(refname:short)'], { cwd: dir, encoding: 'utf8' }).trim().split('\n');
+
+test("yes merges card-<n> into main and removes its copy and branch", () => {
+  const { dir, path } = built();
+  assert.equal(mergeCard(dir, 1).into, 'main');
+  assert.ok(existsSync(join(dir, 'sum.js')));
+  assert.equal(existsSync(path), false);
+  assert.deepEqual(branches(dir), ['main']);
+});
+
+test('a merge that would carry uncommitted changes is refused', () => {
+  const { dir } = built();
+  writeFileSync(join(dir, 'app.js'), 'changed\n');
+  assert.throws(() => mergeCard(dir, 1), /uncommitted changes, so nothing was merged/);
+  assert.ok(branches(dir).includes('card-1'));
+});
+
+test('send back keeps the plan and the branch, so the next run resumes at build', () => {
+  const { dir } = built();
+  assert.deepEqual(sendBack(dir, 1).sort(), ['build.md', 'report.md', 'review.md', 'security-list.md', 'verdicts.md']);
+  assert.ok(existsSync(join(runDir(dir, 1), 'plan.md')));
+  assert.ok(branches(dir).includes('card-1'));
+  assert.equal(preflight(dir, 1, { pid: 1, isAlive: () => false }).stage, 'build');
+});
+
+test('drop removes the copy, the branch and the run files', () => {
+  const { dir, path } = built();
+  dropRun(dir, 1);
+  assert.equal(existsSync(path), false);
+  assert.deepEqual(branches(dir), ['main']);
+  assert.equal(existsSync(runDir(dir, 1)), false);
+  const needs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'needs', 'SKILL.md'), 'utf8');
+  assert.match(needs, /"Yes, merge it",\s+"Send it back", "Drop it"/);
 });

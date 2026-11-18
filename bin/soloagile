@@ -57,7 +57,7 @@ import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
-import { cardDiff, fleetBranch, preflight, preflightText, scanDiff, scanText, unlock } from '../src/fleet.js';
+import { cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, scanDiff, scanText, sendBack, unlock } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
 // is installed beside this one, the whole command goes to it, stdin and all, so an old
@@ -99,7 +99,7 @@ const COMMANDS = [
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] [--click …] [--type …] [--press …]', 'four screenshots: desktop and phone, dark and light'],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
-  ['fleet preflight|branch|scan|unlock <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, the security scan of its change, and the lock's end"],
+  ['fleet preflight|branch|scan|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n>, the security scan of its change, the lock's end, and on the user's look: merge, send back to Build, or drop"],
   ['herdr [--sound <name or file>] [--dry-run]', 'install or update the Herdr add-ons, keeping their sound, and bind F3 to the board if free'],
 ].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
 
@@ -359,13 +359,20 @@ if (cmd === 'fleet') {
   // soloagile fleet preflight <n> | unlock <n>, in the project's folder (src/fleet.js, #233).
   const [verb, n] = process.argv.slice(3);
   const id = Number(String(n ?? '').replace(/^#/, ''));
-  if (!['preflight', 'unlock', 'branch', 'scan'].includes(verb) || !Number.isInteger(id) || id < 1) {
-    console.error('usage: soloagile fleet preflight|branch|scan|unlock <card>');
+  if (!['preflight', 'unlock', 'branch', 'scan', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
+    console.error('usage: soloagile fleet preflight|branch|scan|unlock|merge|sendback|drop <card>');
     process.exit(2);
   }
   try {
     if (verb === 'preflight') console.log(preflightText(id, preflight(process.cwd(), id)));
-    else if (verb === 'scan') {
+    else if (verb === 'merge') console.log(`soloagile: merged card-${id} into ${mergeCard(process.cwd(), id).into}; its copy and branch are gone. Run the checks now.`);
+    else if (verb === 'sendback') {
+      const gone = sendBack(process.cwd(), id);
+      console.log(`soloagile: #${id} goes back to Build${gone.length ? `; removed ${gone.join(', ')}` : ''}. Its branch stays; the next run resumes at build.`);
+    } else if (verb === 'drop') {
+      dropRun(process.cwd(), id);
+      console.log(`soloagile: dropped #${id}'s fleet work: its copy, branch card-${id} and pm/runs/${id}/`);
+    } else if (verb === 'scan') {
       // Exit 1 on a hit, so a script can tell; the hits are on stdout either way.
       const hits = scanDiff(cardDiff(process.cwd(), id));
       console.log(scanText(id, hits));
