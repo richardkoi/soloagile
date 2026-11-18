@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import './isolate.js';
 import { buildProject } from '../src/build.js';
+import { buildHome } from '../src/home.js';
 import { stampOf } from '../src/settings.js';
 import { findBrowser, withPage } from '../src/shots.js';
 
@@ -68,13 +69,13 @@ test('a page served over http refreshes after a card read during the rebuild is 
       const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
       const text = () => run('document.body.innerText');
       assert.match(await text(), /First title/);
-      await run("document.querySelector('.card-modal').showPopover()");
+      await run("document.querySelector('.card-modal').showModal()");
       writeFileSync(join(repo, 'pm', 'board.md'), board('Second title'));
       buildProject(repo, new Date('2026-10-02T12:05:00.000Z'));
       // While the card is open the page must not reload: give it two checks.
       await wait(7000);
-      assert.equal(await run("!!document.querySelector('.card-modal:popover-open')"), true, 'the open card was left alone');
-      await run("document.querySelector('.card-modal').hidePopover()");
+      assert.equal(await run("!!document.querySelector('.card-modal:modal')"), true, 'the open card was left alone');
+      await run("document.querySelector('.card-modal').close()");
       for (let i = 0; i < 40 && !/Second title/.test(await text().catch(() => '')); i++) await wait(250);
       return text();
     });
@@ -178,7 +179,7 @@ test('on desktop a long lane shows its first 10 cards and a Show all button; sea
     await run(`(() => { const b = document.querySelector('.card-find input'); b.value = 'zebra'; b.dispatchEvent(new Event('input')); })()`);
     steps.zebra = await run(`!!document.querySelector('[data-id="14"]').offsetParent`);
     await run(`(() => { const b = document.querySelector('.card-find input'); b.value = '#15'; b.dispatchEvent(new Event('input')); b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); })()`);
-    steps.open = await run(`!!document.querySelector('[data-id="15"] .card-modal:popover-open') && !!document.querySelector('[data-id="15"]').offsetParent`);
+    steps.open = await run(`!!document.querySelector('[data-id="15"] .card-modal:modal') && !!document.querySelector('[data-id="15"]').offsetParent`);
     return steps;
   });
   assert.deepEqual(seen.start, { shown: 10, button: 'Show all 15', ideasButton: false }, 'ten cards, then the button; a short lane has none');
@@ -259,6 +260,216 @@ test('on a phone Ideas starts folded to its heading, and a tap opens it; desktop
   assert.deepEqual((await look(1400)).before, { ideas: false, done: false }, 'desktop starts with both open');
 });
 
+// #260: the open tab is marked for screen readers (aria-current), by a shape (a 3px bar),
+// and in the window title; on a 360px phone the strip scrolls to it and fades only where
+// more tabs wait.
+const nap = (ms) => new Promise((ok) => setTimeout(ok, ms));
+const tabState = `(() => {
+  const on = [...document.querySelectorAll('.dk-nav a[aria-current="page"]')];
+  return { on: on.map((a) => a.getAttribute('href')), title: document.title,
+    bar: on[0] ? getComputedStyle(on[0], '::after').borderBottomWidth : '' };
+})()`;
+
+test('the open tab has aria-current, a 3px bar and its name in the window title, and follows the hash (#260)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = project('A card');
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — One · in progress\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const name = readFileSync(out, 'utf8').match(/<title>(.*?) - PM<\/title>/)[1];
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const at = async (hash) => { await run(`location.hash = ${JSON.stringify(hash)}`); await nap(150); return run(tabState); };
+    return { start: await run(tabState), plan: await at('#plan'), ms: await at('#plan-M1'), settings: await at('#settings'), none: await at('') };
+  });
+  assert.deepEqual(seen.start.on, ['#board'], 'no hash: Board is the open tab');
+  assert.equal(seen.start.title, `${name} - Board - PM`);
+  assert.equal(seen.start.bar, '3px', 'the open tab carries a 3px bar, a shape and not colour alone');
+  assert.deepEqual(seen.plan.on, ['#plan']);
+  assert.equal(seen.plan.title, `${name} - Plan - PM`);
+  assert.deepEqual(seen.ms.on, ['#plan'], 'a milestone on the Plan tab counts as Plan');
+  assert.equal(seen.ms.title, `${name} - Plan - PM`);
+  assert.deepEqual(seen.settings.on, ['#settings']);
+  assert.equal(seen.settings.title, `${name} - Settings - PM`);
+  assert.deepEqual(seen.none.on, ['#board'], 'back to no hash: Board again');
+});
+
+test('a hash that cannot be decoded (#%) marks Board, and later tab changes still mark the tab and title (#260)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = project('A card');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const name = readFileSync(out, 'utf8').match(/<title>(.*?) - PM<\/title>/)[1];
+  const seen = await withPage(pathToFileURL(out).href + '#%', async (page) => {
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const start = { hash: await run('location.hash'), ...(await run(tabState)) };
+    await run(`location.hash = '#settings'`);
+    await nap(150);
+    return { start, settings: await run(tabState) };
+  });
+  assert.equal(seen.start.hash, '#%', 'the page really opened on #%');
+  assert.deepEqual(seen.start.on, ['#board'], 'an undecodable hash counts as no target: Board');
+  assert.deepEqual(seen.settings.on, ['#settings'], 'the hashchange listener is still there');
+  assert.equal(seen.settings.title, `${name} - Settings - PM`);
+});
+
+test("the home page's open tab has aria-current and names the window (#260)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'pm-home-tabs-')), 'index.html');
+  buildHome({ root: mkdtempSync(join(tmpdir(), 'pm-home-root-')), out });
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const start = await run(tabState);
+    await run(`location.hash = '#flow'`);
+    await nap(150);
+    return { start, flow: await run(tabState) };
+  });
+  assert.deepEqual(seen.start.on, ['#projects']);
+  assert.equal(seen.start.title, 'Projects - PM');
+  assert.deepEqual(seen.flow.on, ['#flow']);
+  assert.equal(seen.flow.title, 'Session flow - PM');
+});
+
+test('on a 360px phone the open tab is scrolled into the strip, and each edge fades only where more tabs wait (#260)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = project('A card');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 360, height: 780, deviceScaleFactor: 1, mobile: true });
+    await nap(300);
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result.value;
+    // Is the open tab's link wholly inside the strip's visible box?
+    const inView = (hash) => run(`(async () => {
+      document.querySelector('.dk-nav').scrollLeft = 0;
+      location.hash = ${JSON.stringify(hash)};
+      await new Promise((ok) => setTimeout(ok, 300));
+      const nav = document.querySelector('.dk-nav').getBoundingClientRect();
+      const a = document.querySelector('.dk-nav a[href="${hash}"]').getBoundingClientRect();
+      return { inside: a.left >= nav.left - 0.5 && a.right <= nav.right + 0.5, a: [a.left, a.right], nav: [nav.left, nav.right] };
+    })()`);
+    // The two fades' widths at a scroll position (the registered --fade-start / --fade-end).
+    const fades = (where) => run(`(async () => {
+      const nav = document.querySelector('.dk-nav');
+      nav.scrollLeft = ${where === 'start' ? 0 : 'nav.scrollWidth'};
+      await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+      const s = getComputedStyle(nav);
+      return { left: s.getPropertyValue('--fade-start').trim(), right: s.getPropertyValue('--fade-end').trim(), overflows: nav.scrollWidth > nav.clientWidth };
+    })()`);
+    const settings = await inView('#settings');
+    const links = await inView('#links');
+    // Load straight onto #settings too: the script runs on load, not only on hashchange.
+    await run(`location.hash = '#settings'`);
+    await page.send('Page.reload');
+    await nap(500);
+    const loaded = await run(`(() => { const nav = document.querySelector('.dk-nav').getBoundingClientRect(), a = document.querySelector('.dk-nav a[href="#settings"]').getBoundingClientRect(); return a.left >= nav.left - 0.5 && a.right <= nav.right + 0.5; })()`);
+    return { settings, links, loaded, start: await fades('start'), end: await fades('end') };
+  });
+  assert.ok(seen.settings.inside, `Settings is in the strip's view: ${JSON.stringify(seen.settings)}`);
+  assert.ok(seen.links.inside, `Links is in the strip's view: ${JSON.stringify(seen.links)}`);
+  assert.ok(seen.loaded, 'a page opened on #settings shows Settings in the strip');
+  assert.ok(seen.start.overflows, 'at 360px the strip has more tabs than fit');
+  assert.equal(seen.start.left, '0px', 'at the start, no fade on the left');
+  assert.equal(seen.start.right, '32px', 'at the start, the right edge fades');
+  assert.equal(seen.end.left, '32px', 'at the end, the left edge fades');
+  assert.equal(seen.end.right, '0px', 'at the end, no fade on the right');
+});
+
+test("a card's pop-up is a modal dialog: Tab stays inside, Escape and a tap outside close it, and focus goes back to the card (#259)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-dialog-'));
+  mkdirSync(join(repo, 'pm'));
+  // Two cards with lines, so there is plenty to Tab onto outside the open one; #1 has a link inside.
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 3 -->\n## Ideas\n## Up next\n- #1 First · M1 · 2 pts\n  a line\n  see https://example.com/x\n- #2 Second · M1 · 2 pts\n  another line\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const wait = () => new Promise((ok) => setTimeout(ok, 150));
+    // Real key presses and clicks, through the browser's input, not script events.
+    const key = async (k, code, vk) => {
+      await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk });
+      await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk });
+      await wait();
+    };
+    const click = async (x, y) => {
+      for (const type of ['mousePressed', 'mouseReleased']) await page.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+      await wait();
+    };
+    const openCard = async () => {
+      const r = await run(`(() => { const r = document.querySelector('[data-id="1"] .card-open').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+      await click(r.x, r.y);
+    };
+    const dialog = `document.querySelector('[data-id="1"] .card-modal')`;
+    const state = () => run(`({ modal: ${dialog}.matches(':modal'), open: ${dialog}.open,
+      focusOnOpener: document.activeElement === document.querySelector('[data-id="1"] .card-open') })`);
+    const steps = {};
+    await openCard();
+    steps.opened = await state();
+    steps.tabs = [];
+    for (let i = 0; i < 20; i++) {
+      await key('Tab', 'Tab', 9);
+      // Inside the dialog, or nowhere in the page (the browser's own bar): never on the page behind it.
+      steps.tabs.push(await run(`(() => { const a = document.activeElement; return !a || a === document.body ? 'none' : ${dialog}.contains(a) ? 'inside' : 'outside:' + a.outerHTML.slice(0, 60); })()`));
+    }
+    await key('Escape', 'Escape', 27);
+    steps.escaped = await state();
+    await openCard();
+    await click(5, 5);
+    steps.tapped = await state();
+    return steps;
+  });
+  assert.deepEqual(seen.opened, { modal: true, open: true, focusOnOpener: false }, 'opening a card makes it a modal dialog');
+  assert.ok(seen.tabs.includes('inside'), 'Tab moves through the dialog');
+  assert.deepEqual(seen.tabs.filter((t) => t.startsWith('outside')), [], 'Tab never lands on the page behind');
+  assert.deepEqual(seen.escaped, { modal: false, open: false, focusOnOpener: true }, 'Escape closes it, and focus is back on the card');
+  assert.deepEqual(seen.tapped, { modal: false, open: false, focusOnOpener: true }, 'a tap outside closes it, and focus is back on the card');
+});
+
+test('the fold button folds a lane and names it; a milestone heading opens and shuts its body, and #plan-M1 opens it (#261)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-heads261-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), board('A card'));
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n## Milestones\n### M1 — Old one · done 2026-09-30\nOld words.\n\n### M2 — New one · in progress\nNew words.\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const steps = {};
+    steps.fold = await run(`(() => { const b = document.querySelector('.lane-done .lane-fold'); const before = b.getAttribute('aria-label'); b.click();
+      return { before, after: b.getAttribute('aria-label'), folded: b.closest('.lane').classList.contains('folded') }; })()`);
+    const ms = (id) => `(() => { const f = document.getElementById('plan-${id}'); return { expanded: f.querySelector('.ms-toggle').getAttribute('aria-expanded'), shown: !f.querySelector('.ms-body').hidden }; })()`;
+    steps.start = { m1: await run(ms('M1')), m2: await run(ms('M2')) };
+    await run(`document.querySelector('#plan-M2 .ms-toggle').click()`);
+    steps.shut = await run(ms('M2'));
+    await run(`document.querySelector('#plan-M2 .ms-toggle').click()`);
+    steps.reopened = await run(ms('M2'));
+    await run(`location.hash = '#plan-M1'`);
+    await new Promise((ok) => setTimeout(ok, 200));
+    steps.linked = await run(ms('M1'));
+    steps.planShown = await run(`!!document.querySelector('.tab-plan').offsetParent`);
+    return steps;
+  });
+  assert.deepEqual(seen.fold, { before: 'Fold Done to a strip', after: 'Unfold Done', folded: true }, "the lane's name comes from its heading now");
+  assert.deepEqual(seen.start, { m1: { expanded: 'false', shown: false }, m2: { expanded: 'true', shown: true } }, 'a done milestone starts folded');
+  assert.deepEqual(seen.shut, { expanded: 'false', shown: false });
+  assert.deepEqual(seen.reopened, { expanded: 'true', shown: true });
+  assert.deepEqual(seen.linked, { expanded: 'true', shown: true }, '#plan-M1 opens that milestone');
+  assert.equal(seen.planShown, true);
+});
+
+test("a page opened at a hash that can't be decoded (#%) still opens a folded milestone from a later #plan-M1 (#261)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-badhash261-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), board('A card'));
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n## Milestones\n### M1 — Old one · done 2026-09-30\nOld words.\n\n### M2 — New one · in progress\nNew words.\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href + '#%', async (page) => {
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const hash = await run('location.hash');
+    await run(`location.hash = '#plan-M1'`);
+    await new Promise((ok) => setTimeout(ok, 200));
+    return { hash, m1: await run(`document.querySelector('#plan-M1 .ms-toggle').getAttribute('aria-expanded') + ' ' + !document.querySelector('#plan-M1 .ms-body').hidden`) };
+  });
+  assert.equal(seen.hash, '#%', 'the page really opened at #%');
+  assert.equal(seen.m1, 'true true', '#plan-M1 opens the folded milestone after a bad hash');
+});
+
 test('reduced motion stops the Plan arrow turning but keeps the buttons\' colour change; without it the arrow still turns (#262)', { skip: !findBrowser() && 'no browser here' }, async () => {
   const repo = mkdtempSync(join(tmpdir(), 'pm-motion-'));
   mkdirSync(join(repo, 'pm'));
@@ -269,7 +480,7 @@ test('reduced motion stops the Plan arrow turning but keeps the buttons\' colour
     await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: motion }] });
     await new Promise((ok) => setTimeout(ok, 300));
     const expression = `(() => {
-      const arrow = getComputedStyle(document.querySelector('.ms-fold > summary'), '::before');
+      const arrow = getComputedStyle(document.querySelector('.ms-toggle'), '::before');
       const btn = getComputedStyle(document.querySelector('.btn'));
       const props = btn.transitionProperty.split(',').map((s) => s.trim());
       const durs = btn.transitionDuration.split(',').map((s) => s.trim());

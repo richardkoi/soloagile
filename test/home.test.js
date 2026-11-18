@@ -156,7 +156,7 @@ test('the home page has the shared styles, theme and keep-awake switches, and li
   assert.match(html, /<link rel="icon" href="data:image\/svg\+xml,/);
   assert.doesNotMatch(html, /\{\{/);
   assert.match(html, /--bg-canvas/);
-  assert.match(html, /toggleTheme\(\)/);
+  assert.match(html, /popovertarget="theme-menu"/);
   assert.match(html, /onclick="toggleAwake\(\)"/);
   assert.match(html, /Live refresh/);
 });
@@ -236,7 +236,7 @@ test('a project with no card moved for a week is flagged Quiet; a busy or unlogg
 
 test('the home page has the same "?" and command guide as a project page', () => {
   const { html } = renderHome({ projects: [], builtAt, template });
-  assert.match(html, /<button class="btn btn-ghost help" type="button" popovertarget="guide"/);
-  assert.equal(html.match(/<div class="card-modal guide" id="guide" popover[^]*?<\/ul>/)[0],
-    readTemplate('page.html').match(/<div class="card-modal guide" id="guide" popover[^]*?<\/ul>/)[0]);
+  assert.match(html, /<button class="btn btn-ghost help" type="button" commandfor="guide" command="show-modal"/);
+  assert.equal(html.match(/<dialog class="card-modal guide" id="guide" closedby="any"[^]*?<\/dialog>/)[0],
+    readTemplate('page.html').match(/<dialog class="card-modal guide" id="guide" closedby="any"[^]*?<\/dialog>/)[0]);
 });
