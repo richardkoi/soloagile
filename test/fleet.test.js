@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { dropRun, fleetBranch, mergeCard, preflight, reviewPack, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -188,7 +188,7 @@ test('Milo reviews blind: no tools, a different model from Tobin, and two rework
   assert.match(milo, /^tools: \[\]$/m);
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
   assert.match(skill, /subagent_type:\s+"soloagile:milo"/);
-  assert.match(skill, /only\s+the\s+card.s\s+"done\s+when"\s+lines\s+and\s+that\s+diff/);
+  assert.match(skill, /give\s+Milo\s+its\s+output\s+whole\s+and\s+nothing\s+else/);
   assert.match(skill, /Two\s+rework\s+rounds\s+at\s+most/);
   assert.match(skill, /a\s+new\s+Agent\s+call,\s+never\s+a\s+message\s+to\s+the\s+old\s+one/);
 });
@@ -368,4 +368,89 @@ test('Orla names the skills each worker loads, and Tobin and Cora can load them'
     assert.match(agent, /^tools: .*\bSkill$/m, name);
     assert.match(agent, /load each with the Skill tool/, name);
   }
+});
+
+// Milo's pack (#268): a sample change on card-1 against main, in a repo with a long code
+// file of small top-level functions (f100 to f199, four lines each with a comment above)
+// and a short README.
+const BIG = Array.from({ length: 100 }, (_, i) => `// f${100 + i} adds\nfunction f${100 + i}() {\n  return ${100 + i};\n}\n`).join('');
+const packRepo = (change) => {
+  const dir = repo();
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, stdio: 'pipe' });
+  git('branch', '-M', 'main');
+  writeFileSync(join(dir, 'big.js'), BIG);
+  writeFileSync(join(dir, 'README.md'), Array.from({ length: 20 }, (_, i) => `Readme line ${i + 1}`).join('\n') + '\n');
+  writeFileSync(join(dir, 'old.js'), 'export const gone = 1;\n');
+  git('add', 'big.js', 'README.md', 'old.js');
+  git('commit', '-qm', 'files');
+  git('checkout', '-qb', 'card-1');
+  change(dir, git);
+  git('commit', '-qam', 'card');
+  git('checkout', '-q', 'main');
+  mkdirSync(runDir(dir, 1), { recursive: true });
+  writeFileSync(join(runDir(dir, 1), 'plan.md'), 'ZEBRAPLAN: build it this way\n');
+  writeFileSync(join(runDir(dir, 1), 'build.md'), 'ZEBRABUILD: built\n');
+  return dir;
+};
+const edit = (dir, file, from, to) => writeFileSync(join(dir, file), readFileSync(join(dir, file), 'utf8').replace(from, to));
+
+test("Milo's pack has the done when, the diff, and each changed function or short file whole (#268)", () => {
+  const dir = packRepo((d) => {
+    edit(d, 'big.js', '  return 150;', '  return 150 + 1;');
+    edit(d, 'README.md', 'Readme line 7\n', 'Readme line seven\n');
+  });
+  const pack = reviewPack(dir, 1);
+  assert.match(pack, /^## Done when\n\ndone when: the feed parses\n/);
+  assert.match(pack, /## The change\n[\s\S]*-  return 150;\n\+  return 150 \+ 1;/);
+  assert.match(pack, /### big\.js lines 201-204\n/);
+  const block = pack.split('### big.js lines 201-204')[1].split('###')[0];
+  assert.match(block, /201 {2}\/\/ f150 adds\n202 {2}function f150\(\) \{\n203 {2} {2}return 150 \+ 1;\n204 {2}\}\n/);
+  const full = pack.split('## Changed code in full')[1];
+  assert.doesNotMatch(full, /return 149;|return 151;|function f149|function f151/, 'not the neighbours (the diff has its own three lines of context)');
+  assert.match(pack, /### README\.md \(whole file\)\n/);
+  assert.match(pack.split('### README.md (whole file)')[1], /Readme line 1\n[\s\S]*Readme line seven\n[\s\S]*Readme line 20\n/);
+  assert.doesNotMatch(pack, /Parse the feed/, 'no card title');
+  assert.doesNotMatch(pack, /ZEBRAPLAN|ZEBRABUILD/, 'no plan or build notes');
+});
+
+test("a new short file is in Milo's pack whole, a deleted one only in the diff (#268)", () => {
+  const dir = packRepo((d, git) => {
+    writeFileSync(join(d, 'sum.js'), 'export const sum = (xs) => xs.reduce((a, b) => a + b, 0);\n');
+    git('add', 'sum.js');
+    git('rm', '-q', 'old.js');
+  });
+  const pack = reviewPack(dir, 1);
+  assert.match(pack, /### sum\.js \(whole file\)\n`{3,}\nexport const sum/);
+  assert.match(pack, /-export const gone = 1;/, 'the deletion is in the diff');
+  assert.doesNotMatch(pack, /### old\.js/);
+});
+
+test("two changes in neighbouring blocks give one merged range in Milo's pack (#268)", () => {
+  const dir = packRepo((d) => {
+    edit(d, 'big.js', '  return 150;', '  return 150 + 1;');
+    edit(d, 'big.js', '  return 151;', '  return 151 + 1;');
+    edit(d, 'big.js', '  return 170;', '  return 170 + 1;');
+  });
+  const pack = reviewPack(dir, 1);
+  assert.deepEqual(pack.match(/### big\.js lines \d+-\d+/g), ['### big.js lines 201-208', '### big.js lines 281-284']);
+});
+
+test('soloagile fleet review <n> prints the pack and exits 0 (#268)', () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  const r = spawnSync('node', [PM, 'fleet', 'review', '1'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, `${reviewPack(dir, 1)}\n`);
+  assert.match(r.stdout, /### big\.js lines 201-204/);
+});
+
+test("the fleet skill gives Milo the review pack, and he still has no tools (#268)", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  const step4 = skill.split('**4. Blind review')[1].split('**5.')[0];
+  assert.match(step4, /soloagile fleet review <n>/);
+  assert.doesNotMatch(step4, /git diff main\.\.\.card-<n>/);
+  const milo = readFileSync(join(root, 'agents', 'milo.md'), 'utf8');
+  assert.match(milo, /^tools: \[\]$/m);
+  assert.match(milo, /in full/);
+  assert.match(milo, /Never invent a line that isn't in what you were given/);
 });

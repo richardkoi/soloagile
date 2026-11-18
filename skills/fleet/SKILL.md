@@ -61,19 +61,22 @@ don't restart or message him for more turns (a restarted helper gets a fresh cap
 say how far he got and stop. A question in build.md goes to the user as a Needs your
 decision card.
 
-**4. Blind review (Milo), `pm/runs/<n>/review.md`.** Get the change with
-`git diff main...card-<n>` and start Milo with the Agent tool, `subagent_type:
-"soloagile:milo"`, giving him only the card's "done when" lines and that diff: not the
-card's title, the plan, build.md or any other code. He has no tools and runs on a different
-model from Tobin. Write his reply into review.md word for word.
+**4. Blind review (Milo), `pm/runs/<n>/review.md`.** Run `soloagile fleet review <n>`: it
+prints the card's "done when" lines, the diff of `main...card-<n>`, and every changed file
+in full (or, in a long code file, every changed top-level function whole, with line
+numbers). Start Milo with the Agent tool, `subagent_type: "soloagile:milo"`, and give Milo
+its output whole and nothing else: not the card's title, the plan, build.md or any other
+code. He has no tools and runs on a different model from Tobin. Write his reply into
+review.md word for word.
 
 **5. Fact-check (Orla), `pm/runs/<n>/verdicts.md`.** For each of Milo's findings, read the
 real code in Tobin's copy and decide: **upheld** (it's real, with the line that proves it)
 or **rejected** (with the reason, such as the code he couldn't see that handles it). Write
 one verdict per finding. With none upheld, go on. With some upheld, start a new Tobin (a
 new Agent call, never a message to the old one) with the upheld findings, to fix them on
-the same branch and add to build.md; then review the new diff and write the new verdicts
-under a `## Round 2` heading. Two rework rounds at most: if findings are still upheld after
+the same branch and add to build.md; then review the new change (a new Milo given
+`soloagile fleet review <n>`'s output, the same way) and write the new verdicts under a
+`## Round 2` heading. Two rework rounds at most: if findings are still upheld after
 the second, move the card to Needs your decision with them, run `soloagile fleet unlock
 <n>`, and stop.
 
