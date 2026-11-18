@@ -74,21 +74,23 @@ test('a card shows one short line, and its full description in a modal', () => {
   const board = withCards('- #7 Long card · M1\n  the short line\n  a much longer second line\n  see https://example.com/x\n');
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
   const card = html.match(/<li class="card-x card-doing"[^>]*>.*Long card.*<\/li>/)[0];
-  const [face, modal] = card.split('<div class="card-modal"');
-  assert.match(face, /<button class="card-open" type="button" popovertarget="card-doing-0">Long card<\/button>/);
+  const [face, modal] = card.split('<dialog class="card-modal"');
+  assert.match(face, /<button class="card-open" type="button" commandfor="card-doing-0" command="show-modal">Long card<\/button>/);
+  assert.doesNotMatch(card, /popover/, 'a dialog, not a popover (#259)');
   assert.match(face, /<p class="card-note">the short line<\/p>/);
   assert.doesNotMatch(face, /a much longer second line/);
-  assert.match(modal, /^ id="card-doing-0" popover role="dialog" aria-labelledby="card-doing-0-h">/);
+  assert.match(modal, /^ id="card-doing-0" closedby="any" aria-labelledby="card-doing-0-h">/);
+  assert.match(modal, /<\/dialog><\/li>$/);
   assert.match(modal, /<h2 class="modal-title" id="card-doing-0-h">Long card<\/h2>/);
   assert.match(modal, /<li>the short line<\/li><li>a much longer second line<\/li>/);
   assert.match(modal, /<a target="_blank" rel="noopener" href="https:\/\/example.com\/x">/);
-  assert.match(modal, /popovertarget="card-doing-0" popovertargetaction="hide" aria-label="Close"/);
+  assert.match(modal, /commandfor="card-doing-0" command="close" aria-label="Close"/);
 });
 
 test('a decision card shows how many options it has; the options are in its modal', () => {
   const asked = md.board.replace(/(- #3 .*\n)/, '$1  a) Yes (recommended)\n  b) No\n  c) Something else: tell Claude\n');
   const { html } = renderPage({ name: 'demo', md: { ...md, board: asked }, builtAt, template });
-  const [face, modal] = html.match(/<li class="card-x card-decide"[^>]*>.*<\/li>/)[0].split('<div class="card-modal"');
+  const [face, modal] = html.match(/<li class="card-x card-decide"[^>]*>.*<\/li>/)[0].split('<dialog class="card-modal"');
   assert.match(face, /<p class="card-note">3 options<\/p>/);
   assert.doesNotMatch(face, /recommended/);
   assert.match(modal, /<li>a\) Yes \(recommended\)<\/li><li>b\) No<\/li><li>c\) Something else: tell Claude<\/li>/);
@@ -97,7 +99,7 @@ test('a decision card shows how many options it has; the options are in its moda
 test('a card shows its number in its head and its story points in its foot, on its face and in its modal', () => {
   const board = withCards('- #7 Sized card · M1 · 3 pts\n  the short line\n- #8 Tiny card · M1 · 1 pt\n');
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
-  const [face, modal] = html.match(/<li class="card-x card-doing"[^>]*>.*Sized card.*<\/li>/)[0].split('<div class="card-modal"');
+  const [face, modal] = html.match(/<li class="card-x card-doing"[^>]*>.*Sized card.*<\/li>/)[0].split('<dialog class="card-modal"');
   assert.match(face, /<div class="card-top">.*<span class="card-id">#7<\/span><\/div>/);
   assert.match(face, /<div class="card-foot"><p class="stage"[^]*?<\/p><span class="tag pts pts-3">3 pts<\/span><\/div>$/);
   assert.match(modal, /<span class="card-id">#7<\/span><button class="modal-close"/);
@@ -112,7 +114,7 @@ test('a card shows its stage as a six-part bar, filled up to that stage', () => 
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
   const bar = (on, name) => `<p class="stage" title="Stage ${on} of 6"><span class="stage-bar" aria-hidden="true">${'<i class="on"></i>'.repeat(on)}${'<i></i>'.repeat(6 - on)}</span>${name}</p>`;
   const card = (title) => html.match(new RegExp(`<li class="card-x card-[a-z-]+"[^>]*>(?:(?!</li>).)*${title}.*</li>`))[0];
-  const [face, modal] = card('Being tested').split('<div class="card-modal"');
+  const [face, modal] = card('Being tested').split('<dialog class="card-modal"');
   assert.ok(face.endsWith(`<div class="card-foot">${bar(4, 'Test')}<span class="tag pts pts-3">3 pts</span></div>`), 'the bar opens the card\'s foot');
   assert.ok(modal.includes(bar(4, 'Test')), 'and it is in the modal');
   assert.doesNotMatch(face, /Being tested · test|>test</, 'the stage word is not part of the title');
@@ -128,7 +130,7 @@ test('a design waiting for a yes is a Design card in Waiting on you, with its ba
   const board = md.board.replace(/- #3 .*\n/, design);
   const { html, problems } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
   assert.deepEqual(problems, []);
-  const [face] = html.match(/<li class="card-x card-decide"[^>]*>.*Stage strip.*<\/li>/)[0].split('<div class="card-modal"');
+  const [face] = html.match(/<li class="card-x card-decide"[^>]*>.*Stage strip.*<\/li>/)[0].split('<dialog class="card-modal"');
   assert.match(face, /<span class="st st-hold"><svg[^>]*>.*?<\/svg>Design<\/span>/);
   assert.doesNotMatch(face, />Decide</);
   assert.match(face, /<span class="tag pts pts-5">5 pts<\/span>/);
@@ -178,7 +180,7 @@ test('a waiting card says how long it has waited; a later look and a queued card
 test('a card with no description has nothing to open', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   assert.doesNotMatch(html, /<button class="card-open"/);
-  assert.doesNotMatch(html, /<div class="card-modal"/);
+  assert.doesNotMatch(html, /<dialog class="card-modal"/);
   assert.match(html, /<p class="card-title">Check the page<\/p>/);
 });
 
@@ -299,7 +301,7 @@ test('an Awake button sits between the "?" and the Dark/Light switch, off until 
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   const header = html.match(/<header class="header">[^]*?<\/header>/)[0];
   assert.match(header, /<button class="btn btn-ghost awake" type="button" onclick="toggleAwake\(\)" aria-pressed="false" aria-label="Keep the screen awake">/);
-  assert.ok(header.indexOf('popovertarget="guide"') < header.indexOf('toggleAwake()'), 'after the guide');
+  assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('toggleAwake()'), 'after the guide');
   assert.ok(header.indexOf('toggleAwake()') < header.indexOf('toggleTheme()'), 'before the Dark/Light switch');
   assert.match(html, /localStorage\.getItem\('pm-awake'\) === 'on'/, 'each browser remembers it, off by default');
   assert.match(html, /\[data-awake="none"\] \.awake \{ display: none; \}/, 'hidden where the browser has no wake lock');
@@ -311,7 +313,7 @@ test('an open page asks the server for its ETag and reloads when it changes', ()
   assert.match(html, /fetch\(location\.pathname, \{ method: 'HEAD', cache: 'no-store' \}\)/);
   assert.match(html, /r\.headers\.get\('ETag'\)/);
   assert.match(html, /location\.reload\(\)/);
-  assert.match(html, /if \(document\.querySelector\('\.card-modal:popover-open'\)\) return;/, 'an open card is never shut by a reload');
+  assert.match(html, /if \(document\.querySelector\('\.card-modal\[open\]'\)\) return;/, 'an open card is never shut by a reload');
   assert.match(html, /if \(!\/\^https\?:\$\/\.test\(location\.protocol\)\) return;/, 'a file:// page never polls');
 });
 
@@ -353,10 +355,11 @@ test('icon shapes carry no <svg> tag of their own (a nested one hides the text a
 test('a "?" in the header opens the command guide: one list, in the order of a session', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   const header = html.match(/<header class="header">[^]*?<\/header>/)[0];
-  assert.match(header, /<button class="btn btn-ghost help" type="button" popovertarget="guide" aria-label="What you can say">\?<\/button>/);
-  assert.ok(header.indexOf('popovertarget="guide"') < header.indexOf('toggleTheme()'), 'it sits before the Dark/Light switch');
-  const guide = html.match(/<div class="card-modal guide" id="guide" popover role="dialog" aria-labelledby="guide-h">[^]*?<\/ul>/)[0];
-  assert.match(guide, /popovertarget="guide" popovertargetaction="hide" aria-label="Close"/);
+  assert.match(header, /<button class="btn btn-ghost help" type="button" commandfor="guide" command="show-modal" aria-label="What you can say">\?<\/button>/);
+  assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('toggleTheme()'), 'it sits before the Dark/Light switch');
+  const guide = html.match(/<dialog class="card-modal guide" id="guide" closedby="any" aria-labelledby="guide-h">[^]*?<\/ul>\s*<\/dialog>/)[0];
+  assert.match(guide, /commandfor="guide" command="close" aria-label="Close"/);
+  assert.doesNotMatch(header + guide, /popover/, 'a dialog, not a popover (#259)');
   const rows = [...guide.matchAll(/<li>(.*)<\/li>/g)].map((m) => m[1]);
   assert.deepEqual(rows.map((r) => r.match(/<b class="guide-say">(.*?)<\/b>/)[1]),
     ['“catch me up”', '“what needs me”', '“#7 yes”', '“commit”', '“ship it”', '“retro”', '“done for today”', '/clear', 'Esc Esc']);
@@ -416,7 +419,7 @@ test('a built card says in its chip how long it took, and its pop-up says the gu
   const history = '- 2026-09-30 09:00 · Doing · #20 Shipped · M1 · 2 pts · ~40 min · develop\n- 2026-09-30 09:52 · Needs your look · #20 Shipped · M1 · 2 pts · ~40 min\n';
   const { html } = renderPage({ name: 'demo', md: { ...board, history }, builtAt, template });
   const card = (t) => html.match(new RegExp(`<li class="card-x card-done"[^>]*>(?:(?!<\\/li>).)*${t}.*?<\\/li>`))[0];
-  const [face, modal] = card('Shipped').split('<div class="card-modal"');
+  const [face, modal] = card('Shipped').split('<dialog class="card-modal"');
   assert.match(face, /<span class="tag pts pts-2">2 pts<span class="guess" title="Guessed 40 min">took 52 min<\/span><\/span>/, 'the chip says what it took, the guess on hover (#229)');
   assert.doesNotMatch(face, /card-took/, 'no extra row on the face');
   assert.match(modal, /<p class="card-took">guessed 40 min, took 52 min<\/p>/, 'the pop-up says both');
@@ -477,7 +480,7 @@ test('a search box finds a card by its words or number (#132)', () => {
   assert.match(html, /<div class="card-find"><input type="search"[^>]*aria-label="Find a card"[^>]*><span class="card-find-note" aria-live="polite"><\/span><\/div>/);
   assert.match(html, /data-id="\d+"/);
   assert.match(html, /\.card-x\.find-dim \{/);
-  assert.match(html, /card-find[^]*showPopover/, 'Enter on a number opens that card');
+  assert.match(html, /card-find[^]*showModal/, 'Enter on a number opens that card');
 });
 
 test("each lane's heading shows its total points, and a lane with none shows no total (#133)", () => {
@@ -542,7 +545,7 @@ test("a card's pop-up starts each detail line with its label in bold, and lists 
     '',
   ].join('\n'));
   const { html } = renderPage({ name: 'demo', md: board, builtAt, template });
-  const modal = html.match(/<ul class="modal-body">.*?<\/ul><\/div>/)[0];
+  const modal = html.match(/<ul class="modal-body">.*?<\/ul><\/dialog>/)[0];
   assert.match(modal, /<li><b class="detail-label">found by #1489, notes 14 and 48:<\/b> a round spent turning round<\/li>/);
   assert.match(modal, /<li><b class="detail-label">done when:<\/b> each game has its first target ahead<\/li>/);
   assert.match(modal, /<li><b class="detail-label">tested:<\/b> <code>node --test<\/code> passes<\/li>/);

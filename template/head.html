@@ -308,7 +308,7 @@ body:has(#settings:target) .tab-settings { display: block; }
 
 /* ---------- card modal ---------- */
 /* A card with a description opens it in a modal. Its title is a button stretched over
-   the whole card; the browser's Popover API opens it, and closes it on Esc, on the
+   the whole card; it opens a modal <dialog> (#259), which closes on Esc, on the
    close button, or on a click outside. */
 .card-x { position: relative; }
 .card-open { font: inherit; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
@@ -316,8 +316,9 @@ body:has(#settings:target) .tab-settings { display: block; }
 .card-open:focus-visible { outline: none; }
 .card-x:has(.card-open:hover) { background: color-mix(in srgb, var(--hue) 20%, var(--bg-surface)); }
 .card-x:has(.card-open:focus-visible) { outline: 2px solid var(--accent-link); outline-offset: 2px; }
-/* margin: auto centres it; the reset at the top would otherwise pin it to the corner. */
-.card-modal { margin: auto; width: min(640px, calc(100vw - 2 * var(--space-md))); max-height: calc(100dvh - 2 * var(--space-lg));
+/* margin: auto centres it; the reset at the top would otherwise pin it to the corner.
+   max-width: none drops a modal dialog's own cap, which made it 6px narrower on a phone. */
+.card-modal { margin: auto; max-width: none; width: min(640px, calc(100vw - 2 * var(--space-md))); max-height: calc(100dvh - 2 * var(--space-lg));
   overflow-y: auto; overscroll-behavior: contain; background: var(--bg-surface); color: var(--text-secondary);
   border: 1px solid var(--border-default); border-left: 4px solid var(--hue); border-radius: var(--radius-lg); padding: var(--space-lg); }
 .card-modal::backdrop { background: rgb(0 0 0 / 0.65); }

@@ -68,13 +68,13 @@ test('a page served over http refreshes after a card read during the rebuild is 
       const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
       const text = () => run('document.body.innerText');
       assert.match(await text(), /First title/);
-      await run("document.querySelector('.card-modal').showPopover()");
+      await run("document.querySelector('.card-modal').showModal()");
       writeFileSync(join(repo, 'pm', 'board.md'), board('Second title'));
       buildProject(repo, new Date('2026-10-02T12:05:00.000Z'));
       // While the card is open the page must not reload: give it two checks.
       await wait(7000);
-      assert.equal(await run("!!document.querySelector('.card-modal:popover-open')"), true, 'the open card was left alone');
-      await run("document.querySelector('.card-modal').hidePopover()");
+      assert.equal(await run("!!document.querySelector('.card-modal:modal')"), true, 'the open card was left alone');
+      await run("document.querySelector('.card-modal').close()");
       for (let i = 0; i < 40 && !/Second title/.test(await text().catch(() => '')); i++) await wait(250);
       return text();
     });
@@ -178,7 +178,7 @@ test('on desktop a long lane shows its first 10 cards and a Show all button; sea
     await run(`(() => { const b = document.querySelector('.card-find input'); b.value = 'zebra'; b.dispatchEvent(new Event('input')); })()`);
     steps.zebra = await run(`!!document.querySelector('[data-id="14"]').offsetParent`);
     await run(`(() => { const b = document.querySelector('.card-find input'); b.value = '#15'; b.dispatchEvent(new Event('input')); b.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); })()`);
-    steps.open = await run(`!!document.querySelector('[data-id="15"] .card-modal:popover-open') && !!document.querySelector('[data-id="15"]').offsetParent`);
+    steps.open = await run(`!!document.querySelector('[data-id="15"] .card-modal:modal') && !!document.querySelector('[data-id="15"]').offsetParent`);
     return steps;
   });
   assert.deepEqual(seen.start, { shown: 10, button: 'Show all 15', ideasButton: false }, 'ten cards, then the button; a short lane has none');
@@ -257,4 +257,55 @@ test('on a phone Ideas starts folded to its heading, and a tap opens it; desktop
   assert.deepEqual(phone.before, { ideas: true, done: false }, 'on a phone Ideas starts folded, Done open');
   assert.equal(phone.after.ideas, false, 'a tap opens it');
   assert.deepEqual((await look(1400)).before, { ideas: false, done: false }, 'desktop starts with both open');
+});
+
+test("a card's pop-up is a modal dialog: Tab stays inside, Escape and a tap outside close it, and focus goes back to the card (#259)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-dialog-'));
+  mkdirSync(join(repo, 'pm'));
+  // Two cards with lines, so there is plenty to Tab onto outside the open one; #1 has a link inside.
+  writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 3 -->\n## Ideas\n## Up next\n- #1 First · M1 · 2 pts\n  a line\n  see https://example.com/x\n- #2 Second · M1 · 2 pts\n  another line\n## Doing\n## Needs your look\n## Needs your decision\n## Done\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const wait = () => new Promise((ok) => setTimeout(ok, 150));
+    // Real key presses and clicks, through the browser's input, not script events.
+    const key = async (k, code, vk) => {
+      await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk });
+      await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk });
+      await wait();
+    };
+    const click = async (x, y) => {
+      for (const type of ['mousePressed', 'mouseReleased']) await page.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 });
+      await wait();
+    };
+    const openCard = async () => {
+      const r = await run(`(() => { const r = document.querySelector('[data-id="1"] .card-open').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+      await click(r.x, r.y);
+    };
+    const dialog = `document.querySelector('[data-id="1"] .card-modal')`;
+    const state = () => run(`({ modal: ${dialog}.matches(':modal'), open: ${dialog}.open,
+      focusOnOpener: document.activeElement === document.querySelector('[data-id="1"] .card-open') })`);
+    const steps = {};
+    await openCard();
+    steps.opened = await state();
+    steps.tabs = [];
+    for (let i = 0; i < 20; i++) {
+      await key('Tab', 'Tab', 9);
+      // Inside the dialog, or nowhere in the page (the browser's own bar): never on the page behind it.
+      steps.tabs.push(await run(`(() => { const a = document.activeElement; return !a || a === document.body ? 'none' : ${dialog}.contains(a) ? 'inside' : 'outside:' + a.outerHTML.slice(0, 60); })()`));
+    }
+    await key('Escape', 'Escape', 27);
+    steps.escaped = await state();
+    await openCard();
+    await click(5, 5);
+    steps.tapped = await state();
+    return steps;
+  });
+  assert.deepEqual(seen.opened, { modal: true, open: true, focusOnOpener: false }, 'opening a card makes it a modal dialog');
+  assert.ok(seen.tabs.includes('inside'), 'Tab moves through the dialog');
+  assert.deepEqual(seen.tabs.filter((t) => t.startsWith('outside')), [], 'Tab never lands on the page behind');
+  assert.deepEqual(seen.escaped, { modal: false, open: false, focusOnOpener: true }, 'Escape closes it, and focus is back on the card');
+  assert.deepEqual(seen.tapped, { modal: false, open: false, focusOnOpener: true }, 'a tap outside closes it, and focus is back on the card');
 });
