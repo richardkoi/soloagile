@@ -202,6 +202,38 @@ export function mergeCard(repo, id) {
   return { into };
 }
 
+// Before Milo's review (#267): card-<n> is brought up to date with the branch checked out in
+// the main tree, by a merge inside its copy, so the diff he reads is the change as it will
+// merge. A clash is left mid-merge in the copy for Tobin to resolve there; a call while that
+// merge is unfinished reports its files again rather than starting another.
+// Returns { state: 'current' | 'merged', base } or { state: 'clash', base, files }.
+export function updateBranch(repo, id) {
+  const branch = `card-${id}`;
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: resolve(repo) }).status !== 0) {
+    throw new Error(`there's no branch ${branch}, so there is nothing to update`);
+  }
+  const base = gitIn(repo)('branch', '--show-current');
+  const { path } = fleetBranch(repo, id);
+  const git = gitIn(path);
+  const clashing = () => git('diff', '--name-only', '--diff-filter=U').split('\n').filter(Boolean);
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], { cwd: path }).status === 0) return { state: 'clash', base, files: clashing() };
+  const dirty = git('status', '--porcelain').split('\n').filter((l) => l.trim());
+  if (dirty.length) throw new Error(`${branch}'s copy has uncommitted changes, so it wasn't updated:\n${dirty.join('\n')}`);
+  if (spawnSync('git', ['merge-base', '--is-ancestor', base, 'HEAD'], { cwd: path }).status === 0) return { state: 'current', base };
+  const r = spawnSync('git', ['merge', '--no-edit', base], { cwd: path, encoding: 'utf8' });
+  if (r.status === 0) return { state: 'merged', base };
+  const files = clashing();
+  if (!files.length) throw new Error(`git merge ${base} in ${path}: ${(r.stderr || r.stdout).trim()}`);
+  return { state: 'clash', base, files };
+}
+
+export const updateText = (repo, id, { state, base, files }) =>
+  state === 'current'
+    ? `soloagile: card-${id} is already up to date with ${base}`
+    : state === 'merged'
+      ? `soloagile: brought card-${id} up to date with ${base}; no clash`
+      : [`soloagile: card-${id} clashes with ${base} in ${files.length} file(s), left mid-merge in ${join(resolve(repo), '.claude', 'worktrees', `card-${id}`)} for Tobin:`, ...files.map((f) => `  ${f}`)].join('\n');
+
 export function sendBack(repo, id) {
   const dir = runDir(repo, id);
   const gone = STAGE_FILES.slice(1).map(([, f]) => f).concat('security-list.md').filter((f) => existsSync(join(dir, f)));

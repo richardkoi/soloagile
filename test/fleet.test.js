@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { dropRun, fleetBranch, mergeCard, preflight, runDir, runPageHtml, scanDiff, sendBack, unlock, updateBranch } from '../src/fleet.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -368,4 +368,102 @@ test('Orla names the skills each worker loads, and Tobin and Cora can load them'
     assert.match(agent, /^tools: .*\bSkill$/m, name);
     assert.match(agent, /load each with the Skill tool/, name);
   }
+});
+
+// #267: a fleet branch is brought up to date with main before Milo's review.
+const T = ['-c', 'user.name=t', '-c', 'user.email=t@t'];
+const commitIn = (cwd, file, text, msg = 'x') => {
+  writeFileSync(join(cwd, file), text);
+  execFileSync('git', ['add', file], { cwd });
+  execFileSync('git', [...T, 'commit', '-qm', msg], { cwd });
+};
+const onMain = () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  return dir;
+};
+
+test('fleet update brings a branch level with main, then says it is current (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'a.txt', 'card one\n');
+  commitIn(dir, 'b.txt', 'main moved\n');
+  assert.deepEqual(updateBranch(dir, 1), { state: 'merged', base: 'main' });
+  assert.equal(spawnSync('git', ['merge-base', '--is-ancestor', 'main', 'card-1'], { cwd: dir }).status, 0, 'main is in card-1');
+  assert.ok(existsSync(join(path, 'b.txt')));
+  assert.deepEqual(updateBranch(dir, 1), { state: 'current', base: 'main' });
+});
+
+test('two cards changing the same file both reach review clashing-free (#267)', () => {
+  const dir = onMain();
+  const one = fleetBranch(dir, 1).path;
+  const two = fleetBranch(dir, 2).path;
+  commitIn(one, 'app.js', 'one\n');
+  commitIn(two, 'app.js', 'two\n');
+  // The first card through is already level with main before its review.
+  assert.ok(['current', 'merged'].includes(updateBranch(dir, 1).state));
+  mergeCard(dir, 1);
+  const clash = updateBranch(dir, 2);
+  assert.deepEqual(clash, { state: 'clash', base: 'main', files: ['app.js'] });
+  assert.match(readFileSync(join(two, 'app.js'), 'utf8'), /^<<<<<<< /m, 'left mid-merge for Tobin');
+  // Tobin resolves it, keeping both sides' intent, and commits the merge.
+  writeFileSync(join(two, 'app.js'), 'one\ntwo\n');
+  execFileSync('git', ['add', 'app.js'], { cwd: two });
+  execFileSync('git', [...T, 'commit', '-q', '--no-edit'], { cwd: two });
+  assert.deepEqual(updateBranch(dir, 2), { state: 'current', base: 'main' });
+  const diff = execFileSync('git', ['diff', 'main...card-2'], { cwd: dir, encoding: 'utf8' });
+  assert.doesNotMatch(diff, /^[+-]?(<<<<<<<|=======|>>>>>>>)/m, 'what Milo sees has no clash in it');
+  assert.equal(mergeCard(dir, 2).into, 'main');
+  assert.equal(readFileSync(join(dir, 'app.js'), 'utf8'), 'one\ntwo\n');
+});
+
+test('a clash called again reports the same files and starts no new merge (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  const first = updateBranch(dir, 1);
+  assert.equal(first.state, 'clash');
+  const head = execFileSync('git', ['rev-parse', 'MERGE_HEAD'], { cwd: path, encoding: 'utf8' });
+  assert.deepEqual(updateBranch(dir, 1), first);
+  assert.equal(execFileSync('git', ['rev-parse', 'MERGE_HEAD'], { cwd: path, encoding: 'utf8' }), head);
+});
+
+test('fleet update refuses a dirty copy, and a card with no branch (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  writeFileSync(join(path, 'app.js'), 'half done\n');
+  assert.throws(() => updateBranch(dir, 1), /uncommitted changes[\s\S]*app\.js/);
+  assert.throws(() => updateBranch(dir, 2), /no branch card-2/);
+});
+
+test('soloagile fleet update prints the clash and exits 1, or up to date and exits 0 (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  const run = () => spawnSync('node', [PM, 'fleet', 'update', '1'], { cwd: dir, encoding: 'utf8' });
+  const current = run();
+  assert.equal(current.status, 0, current.stderr);
+  assert.match(current.stdout, /soloagile: card-1 is already up to date with main/);
+  commitIn(dir, 'b.txt', 'b\n');
+  const merged = run();
+  assert.equal(merged.status, 0, merged.stderr);
+  assert.match(merged.stdout, /soloagile: brought card-1 up to date with main; no clash/);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  const clash = run();
+  assert.equal(clash.status, 1);
+  assert.match(clash.stdout, /soloagile: card-1 clashes with main in 1 file\(s\), left mid-merge in .*card-1 for Tobin:\n  app\.js\n/);
+});
+
+test('the fleet skill brings the branch up to date before the blind review, and Tobin resolves a clash (#267)', () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  const build = skill.indexOf('**3. Build');
+  const update = skill.indexOf('soloagile fleet update <n>');
+  const review = skill.indexOf('**4. Blind review');
+  assert.ok(build > 0 && build < update && update < review, 'fleet update sits between Build and Blind review');
+  const step = skill.slice(update, review).replace(/\n\s*/g, ' ');
+  assert.match(step, /new Tobin/);
+  assert.match(step, /resolve/);
+  assert.match(step, /## Merge with main/);
+  assert.match(skill.replace(/\n\s*/g, ' '), /after each rework round[^.]*step 3b/i);
 });

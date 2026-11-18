@@ -61,6 +61,17 @@ don't restart or message him for more turns (a restarted helper gets a fresh cap
 say how far he got and stop. A question in build.md goes to the user as a Needs your
 decision card.
 
+**3b. Up to date with main.** Run `soloagile fleet update <n>`: it merges the main tree's
+branch (usually main) into `card-<n>` inside Tobin's copy, so Milo reviews the change as it
+will merge, not from the card's old base. Up to date or merged with no clash, go on. On a
+clash (exit 1, the copy left mid-merge) start a new Tobin (a new Agent call) with the
+clashing files, the copy's path, and both sides' intent: the card's done when, and the main
+commits that touched those files (`git log card-<n>..main -- <files>`). Tell him to resolve
+them in the copy keeping both sides' intent, run the checks, commit the merge, and add a
+`## Merge with main` section to build.md. Then run `soloagile fleet update <n>` again; it
+must say up to date. Say in report.md whether the update was current, clean or a clash,
+and its files.
+
 **4. Blind review (Milo), `pm/runs/<n>/review.md`.** Get the change with
 `git diff main...card-<n>` and start Milo with the Agent tool, `subagent_type:
 "soloagile:milo"`, giving him only the card's "done when" lines and that diff: not the
@@ -72,7 +83,8 @@ real code in Tobin's copy and decide: **upheld** (it's real, with the line that 
 or **rejected** (with the reason, such as the code he couldn't see that handles it). Write
 one verdict per finding. With none upheld, go on. With some upheld, start a new Tobin (a
 new Agent call, never a message to the old one) with the upheld findings, to fix them on
-the same branch and add to build.md; then review the new diff and write the new verdicts
+the same branch and add to build.md; after each rework round, run step 3b again (main may
+have moved), then review the new diff and write the new verdicts
 under a `## Round 2` heading. Two rework rounds at most: if findings are still upheld after
 the second, move the card to Needs your decision with them, run `soloagile fleet unlock
 <n>`, and stop.
