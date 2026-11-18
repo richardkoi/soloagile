@@ -2,7 +2,7 @@
 // runs once at a time, and the stage a run starts or resumes at. A run's files live in
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
@@ -285,7 +285,12 @@ export function mergeCard(repo, id) {
   git('rev-parse', '--verify', '--quiet', `refs/heads/${branch}`);
   const dirty = git('status', '--porcelain').split('\n').filter((l) => l.trim() && !/^.. pm\//.test(l));
   if (dirty.length) throw new Error(`the main tree has uncommitted changes, so nothing was merged:\n${dirty.join('\n')}`);
-  const into = git('branch', '--show-current');
+  const into = baseBranch(git);
+  // A branch reviewed before main moved (cards run side by side) would bring an unreviewed
+  // merge into main here, so it goes back through fleet update and review first (#267).
+  if (spawnSync('git', ['merge-base', '--is-ancestor', into, branch], { cwd: resolve(repo) }).status !== 0) {
+    throw new Error(`${branch} doesn't have ${into}'s latest, so nothing was merged; run soloagile fleet update ${id}, have Tobin resolve any clash, and have the merge reviewed before merging`);
+  }
   const r = spawnSync('git', ['merge', '--no-ff', '--no-edit', branch], { cwd: resolve(repo), encoding: 'utf8' });
   if (r.status !== 0) {
     spawnSync('git', ['merge', '--abort'], { cwd: resolve(repo) });
@@ -295,6 +300,65 @@ export function mergeCard(repo, id) {
   git('branch', '-d', branch);
   return { into };
 }
+
+// The branch checked out in the main tree, which a card merges into; a detached HEAD has none.
+function baseBranch(git) {
+  const base = git('branch', '--show-current');
+  if (!base) throw new Error("the main tree isn't on a branch, so there is nothing to bring the card up to date with or merge it into; check out main first");
+  return base;
+}
+
+// A clash git leaves in a file: at column 0 and in order, a line starting <<<<<<< , a later
+// line that is ======= alone, and a later line starting >>>>>>> . A lone ======= (a setext
+// heading) doesn't count.
+const MARKER = /^<<<<<<< [^\n]*\n(?:[^\n]*\n)*?=======\r?\n(?:[^\n]*\n)*?>>>>>>> /m;
+
+// Before Milo's review (#267): card-<n> is brought up to date with the branch checked out in
+// the main tree, by a merge inside its copy, so the diff he reads is the change as it will
+// merge. A clash is left mid-merge in the copy for Tobin to resolve there; a call while that
+// merge is unfinished reports its files again rather than starting another, or 'resolved'
+// once every file is staged but the merge isn't committed. A branch whose changed files
+// still hold conflict markers is refused, so a half-resolved clash never reaches review.
+// Returns { state: 'current' | 'merged' | 'resolved', base, path } or { state: 'clash', base, path, files }.
+export function updateBranch(repo, id) {
+  const branch = `card-${id}`;
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: resolve(repo) }).status !== 0) {
+    throw new Error(`there's no branch ${branch}, so there is nothing to update`);
+  }
+  const base = baseBranch(gitIn(repo));
+  const { path } = fleetBranch(repo, id);
+  const git = gitIn(path);
+  const clashing = () => git('diff', '--name-only', '--diff-filter=U').split('\n').filter(Boolean);
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], { cwd: path }).status === 0) {
+    const files = clashing();
+    return files.length ? { state: 'clash', base, path, files } : { state: 'resolved', base, path };
+  }
+  const dirty = git('status', '--porcelain').split('\n').filter((l) => l.trim());
+  if (dirty.length) throw new Error(`${branch}'s copy has uncommitted changes, so it wasn't updated:\n${dirty.join('\n')}`);
+  const level = (state) => {
+    // -z keeps odd names (café.js) unquoted; only regular files are read, not a symlink or directory.
+    const marked = git('diff', '-z', '--name-only', `${base}...HEAD`).split('\0').filter(Boolean)
+      .filter((f) => existsSync(join(path, f)) && lstatSync(join(path, f)).isFile()
+        && MARKER.test(readFileSync(join(path, f), 'utf8')));
+    if (marked.length) throw new Error(`${branch} still has conflict markers in these files, so it isn't ready for review; resolve them in ${path} and commit:\n${marked.join('\n')}`);
+    return { state, base, path };
+  };
+  if (spawnSync('git', ['merge-base', '--is-ancestor', base, 'HEAD'], { cwd: path }).status === 0) return level('current');
+  const r = spawnSync('git', ['merge', '--no-edit', base], { cwd: path, encoding: 'utf8' });
+  if (r.status === 0) return level('merged');
+  const files = clashing();
+  if (!files.length) throw new Error(`git merge ${base} in ${path}: ${(r.stderr || r.stdout).trim()}`);
+  return { state: 'clash', base, path, files };
+}
+
+export const updateText = (id, { state, base, path, files }) =>
+  state === 'current'
+    ? `soloagile: card-${id} is already up to date with ${base}`
+    : state === 'merged'
+      ? `soloagile: brought card-${id} up to date with ${base}; no clash`
+      : state === 'resolved'
+        ? `soloagile: card-${id}'s merge with ${base} is resolved but not committed; commit the merge in ${path}, then run fleet update again`
+        : [`soloagile: card-${id} clashes with ${base} in ${files.length} file(s), left mid-merge in ${path} for Tobin:`, ...files.map((f) => `  ${f}`)].join('\n');
 
 export function sendBack(repo, id) {
   const dir = runDir(repo, id);
