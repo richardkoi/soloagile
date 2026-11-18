@@ -37,7 +37,8 @@ says, at a glance, what its worker does.
 - **Character:** patient and thorough. One step at a time, each one tested.
 - **Does:** builds the card in its own copy of the code, on branch `card-<n>`, with a test
   for each "done when" that fails without the new code. Writes `build.md`. Fixes what
-  Orla sends back, at most twice.
+  Orla sends back, at most twice. Before Milo's review his branch is brought up to
+  date with main, and he resolves any clash, so the review sees the change as it will merge.
 - **Never:** pushes, touches tokens or `.env`, or fixes things outside the card.
 
 ## Milo the Mole, the Blind reviewer

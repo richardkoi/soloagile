@@ -52,7 +52,10 @@ edit that finished a card.
 - A fleet card's yes: `soloagile fleet merge <number>` merges branch `card-<n>` and
   removes its copy and branch; run the checks from `## Checks` in `pm/overview.md` at once,
   then move it to Done. A check that fails after the merge: say so, and put the card back
-  in Doing with what failed. "Send it back": ask what to fix, `soloagile fleet sendback
+  in Doing with what failed. A merge refused because main has moved past the branch
+  (another card merged first): run `soloagile fleet update <number>`; on a clash a new Tobin
+  resolves it in the copy, and Milo reviews the new `main...card-<n>` diff, as in the fleet
+  skill's step 3b; then ask for the yes again. "Send it back": ask what to fix, `soloagile fleet sendback
   <number>`, then `soloagile card move <number> doing` with a first line saying what. "Drop
   it": `soloagile fleet drop <number>`, then `soloagile card drop <number> "<why>"`.
 
