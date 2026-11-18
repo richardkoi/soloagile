@@ -226,7 +226,12 @@ Claude keeps it current as the work happens; the user reads it on a desktop or a
     much Claude usage is spent, for away mode. `usagePaths` names each window and its dotted
     path in that JSON, such as `{"week": "windows.seven_day.used_pct", "5 hours":
     "windows.five_hour.used_pct"}`, and is used instead of the single `usagePath`. Away mode
-    stops after the card in hand once any of them reaches `usageStop` (98 unless set)
+    stops after the card in hand once any of them reaches `usageStop` (98 unless set).
+    `usageResets`, optional, names each window and the dotted path of its minutes until it
+    resets, such as `{"week": "windows.seven_day.minutes_to_reset", "5 hours":
+    "windows.five_hour.minutes_to_reset"}`, so a fleet run's cost knows when a window reset
+    during the run. A login or query string in `usageUrl` is masked wherever the address is
+    shown or saved
   A server should serve only each project's `pm/index.html` and the home page, and
   nothing else from the project folders. `extras/page-server/` is a sample that does:
   nginx in Docker, with its own short README.

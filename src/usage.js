@@ -5,13 +5,22 @@
 //   usagePath   where the week's percentage sits in that JSON, dotted: "windows.seven_day.used_pct"
 //   usagePaths  several to watch, name to dotted path, used instead of usagePath:
 //               { "week": "windows.seven_day.used_pct", "5 hours": "windows.five_hour.used_pct" }
+//   usageResets optional, each window's minutes until it resets, name to dotted path:
+//               { "week": "windows.seven_day.minutes_to_reset", "5 hours": "windows.five_hour.minutes_to_reset" }
+//               so a fleet run's cost (#271) knows when a window reset during the run
 //   usageStop   the percentage to stop at, for each of them; 98 unless set
+// The address is shown with any login (user:pass@) and query string masked, since what is
+// said can be saved under pm/runs/ and printed in a run's report.
 import { readSettings } from './settings.js';
 
 const dig = (json, path) => path.split('.').reduce((v, k) => (v == null ? v : v[k]), json);
 
-// { pct, pcts, stop, said }: pct is the highest of them, pcts each by name, and stop is
-// true once any of them has reached the stop.
+// "http://me:pw@host/budget?token=x" → "http://***@host/budget?…"
+export const maskUrl = (url) => String(url).replace(/^([a-z][\w+.-]*:\/\/)[^/?#]*@/i, '$1***@').replace(/\?.*$/s, '?…');
+
+// { pct, pcts, stop, said, resets }: pct is the highest of them, pcts each by name, and stop
+// is true once any of them has reached the stop. resets, only with usageResets set, is each
+// window's minutes until it resets.
 export async function readUsage(settings = readSettings(), get = fetch) {
   const limit = settings.usageStop ?? 98;
   const paths = settings.usagePaths ?? { week: settings.usagePath ?? 'used_pct' };
@@ -21,7 +30,8 @@ export async function readUsage(settings = readSettings(), get = fetch) {
     const res = await get(settings.usageUrl, { signal: AbortSignal.timeout(5000) });
     json = await res.json();
   } catch (err) {
-    return { pct: null, stop: false, said: `couldn't read ${settings.usageUrl}: ${err.message}` };
+    const shown = maskUrl(settings.usageUrl);
+    return { pct: null, stop: false, said: `couldn't read ${shown}: ${String(err.message).split(settings.usageUrl).join(shown)}` };
   }
   const pcts = {};
   const missing = [];
@@ -31,7 +41,7 @@ export async function readUsage(settings = readSettings(), get = fetch) {
     else missing.push(path);
   }
   const names = Object.keys(pcts);
-  const noNumber = missing.length ? `${settings.usageUrl} gave no number at ${missing.join(', ')}` : '';
+  const noNumber = missing.length ? `${maskUrl(settings.usageUrl)} gave no number at ${missing.join(', ')}` : '';
   if (!names.length) return { pct: null, stop: false, said: noNumber };
   // "the week is 51% used, the 5 hours 77%"
   const told = names.map((n, i) => (i ? `the ${n} ${pcts[n]}%` : `the ${n} is ${pcts[n]}% used`)).join(', ');
@@ -41,5 +51,13 @@ export async function readUsage(settings = readSettings(), get = fetch) {
     ? `${past.map((n) => `the ${n}`).join(' and ')} ${past.length > 1 ? 'are' : 'is'} past the ${limit}% stop, so stop after the card in hand`
     : `away mode stops at ${limit}%`;
   const pct = Math.max(...Object.values(pcts));
-  return { pct, pcts, stop, said: `${told}; ${then}${noNumber ? `; ${noNumber}` : ''}` };
+  const out = { pct, pcts, stop, said: `${told}; ${then}${noNumber ? `; ${noNumber}` : ''}` };
+  if (settings.usageResets) {
+    out.resets = {};
+    for (const [name, path] of Object.entries(settings.usageResets)) {
+      const min = Number(dig(json, path));
+      if (Number.isFinite(min)) out.resets[name] = min;
+    }
+  }
+  return out;
 }
