@@ -88,7 +88,7 @@
   try { var kept = localStorage.getItem(key); if (kept !== null) folded = JSON.parse(kept); } catch (e) {}
   document.querySelectorAll('.lane-fold').forEach(function (b) {
     var lane = b.closest('.lane');
-    var name = lane.getAttribute('aria-label');
+    var name = lane.querySelector('.lane-name').textContent;
     function set(on) {
       lane.classList.toggle('folded', on);
       b.setAttribute('aria-expanded', String(!on));
@@ -103,6 +103,27 @@
       try { localStorage.setItem(key, JSON.stringify(folded)); } catch (e) {}
     });
   });
+})();
+/* Plan: a milestone's heading button folds its body (#261). A #plan-M9 link opens that
+   milestone, and Ctrl+F opens a folded one it finds (hidden="until-found" fires beforematch). */
+(function () {
+  function set(fold, on) {
+    var body = fold.querySelector('.ms-body');
+    fold.querySelector('.ms-toggle').setAttribute('aria-expanded', String(on));
+    if (on) body.removeAttribute('hidden'); else body.setAttribute('hidden', 'until-found');
+  }
+  document.querySelectorAll('.ms-fold').forEach(function (fold) {
+    fold.querySelector('.ms-toggle').addEventListener('click', function () {
+      set(fold, this.getAttribute('aria-expanded') !== 'true');
+    });
+    fold.querySelector('.ms-body').addEventListener('beforematch', function () { set(fold, true); });
+  });
+  function fromHash() {
+    var t = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (t && t.classList.contains('ms-fold')) set(t, true);
+  }
+  fromHash();
+  window.addEventListener('hashchange', fromHash);
 })();
 /* Long lanes (#219, #220): Up next, Ideas and Done show their first 10 cards (5 on a phone,
    where lanes stack), then a "Show all N" button. The count is of the cards the milestone menu leaves; while the search box has
