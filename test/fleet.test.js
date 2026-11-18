@@ -91,12 +91,67 @@ test('a run resumes at its first missing stage file', () => {
   assert.equal(preflight(dir, 1, { pid: 1, isAlive: () => false }).stage, 'review');
 });
 
+// The lane and the Doing card line for card id on a board.
+const doingLine = (dir, id) => {
+  const board = readFileSync(join(dir, 'pm', 'board.md'), 'utf8');
+  const doing = board.split('## Doing')[1].split('## Needs your look')[0];
+  return doing.split('\n').find((l) => l.startsWith(`- #${id} `)) ?? null;
+};
+
+test('preflight moves its card to Doing at the stage the run starts at (#266)', () => {
+  const dir = repo();
+  preflight(dir, 1, { pid: 1, isAlive: () => false });
+  assert.match(doingLine(dir, 1), / · fleet · design$/, 'no run files yet: plan, so design');
+  assert.doesNotMatch(readFileSync(join(dir, 'pm', 'board.md'), 'utf8').split('## Doing')[0], /#1 /, 'it left Up next');
+  // A card already in Doing gets its stage updated.
+  writeFileSync(join(runDir(dir, 1), 'plan.md'), 'plan\n');
+  writeFileSync(join(runDir(dir, 1), 'design.md'), 'design\n');
+  preflight(dir, 1, { pid: 1, isAlive: () => false });
+  assert.match(doingLine(dir, 1), / · fleet · develop$/, 'plan and design written, no build: develop');
+  writeFileSync(join(runDir(dir, 1), 'build.md'), 'build\n');
+  preflight(dir, 1, { pid: 1, isAlive: () => false });
+  assert.match(doingLine(dir, 1), / · fleet · test$/, 'review on: test');
+});
+
+test('a refused preflight leaves the board and the lock alone (#266)', () => {
+  const dir = repo();
+  writeFileSync(join(dir, 'pm', 'board.md'), BOARD.replace('- #2 No done when yet · M1 · 2 pts', '- #2 No points yet · M1\n  done when: it works'));
+  const before = readFileSync(join(dir, 'pm', 'board.md'), 'utf8');
+  assert.throws(() => preflight(dir, 2, { pid: 1, isAlive: () => false }), /no story points/);
+  assert.equal(readFileSync(join(dir, 'pm', 'board.md'), 'utf8'), before);
+  assert.equal(existsSync(join(runDir(dir, 2), 'lock')), false);
+});
+
+test('two fleet runs leave both cards in Doing at once (#266)', () => {
+  const dir = repo();
+  writeFileSync(join(dir, 'pm', 'board.md'), BOARD.replace('- #2 No done when yet · M1 · 2 pts', '- #2 Draw the chart · M1 · 2 pts · look\n  done when: the chart shows'));
+  preflight(dir, 1, { pid: 1, isAlive: () => false });
+  preflight(dir, 2, { pid: 2, isAlive: () => false });
+  assert.ok(doingLine(dir, 1), '#1 is still in Doing');
+  assert.ok(doingLine(dir, 2), '#2 is in Doing beside it');
+});
+
+test('the rules let fleet runs sit in Doing together (#266)', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const rules = readFileSync(join(root, 'rules.md'), 'utf8').replace(/\n\s*/g, ' ');
+  const standing = readFileSync(join(root, '.claude', 'CLAUDE.md'), 'utf8').split('\n').find((l) => l.startsWith('3. '));
+  for (const text of [rules.match(/Keep the board live:[^.]*\./)[0], standing]) {
+    assert.match(text, /one (card )?at a time, except fleet runs/, text);
+    assert.match(text, /several can be (there|in Doing) at once/, text);
+  }
+  assert.match(standing, /\(From retro of M16, #145\.\)/);
+  const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(skill, /moves the card to Doing/);
+});
+
 test('soloagile fleet preflight and unlock run from the command line', () => {
   const dir = repo();
   const run = (...a) => spawnSync('node', [PM, 'fleet', ...a], { cwd: dir, encoding: 'utf8' });
   const pre = run('preflight', '1');
   assert.equal(pre.status, 0, pre.stderr);
   assert.match(pre.stdout, /#1 is locked for its fleet run\nsoloagile: start at plan/);
+  assert.match(pre.stdout, /#1 is in Doing, at design/);
+  assert.ok(existsSync(join(dir, 'pm', 'index.html')), 'the page is rebuilt');
   assert.match(run('preflight', '2').stderr, /no done when/);
   assert.match(run('unlock', '1').stdout, /#1 is unlocked/);
   assert.equal(run('nonsense').status, 2);

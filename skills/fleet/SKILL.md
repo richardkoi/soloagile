@@ -21,9 +21,11 @@ say in report.md that a look card skips them. A miss in Cora's picture check sti
 back to Tobin, two rounds at most.
 
 **1. Preflight (Ada).** In the project's folder run `soloagile fleet preflight <n>`. If it
-refuses, say why in a line and stop: no token has been spent. It locks the card and names
-the stage to start at; a run that stopped part way resumes there, so skip the stages whose
-files are already in `pm/runs/<n>/`.
+refuses, say why in a line and stop: no token has been spent. It locks the card, moves the
+card to Doing at the stage the run starts at (plan → design, build → develop, review on →
+test; several fleet cards can be in Doing at once) and names the stage to start at; a run
+that stopped part way resumes there, so skip the stages whose files are already in
+`pm/runs/<n>/`.
 
 **2. Plan (Orla), writes `pm/runs/<n>/plan.md`.** Read the card in full
 (`soloagile card show <n>`), its chosen design if it has one (its "chosen" line, and its

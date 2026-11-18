@@ -365,7 +365,11 @@ if (cmd === 'fleet') {
     process.exit(2);
   }
   try {
-    if (verb === 'preflight') console.log(preflightText(id, preflight(process.cwd(), id)));
+    if (verb === 'preflight') {
+      // The card moved to Doing, so the page is rebuilt the way soloagile card does (#266).
+      console.log(preflightText(id, preflight(process.cwd(), id)));
+      buildAndSay(process.cwd());
+    }
     else if (verb === 'merge') console.log(`soloagile: merged card-${id} into ${mergeCard(process.cwd(), id).into}; its copy and branch are gone. Run the checks now.`);
     else if (verb === 'sendback') {
       const gone = sendBack(process.cwd(), id);
