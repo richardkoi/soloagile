@@ -223,13 +223,15 @@ export function fleetBranch(repo, id, { from } = {}) {
 // logins and permissions. No hits, and Rufus is never started, so a quiet change costs
 // nothing. Each hit is { file, line, text, why }, line being the new file's line number.
 // An entry whose third item is true is key material itself: it is checked on every added
-// line, comments and prose too (#269). The rest are words, checked in code only.
+// line, comments and prose too (#269). The rest are words, checked in code only. The token
+// and login words treat _ as a separator, not a letter (#275), so NPM_AUTH_TOKEN, GITHUB_TOKEN
+// and .npmrc's :_auth= and :_password= hit, while tokens or author do not.
 const RISKY = [
   ['a key or token', /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}|\bnpm_[A-Za-z0-9]{36}\b/i, true],
-  ['a key or token', /\b(api[_-]?key|_?auth[_-]?token|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b/i],
+  ['a key or token', /(?<![A-Za-z0-9])(api[_-]?key|_?auth[_-]?token|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)(?![A-Za-z0-9])/i],
   ['a .env file', /(^|[^\w.])\.env\b|\bprocess\.env\b|\bos\.environ\b|\bdotenv\b/],
   // Not session (#269): the word is all over this plugin's prose and tests ("Session flow").
-  ['a login or password', /\b(password|passwd|login|auth|cookie|credential|oauth|jwt)\b/i],
+  ['a login or password', /(?<![A-Za-z0-9])(password|passwd|login|auth|cookie|credential|oauth|jwt)(?![A-Za-z0-9])/i],
   ['a permission', /\b(chmod\w*|chown\w*|sudo|setuid|permissions?|allow(ed)?[-_ ]?tools|cors|access[-_ ]control)\b|\b(0o?)?777\b/i],
 ];
 
@@ -238,8 +240,9 @@ const RISKY = [
 // SLASH files, # (not #!) in the HASH files, <!-- --> in the HTML files. Any other file
 // (.json, .txt, dotfiles like .npmrc, where // starts a real line) has no comments: every
 // line is scanned. Only a line that is wholly a comment is skipped, or one inside a comment
-// opened above; code after a closing */ or --> is scanned. A trailing comment is never cut,
-// since a # or // inside a string would cut real code off. In Markdown only fenced code is
+// opened above; code after a closing */ or --> is scanned. A trailing # or // comment is cut
+// only outside quotes (#275), so a # or // inside a string keeps the rest of the line, and
+// // after a : (a URL) is code. In Markdown only fenced code is
 // scanned. State is followed through added and context lines; the CLI scan reads the whole
 // file as context, so a fence or comment opened far above is known. An extensionless file
 // (bin/soloagile, a Dockerfile) is a HASH file unless its shebang, on line 1, runs node,
@@ -285,6 +288,24 @@ function codePart(file, body, st) {
   }
   if (lang === 'slash' && t.startsWith('//')) return null;
   if (lang === 'hash' && t.startsWith('#') && !t.startsWith('#!')) return null;
+  return lang === 'html' ? body : cutTrailing(body, lang);
+}
+
+// A line with its trailing comment cut off (#275). The walk follows '…', "…" and `…`
+// strings, with backslash escapes, so a # or // inside one is not a comment. In a hash file
+// a # is a comment only at the start or after whitespace ($# and a#b are code, and so is a
+// #! opening the line); in a slash file // is a comment unless it follows a : (a URL like
+// http://x is code).
+function cutTrailing(body, lang) {
+  let quote = null;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c === '\\') { i++; continue; }
+    if (quote) { if (c === quote) quote = null; continue; }
+    if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
+    if (lang === 'hash' && c === '#' && (i === 0 || /\s/.test(body[i - 1])) && !(body[i + 1] === '!' && !body.slice(0, i).trim())) return body.slice(0, i);
+    if (lang === 'slash' && c === '/' && body[i + 1] === '/' && body[i - 1] !== ':') return body.slice(0, i);
+  }
   return body;
 }
 
