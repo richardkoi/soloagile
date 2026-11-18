@@ -213,8 +213,9 @@ test("on a phone a long lane shows its first 5 cards and a Show all button, so D
 });
 
 test('on a 360px phone the tabs are one row that swipes, the header is short, and the first card is in the top half (#227)', { skip: !findBrowser() && 'no browser here' }, async () => {
-  const repo = mkdtempSync(join(tmpdir(), 'pm-head-'));
-  mkdirSync(join(repo, 'pm'));
+  // A fixed folder name, so the page title (the folder's name) is the same width every run (#273).
+  const repo = join(mkdtempSync(join(tmpdir(), 'pm-head-')), 'pm-head');
+  mkdirSync(join(repo, 'pm'), { recursive: true });
   writeFileSync(join(repo, 'pm', 'board.md'), '# Board\n<!-- next-id: 4 -->\n## Ideas\n## Up next\n- #1 A card · M1 · 2 pts\n- #3 Another · M2 · 2 pts\n## Doing\n## Needs your look\n- #2 Look at it · M1 · live 2026-10-01\n## Needs your decision\n## Done\n');
   writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — Starts, respawns and the drones seen · in progress\nshort: Starts\n### M2 — Two · not started\n');
   const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
