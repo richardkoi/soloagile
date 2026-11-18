@@ -2,12 +2,13 @@
 // runs once at a time, and the stage a run starts or resumes at. A run's files live in
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
 import { moveCard } from './card.js';
 import { localDate } from './init.js';
+import { readUsage } from './usage.js';
 
 // Each stage leaves one file; a run resumes at the first one missing. The security list is
 // written only when the script finds something (#238), so it isn't a stage of its own here.
@@ -93,11 +94,107 @@ export function preflightText(id, { stage, file, cleared, said }) {
   ].filter(Boolean).join('\n');
 }
 
+// What a run cost (#271). TokenSentinel gives each window's used share, so a run's cost is
+// the end reading minus the one at its start. The start is kept in pm/runs/<n>/usage-start.json
+// as { at, pcts, resetAt }, or { at, said } when there were no numbers. A resumed run keeps a
+// start with numbers; a start with none (or one that can't be read) gives way to a later one
+// that has them, and keeps the failed one's time as replaced. resetAt is each window's reset
+// time, from usageResets.
+export async function recordUsageStart(repo, id, usage, { now = new Date() } = {}) {
+  const file = join(runDir(repo, id), 'usage-start.json');
+  const u = usage ?? (await readUsage());
+  const numbers = u.pcts && Object.keys(u.pcts).length;
+  let old = null;
+  if (existsSync(file)) {
+    try { old = JSON.parse(readFileSync(file, 'utf8')); } catch {}
+    if (!numbers || (old?.pcts && Object.keys(old.pcts).length)) return false;
+  }
+  let start = { at: now.toISOString(), said: u.said };
+  if (numbers) {
+    start = { at: now.toISOString(), pcts: u.pcts };
+    if (typeof old?.at === 'string') start.replaced = old.at;
+    if (u.resets && Object.keys(u.resets).length) {
+      start.resetAt = Object.fromEntries(Object.entries(u.resets).map(([n, min]) => [n, new Date(now.getTime() + min * 60000).toISOString()]));
+    }
+  }
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(start)}\n`);
+  return true;
+}
+
+// The report's ## Cost section. start and end are { pcts } or { said }; now is the end's
+// time. The share always has one decimal (0.6%, 7.0%); the readings are shown as given,
+// trimmed to one decimal against float noise (4% → 4.6%). A window lower at the end than at
+// the start, or whose reset time (start.resetAt) had come by now, reset during the run, so
+// its share is unknown; a minute's grace after resetAt allows for the reading's rounding to
+// whole minutes. A window with no resetAt says its reset wasn't checked. A start that replaced
+// a failed one (start.replaced) says when each was read, as ISO times.
+// others: cards whose runs overlapped, whose cost is in the same numbers.
+export function costLines(start, end, { others = [], now = new Date() } = {}) {
+  const lines = ['## Cost'];
+  const has = (u) => u?.pcts && Object.keys(u.pcts).length;
+  const reading = (x) => String(Math.round(x * 10) / 10);
+  if (!has(start) || !has(end)) lines.push(`- not measured: ${(!has(start) ? start?.said : end?.said) || 'no usage numbers'}`);
+  else {
+    for (const [name, from] of Object.entries(start.pcts)) {
+      const to = end.pcts[name];
+      const resetAt = Date.parse(start.resetAt?.[name]);
+      const unchecked = Number.isFinite(resetAt) ? '' : " (reset not checked: usageResets isn't set)";
+      if (to == null) lines.push(`- the ${name}: not measured, no reading at the end`);
+      else if (!Number.isFinite(from) || !Number.isFinite(to)) lines.push(`- the ${name}: not measured, the reading isn't a number`);
+      else if (to < from || now.getTime() >= resetAt + 60000) lines.push(`- the ${name}: not measured, it reset during the run`);
+      else lines.push(`- the ${name}: ${(to - from).toFixed(1)}% of the limit (${reading(from)}% → ${reading(to)}%)${unchecked}`);
+    }
+    if (start.replaced) lines.push(`- measured from ${start.at}; the first reading at ${start.replaced} failed`);
+  }
+  if (others.length) lines.push(`- shared with ${others.map((n) => `#${n}`).join(', ')}: their runs ran at the same time, so this counts them too`);
+  return lines.join('\n');
+}
+
+// The cost of card id's run up to now: usage is the end reading (readUsage's result). Another
+// run overlapped when it started (its usage-start.json or lock) before now and either started
+// inside this run, still holds a lock whose pid is alive, or wrote its report.md after this
+// run's start. A lock left by a dead process says nothing about now.
+export async function runCost(repo, id, { usage, now = new Date(), isAlive = alive } = {}) {
+  const file = join(runDir(repo, id), 'usage-start.json');
+  let start = { said: "no usage was recorded at the run's start" };
+  if (existsSync(file)) {
+    try { start = JSON.parse(readFileSync(file, 'utf8')); } catch { start = null; }
+    if (!start || typeof start !== 'object') start = { said: "the start reading couldn't be read" };
+  }
+  const end = usage ?? (await readUsage());
+  const others = [];
+  const runs = join(resolve(repo), 'pm', 'runs');
+  const from = Date.parse(start.at);
+  if (Number.isFinite(from) && existsSync(runs)) {
+    for (const m of readdirSync(runs).filter((d) => /^\d+$/.test(d) && Number(d) !== id).sort((a, b) => a - b)) {
+      const dir = join(runs, m);
+      const times = [];
+      let held = false;
+      try { times.push(Date.parse(JSON.parse(readFileSync(join(dir, 'usage-start.json'), 'utf8')).at)); } catch {}
+      try {
+        const lock = JSON.parse(readFileSync(join(dir, 'lock'), 'utf8'));
+        times.push(Date.parse(lock.started));
+        held = isAlive(lock.pid);
+      } catch {}
+      const began = Math.min(...times.filter(Number.isFinite));
+      if (!(began <= now.getTime())) continue;
+      let reported = false;
+      try { reported = statSync(join(dir, 'report.md')).mtimeMs > from; } catch {}
+      if (began >= from || held || reported) others.push(Number(m));
+    }
+  }
+  return costLines(start, end, { others, now });
+}
+
 // Tobin's own copy of the code (#235): a git worktree on branch card-<n>, under
 // .claude/worktrees/ where soloagile cleanup clears merged ones. That folder is added to
 // the repo's own .git/info/exclude, never to a committed file, so the copy doesn't make the
 // main tree look dirty to the next preflight. A second call finds the copy already there.
-export function fleetBranch(repo, id) {
+// from: a new branch card-<n> is made from it (not HEAD), and it is kept in git config as
+// branch.card-<n>.fleetBase so the scan compares against it (#269). Only a branch made here
+// is recorded; a later call never rewrites it. The CLI's --from flag is #270's job.
+export function fleetBranch(repo, id, { from } = {}) {
   const root = resolve(repo);
   const git = (...args) => {
     const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
@@ -115,51 +212,138 @@ export function fleetBranch(repo, id) {
   if (existsSync(path)) return { path, branch, made: false };
   const known = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root }).status === 0;
   if (known) git('worktree', 'add', path, branch);
-  else git('worktree', 'add', '-b', branch, path);
+  else {
+    git('worktree', 'add', '-b', branch, path, ...(from ? [from] : []));
+    if (from) git('config', `branch.${branch}.fleetBase`, from);
+  }
   return { path, branch, made: true };
 }
 
 // The security scan (#238): a plain search of a change's added lines for keys, tokens, .env,
 // logins and permissions. No hits, and Rufus is never started, so a quiet change costs
 // nothing. Each hit is { file, line, text, why }, line being the new file's line number.
+// An entry whose third item is true is key material itself: it is checked on every added
+// line, comments and prose too (#269). The rest are words, checked in code only.
 const RISKY = [
-  ['a key or token', /\b(api[_-]?key|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}/i],
+  ['a key or token', /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(ghp|gho|github_pat|sk|xox[abp])[-_][A-Za-z0-9_]{10,}|\bnpm_[A-Za-z0-9]{36}\b/i, true],
+  ['a key or token', /\b(api[_-]?key|_?auth[_-]?token|secret|token|bearer|private[_-]?key|client[_-]?secret|access[_-]?key)\b/i],
   ['a .env file', /(^|[^\w.])\.env\b|\bprocess\.env\b|\bos\.environ\b|\bdotenv\b/],
-  ['a login or password', /\b(password|passwd|login|auth|session|cookie|credential|oauth|jwt)\b/i],
+  // Not session (#269): the word is all over this plugin's prose and tests ("Session flow").
+  ['a login or password', /\b(password|passwd|login|auth|cookie|credential|oauth|jwt)\b/i],
   ['a permission', /\b(chmod\w*|chown\w*|sudo|setuid|permissions?|allow(ed)?[-_ ]?tools|cors|access[-_ ]control)\b|\b(0o?)?777\b/i],
 ];
+
+// Only code is scanned for the words (#269): comments and Markdown prose talk about tokens
+// and logins without holding any. Comment syntax goes by file type: // and /* */ in the
+// SLASH files, # (not #!) in the HASH files, <!-- --> in the HTML files. Any other file
+// (.json, .txt, dotfiles like .npmrc, where // starts a real line) has no comments: every
+// line is scanned. Only a line that is wholly a comment is skipped, or one inside a comment
+// opened above; code after a closing */ or --> is scanned. A trailing comment is never cut,
+// since a # or // inside a string would cut real code off. In Markdown only fenced code is
+// scanned. State is followed through added and context lines; the CLI scan reads the whole
+// file as context, so a fence or comment opened far above is known. An extensionless file
+// (bin/soloagile, a Dockerfile) is a HASH file unless its shebang, on line 1, runs node,
+// deno or bun, which makes it a SLASH file.
+const SLASH = /\.(js|mjs|cjs|ts|tsx|jsx|css|scss|c|h|cpp|go|rs|java|kt|swift)$/;
+const HASH = /\.(sh|bash|zsh|py|rb|ya?ml|toml)$/;
+const HTML = /\.(html?|xml|svg|vue)$/;
+const JS_SHEBANG = /^#!.*\b(node|deno|bun)\b/;
+const MARKDOWN = /\.(md|markdown)$/i;
+const BLOCK = { slash: ['/*', '*/'], html: ['<!--', '-->'] };
+
+// slash, hash, html, or null for a file with no comment syntax known.
+function syntax(file, st) {
+  const name = file.slice(file.lastIndexOf('/') + 1);
+  if (SLASH.test(name)) return 'slash';
+  if (HASH.test(name) || /^(Dockerfile|Makefile)$/.test(name)) return 'hash';
+  if (HTML.test(name)) return 'html';
+  if (!name.includes('.')) return JS_SHEBANG.test(st.shebang ?? '') ? 'slash' : 'hash';
+  return null;
+}
+
+// The part of a line to scan, or null for none; st carries the open fence or comment and
+// the file's shebang.
+function codePart(file, body, st) {
+  const t = body.trim();
+  if (MARKDOWN.test(file)) {
+    const fence = t.match(/^(`{3,}|~{3,})/);
+    if (fence && (!st.fence || fence[1][0] === st.fence[0])) {
+      st.fence = st.fence ? null : fence[1];
+      return null;
+    }
+    return st.fence ? body : null;
+  }
+  const lang = syntax(file, st);
+  if (!lang) return body;
+  // Inside a comment, or one opening the line: skip to its close, then scan what follows.
+  const [opener, closer] = BLOCK[lang] ?? [];
+  if (st.open || (opener && t.startsWith(opener))) {
+    const start = st.open ? 0 : body.indexOf(opener) + opener.length;
+    const end = body.indexOf(closer, start);
+    st.open = end < 0;
+    return end < 0 ? null : codePart(file, body.slice(end + closer.length), st);
+  }
+  if (lang === 'slash' && t.startsWith('//')) return null;
+  if (lang === 'hash' && t.startsWith('#') && !t.startsWith('#!')) return null;
+  return body;
+}
 
 export function scanDiff(diff) {
   const hits = [];
   let file = null;
   let line = 0;
+  let st = {};
   for (const text of diff.split('\n')) {
     const to = text.match(/^\+\+\+ (?:b\/)?(.+)$/);
     if (to) {
       file = to[1] === '/dev/null' ? null : to[1];
       // A changed file whose own name is risky is a hit even when its lines aren't.
       if (file && /(^|\/)(\.env[\w.-]*|[\w.-]*\.pem|[\w.-]*\.key|id_(rsa|ed25519)\w*|credentials[\w.]*)$/.test(file)) hits.push({ file, line: 0, text: file, why: 'a secret file' });
+      st = {};
       continue;
     }
     const hunk = text.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
     if (hunk) {
       line = Number(hunk[1]);
+      st = { shebang: st.shebang };
       continue;
     }
     if (!file || text.startsWith('---')) continue;
-    if (text.startsWith('+')) {
-      const why = RISKY.find(([, re]) => re.test(text.slice(1)))?.[0];
-      if (why) hits.push({ file, line, text: text.slice(1).trim(), why });
-      line++;
-    } else if (!text.startsWith('-') && !text.startsWith('\\')) line++;
+    const added = text.startsWith('+');
+    if (!added && (text.startsWith('-') || text.startsWith('\\'))) continue;
+    const body = text.slice(1);
+    if (line === 1 && body.startsWith('#!')) st.shebang = body;
+    const code = codePart(file, body, st);
+    if (added) {
+      const why = RISKY.find(([, re, everywhere]) => (everywhere ? body : code) && re.test(everywhere ? body : code))?.[0];
+      if (why) hits.push({ file, line, text: body.trim(), why });
+    }
+    line++;
   }
   return hits;
 }
 
-// The change on card-<n> against the branch it came from, as a unified diff.
-export function cardDiff(repo, id, base = 'main') {
-  const r = spawnSync('git', ['diff', `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  if (r.status !== 0) throw new Error(`git diff ${base}...card-${id}: ${r.stderr.trim()}`);
+// The branch card-<n> was built on (#269): branch.card-<n>.fleetBase in git config when
+// set and still there, otherwise the branch checked out in the main tree (the first
+// worktree listed). A stored base that is gone (merged and deleted) falls back the same way.
+export function cardBase(repo, id) {
+  const cwd = resolve(repo);
+  const set = spawnSync('git', ['config', '--get', `branch.card-${id}.fleetBase`], { cwd, encoding: 'utf8' });
+  const stored = set.status === 0 ? set.stdout.trim() : '';
+  if (stored && spawnSync('git', ['rev-parse', '--verify', '--quiet', `${stored}^{commit}`], { cwd }).status === 0) return stored;
+  const list = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd, encoding: 'utf8' }).stdout ?? '';
+  return list.split('\n\n')[0].match(/^branch refs\/heads\/(.+)$/m)?.[1] ?? 'main';
+}
+
+// The change on card-<n> against the branch it came from, as a unified diff. context: 'all'
+// gives each changed file whole as context (the scan's view, so a fence, comment or shebang
+// far from the change is known); otherwise git's usual 3 lines.
+// maxBuffer is there for the tests: a small one makes the whole-file diff overflow.
+export function cardDiff(repo, id, base = cardBase(repo, id), { context, maxBuffer = 64 * 1024 * 1024 } = {}) {
+  const wide = context === 'all' ? ['-U1000000'] : [];
+  const r = spawnSync('git', ['diff', ...wide, `${base}...card-${id}`], { cwd: resolve(repo), encoding: 'utf8', maxBuffer });
+  // An overflow can come back with status 0 and the output cut short, so error is checked too.
+  if (r.error || r.status !== 0) throw new Error(`git diff ${base}...card-${id}: ${r.error?.message ?? r.stderr.trim()}`);
   return r.stdout;
 }
 
@@ -251,7 +435,8 @@ const fenced = (text) => {
   return `${ticks}\n${text}${text.endsWith('\n') ? '' : '\n'}${ticks}`;
 };
 
-export function reviewPack(repo, id, base = 'main') {
+// base: the branch card-<n> was built on, as the scan uses (cardBase, #269), not a fixed 'main'.
+export function reviewPack(repo, id, base = cardBase(repo, id)) {
   const root = resolve(repo);
   const card = parseBoard(readFileSync(join(root, 'pm', 'board.md'), 'utf8')).columns.flatMap((c) => c.cards).find((c) => c.id === id);
   if (!card) throw new Error(`#${id} isn't on the board`);
@@ -352,10 +537,24 @@ export function reviewPack(repo, id, base = 'main') {
   return `${pack}\n\nSize: ${bytes} bytes (${kb(bytes)} KB) above this line.`;
 }
 
-export const scanText = (id, hits) =>
-  hits.length
-    ? [`soloagile: #${id}'s change has ${hits.length} line${hits.length === 1 ? '' : 's'} for Rufus:`, ...hits.map((h) => `  ${h.file}:${h.line}  ${h.why}: ${h.text.slice(0, 120)}`)].join('\n')
-    : `soloagile: #${id}'s change touches no keys, tokens, .env, logins or permissions: no security list needed`;
+// The CLI scan (#269): the whole-file diff, or, when that fails (too big for maxBuffer),
+// git's plain 3-line diff, with narrow: true so the scan's first line says so.
+export function scanCard(repo, id, base = cardBase(repo, id), { maxBuffer } = {}) {
+  try {
+    return { hits: scanDiff(cardDiff(repo, id, base, { context: 'all', maxBuffer })), narrow: false };
+  } catch {
+    return { hits: scanDiff(cardDiff(repo, id, base)), narrow: true };
+  }
+}
+
+// base, when given, is named in the first line: the branch the change was compared against.
+// narrow: the scan read the 3-line diff, not whole files, which the first line says too.
+export const scanText = (id, hits, base, { narrow } = {}) => {
+  const change = `soloagile: #${id}'s change${base ? ` against ${base}` : ''}${narrow ? ' (read as a 3-line diff: the whole-file diff failed, so a comment or fence opened far above may be missed)' : ''}`;
+  return hits.length
+    ? [`${change} has ${hits.length} line${hits.length === 1 ? '' : 's'} for Rufus:`, ...hits.map((h) => `  ${h.file}:${h.line}  ${h.why}: ${h.text.slice(0, 120)}`)].join('\n')
+    : `${change} touches no keys, tokens, .env, logins or permissions: no security list needed`;
+};
 
 // After the user's look (#240). merge: the user said yes, so card-<n> is merged into the
 // branch checked out in the main tree, and its copy and branch go. sendBack: the card
@@ -380,7 +579,12 @@ export function mergeCard(repo, id) {
   git('rev-parse', '--verify', '--quiet', `refs/heads/${branch}`);
   const dirty = git('status', '--porcelain').split('\n').filter((l) => l.trim() && !/^.. pm\//.test(l));
   if (dirty.length) throw new Error(`the main tree has uncommitted changes, so nothing was merged:\n${dirty.join('\n')}`);
-  const into = git('branch', '--show-current');
+  const into = baseBranch(git);
+  // A branch reviewed before main moved (cards run side by side) would bring an unreviewed
+  // merge into main here, so it goes back through fleet update and review first (#267).
+  if (spawnSync('git', ['merge-base', '--is-ancestor', into, branch], { cwd: resolve(repo) }).status !== 0) {
+    throw new Error(`${branch} doesn't have ${into}'s latest, so nothing was merged; run soloagile fleet update ${id}, have Tobin resolve any clash, and have the merge reviewed before merging`);
+  }
   const r = spawnSync('git', ['merge', '--no-ff', '--no-edit', branch], { cwd: resolve(repo), encoding: 'utf8' });
   if (r.status !== 0) {
     spawnSync('git', ['merge', '--abort'], { cwd: resolve(repo) });
@@ -390,6 +594,65 @@ export function mergeCard(repo, id) {
   git('branch', '-d', branch);
   return { into };
 }
+
+// The branch checked out in the main tree, which a card merges into; a detached HEAD has none.
+function baseBranch(git) {
+  const base = git('branch', '--show-current');
+  if (!base) throw new Error("the main tree isn't on a branch, so there is nothing to bring the card up to date with or merge it into; check out main first");
+  return base;
+}
+
+// A clash git leaves in a file: at column 0 and in order, a line starting <<<<<<< , a later
+// line that is ======= alone, and a later line starting >>>>>>> . A lone ======= (a setext
+// heading) doesn't count.
+const MARKER = /^<<<<<<< [^\n]*\n(?:[^\n]*\n)*?=======\r?\n(?:[^\n]*\n)*?>>>>>>> /m;
+
+// Before Milo's review (#267): card-<n> is brought up to date with the branch checked out in
+// the main tree, by a merge inside its copy, so the diff he reads is the change as it will
+// merge. A clash is left mid-merge in the copy for Tobin to resolve there; a call while that
+// merge is unfinished reports its files again rather than starting another, or 'resolved'
+// once every file is staged but the merge isn't committed. A branch whose changed files
+// still hold conflict markers is refused, so a half-resolved clash never reaches review.
+// Returns { state: 'current' | 'merged' | 'resolved', base, path } or { state: 'clash', base, path, files }.
+export function updateBranch(repo, id) {
+  const branch = `card-${id}`;
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: resolve(repo) }).status !== 0) {
+    throw new Error(`there's no branch ${branch}, so there is nothing to update`);
+  }
+  const base = baseBranch(gitIn(repo));
+  const { path } = fleetBranch(repo, id);
+  const git = gitIn(path);
+  const clashing = () => git('diff', '--name-only', '--diff-filter=U').split('\n').filter(Boolean);
+  if (spawnSync('git', ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], { cwd: path }).status === 0) {
+    const files = clashing();
+    return files.length ? { state: 'clash', base, path, files } : { state: 'resolved', base, path };
+  }
+  const dirty = git('status', '--porcelain').split('\n').filter((l) => l.trim());
+  if (dirty.length) throw new Error(`${branch}'s copy has uncommitted changes, so it wasn't updated:\n${dirty.join('\n')}`);
+  const level = (state) => {
+    // -z keeps odd names (café.js) unquoted; only regular files are read, not a symlink or directory.
+    const marked = git('diff', '-z', '--name-only', `${base}...HEAD`).split('\0').filter(Boolean)
+      .filter((f) => existsSync(join(path, f)) && lstatSync(join(path, f)).isFile()
+        && MARKER.test(readFileSync(join(path, f), 'utf8')));
+    if (marked.length) throw new Error(`${branch} still has conflict markers in these files, so it isn't ready for review; resolve them in ${path} and commit:\n${marked.join('\n')}`);
+    return { state, base, path };
+  };
+  if (spawnSync('git', ['merge-base', '--is-ancestor', base, 'HEAD'], { cwd: path }).status === 0) return level('current');
+  const r = spawnSync('git', ['merge', '--no-edit', base], { cwd: path, encoding: 'utf8' });
+  if (r.status === 0) return level('merged');
+  const files = clashing();
+  if (!files.length) throw new Error(`git merge ${base} in ${path}: ${(r.stderr || r.stdout).trim()}`);
+  return { state: 'clash', base, path, files };
+}
+
+export const updateText = (id, { state, base, path, files }) =>
+  state === 'current'
+    ? `soloagile: card-${id} is already up to date with ${base}`
+    : state === 'merged'
+      ? `soloagile: brought card-${id} up to date with ${base}; no clash`
+      : state === 'resolved'
+        ? `soloagile: card-${id}'s merge with ${base} is resolved but not committed; commit the merge in ${path}, then run fleet update again`
+        : [`soloagile: card-${id} clashes with ${base} in ${files.length} file(s), left mid-merge in ${path} for Tobin:`, ...files.map((f) => `  ${f}`)].join('\n');
 
 export function sendBack(repo, id) {
   const dir = runDir(repo, id);

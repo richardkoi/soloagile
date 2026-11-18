@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,8 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { blockRanges, dropRun, fleetBranch, mergeCard, preflight, reviewPack, runDir, runPageHtml, scanDiff, sendBack, unlock } from '../src/fleet.js';
+import { blockRanges, cardBase, cardDiff, costLines, dropRun, fleetBranch, mergeCard, preflight, recordUsageStart, reviewPack, runCost, runDir, runPageHtml, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
+import { maskUrl, readUsage } from '../src/usage.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
 const BOARD = `# Board
@@ -255,6 +256,196 @@ test('soloagile fleet scan reads card-<n> against main and exits 1 on a hit', ()
   const loud = spawnSync('node', [PM, 'fleet', 'scan', '1'], { cwd: dir, encoding: 'utf8' });
   assert.equal(loud.status, 1);
   assert.match(loud.stdout, /quiet\.js:2  a key or token/);
+});
+
+// #269: the words that tripped the scan on #259, #260, #265 and #266, none of them in code.
+const added = (file, ...lines) => `--- a/${file}\n+++ b/${file}\n@@ -0,0 +1,${lines.length} @@\n${lines.map((l) => `+${l}`).join('\n')}\n`;
+
+test('session is not a login word; cookie still is (#260)', () => {
+  assert.deepEqual(scanDiff(added('test/refresh.test.js', "  assert.equal(seen.flow.title, 'Session flow - PM');")), []);
+  assert.equal(scanDiff(added('src/a.js', 'const cookie = req.headers.cookie;'))[0]?.why, 'a login or password');
+});
+
+test('the scan skips whole-comment lines, and URLs are code (#259, #260)', () => {
+  assert.deepEqual(scanDiff(added('template/guide.html', '<!-- The command guide: one list, in the order of a session. It is a modal <dialog> opened -->')), []);
+  assert.deepEqual(scanDiff(added('template/guide.html', '<!-- The command guide: one list, in the order of a session.', 'It is a modal <dialog> opened from the token button', '-->', '<p>a session cookie</p>')).map((h) => h.line), [4], 'a comment over lines is skipped, the line after is not');
+  // The comment opened in a context line, before the hunk's added lines.
+  assert.deepEqual(scanDiff('--- a/t.html\n+++ b/t.html\n@@ -1,2 +1,3 @@\n <!-- the guide\n+opened from the token button\n -->\n'), []);
+  assert.deepEqual(scanDiff(added('template/refresh.js', '  // the "Session flow" tab, and its auth cookie', '  /* the token', '   * and the password */')), []);
+  assert.deepEqual(scanDiff(added('deploy.sh', '  # read the api_key from vault')), []);
+  assert.deepEqual(scanDiff(added('config.yml', '# the token lives elsewhere', 'name: app')), []);
+  assert.equal(scanDiff(added('deploy.sh', '#!/bin/sh token'))[0]?.why, 'a key or token', 'a shebang is not a comment');
+  assert.equal(scanDiff(added('src/a.js', '# a token'))[0]?.why, 'a key or token', '# is a comment only in the # languages');
+  assert.equal(scanDiff(added('src/a.js', 'const api_key = x; // note'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('src/a.js', "fetch('https://x.test/token')"))[0]?.why, 'a key or token', 'a URL is not cut as a comment');
+});
+
+test('Markdown prose is skipped, its fenced code is scanned (#266)', () => {
+  assert.deepEqual(scanDiff(added('skills/fleet/SKILL.md', 'the run stops here: no token has been spent.', 'Use `api_key` in prose.')), []);
+  const hits = scanDiff(added('README.md', 'Set the key:', '', '```bash', 'export API_KEY=abc', '```', 'and the token is set.'));
+  assert.deepEqual(hits.map((h) => `${h.line} ${h.why}`), ['4 a key or token']);
+  // A fence opened in a context line before the hunk.
+  assert.equal(scanDiff('--- a/a.md\n+++ b/a.md\n@@ -1,2 +1,3 @@\n ~~~\n+password = 1\n ~~~\n')[0]?.why, 'a login or password');
+});
+
+// A repo on main where card-1 adds a risky line and card-2, made from card-1, a quiet one.
+const stacked = () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  const commit = (path, file, text) => {
+    writeFileSync(join(path, file), text);
+    execFileSync('git', ['add', file], { cwd: path });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', file], { cwd: path });
+  };
+  commit(fleetBranch(dir, 1).path, 'risky.js', 'export const key = process.env.SECRET;\n');
+  commit(fleetBranch(dir, 2, { from: 'card-1' }).path, 'quiet.js', 'export const two = 2;\n');
+  return dir;
+};
+
+test("the scan compares a card against the branch it was built on (#265)", () => {
+  const dir = stacked();
+  assert.equal(execFileSync('git', ['config', '--get', 'branch.card-2.fleetBase'], { cwd: dir, encoding: 'utf8' }).trim(), 'card-1');
+  assert.equal(cardBase(dir, 2), 'card-1');
+  assert.equal(cardBase(dir, 1), 'main', 'unset, it is the branch checked out in the main tree');
+  assert.equal(cardBase(join(dir, '.claude', 'worktrees', 'card-1'), 1), 'main', 'the main tree, even from a copy');
+  assert.deepEqual(scanDiff(cardDiff(dir, 2)), []);
+  assert.deepEqual(scanDiff(cardDiff(dir, 2, 'main')).map((h) => h.file), ['risky.js']);
+});
+
+test('soloagile fleet scan names its base, and --base overrides it', () => {
+  const dir = stacked();
+  const own = spawnSync('node', [PM, 'fleet', 'scan', '2'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(own.status, 0, own.stderr);
+  assert.match(own.stdout, /against card-1/);
+  const main = spawnSync('node', [PM, 'fleet', 'scan', '2', '--base', 'main'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(main.status, 1);
+  assert.match(main.stdout, /against main/);
+  assert.match(main.stdout, /risky\.js:1  a key or token/);
+});
+
+// Round 1 of #269's review: one test per upheld finding.
+test('fleetBranch with from makes the new branch from it, and records it only then', () => {
+  const dir = stacked();
+  const under = (a, b) => spawnSync('git', ['merge-base', '--is-ancestor', a, b], { cwd: dir }).status === 0;
+  assert.ok(under('card-1', 'card-2'), 'card-2 is made from card-1, not from main');
+  fleetBranch(dir, 3);
+  fleetBranch(dir, 3, { from: 'card-1' });
+  assert.equal(spawnSync('git', ['config', '--get', 'branch.card-3.fleetBase'], { cwd: dir }).status, 1, 'not recorded on a later call');
+  assert.ok(!under('card-1', 'card-3'));
+});
+
+// The literals are built in pieces so this file holds none whole.
+const BEGIN = '-----BEGIN RSA ' + 'PRIVATE KEY-----';
+test('key material is a hit in comments and prose too; the words stay code-only', () => {
+  assert.equal(scanDiff(added('src/a.js', '// ' + 'ghp' + '_abcdefghijklmnopqrstuvwxyz0123'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('deploy.sh', '# ' + 'sk' + '-abcdefghijklmnop'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('README.md', 'Paste it here: ' + BEGIN))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('a.html', '<!-- ' + 'xoxb' + '-1234567890abcdef -->'))[0]?.why, 'a key or token');
+  assert.deepEqual(scanDiff(added('src/a.js', '// the api_key and the client_secret')), []);
+  assert.deepEqual(scanDiff(added('README.md', 'Keep the private key and the secret safe.')), []);
+});
+
+test('code after a closing */ or --> is scanned; a leading * is a comment only inside /*', () => {
+  assert.equal(scanDiff(added('src/a.js', '/* note */ const token = t;'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('a.html', '<!-- note --> <input name="password">'))[0]?.why, 'a login or password');
+  assert.deepEqual(scanDiff(added('src/a.js', '/* the', ' * token */ const password = p;')).map((h) => h.line), [2]);
+  assert.equal(scanDiff(added('src/a.js', 'const n = a', '  * cookie.length;'))[0]?.why, 'a login or password');
+});
+
+test('an extensionless file is a # language unless its shebang is node, deno or bun', () => {
+  const line = 'console.log(`card #${id}`, process.env.X)';
+  assert.equal(scanDiff(added('bin/tool', '#!/usr/bin/env node', line))[0]?.why, 'a .env file');
+  assert.equal(scanDiff(added('bin/tool', '#!/usr/bin/env -S deno run', line))[0]?.why, 'a .env file');
+  assert.deepEqual(scanDiff(added('bin/tool', '#!/bin/sh', '# the token')), []);
+  assert.deepEqual(scanDiff(added('Dockerfile', '# the token comes later')), []);
+});
+
+// A file on main whose fence and shebang sit far above the card's change. The tool's new
+// line is a JS private field: a # comment unless the node shebang is known.
+test('fleet scan reads the whole file, so a far fence and a node shebang are known', () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  const steps = Array.from({ length: 8 }, (_, i) => `echo step ${i}`);
+  mkdirSync(join(dir, 'bin'));
+  writeFileSync(join(dir, 'README.md'), ['# Setup', '', '```bash', ...steps, 'export NAME=x', '```', ''].join('\n'));
+  writeFileSync(join(dir, 'bin', 'tool'), ['#!/usr/bin/env node', ...steps.map((s) => `// ${s}`), ''].join('\n'));
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'docs'], { cwd: dir });
+  const { path } = fleetBranch(dir, 1);
+  writeFileSync(join(path, 'README.md'), readFileSync(join(path, 'README.md'), 'utf8').replace('NAME=x', 'API_KEY=abc'));
+  writeFileSync(join(path, 'bin', 'tool'), readFileSync(join(path, 'bin', 'tool'), 'utf8') + '#key = process.env.X;\n');
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'x'], { cwd: path });
+  assert.deepEqual(scanDiff(cardDiff(dir, 1)), [], "plain cardDiff keeps git's 3 lines of context");
+  assert.deepEqual(scanDiff(cardDiff(dir, 1, 'main', { context: 'all' })).map((h) => `${h.file}:${h.line}`), ['README.md:12', 'bin/tool:10']);
+  const out = spawnSync('node', [PM, 'fleet', 'scan', '1'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /README\.md:12  a key or token/);
+  assert.match(out.stdout, /bin\/tool:10  a \.env file/);
+});
+
+test('fleet scan --base with no branch is a usage error', () => {
+  const dir = stacked();
+  const r = spawnSync('node', [PM, 'fleet', 'scan', '2', '--base'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /usage/);
+});
+
+// Round 2 of #269's review: one test per upheld finding.
+test('no trailing comment is cut: a # or // inside a string keeps the rest of the line', () => {
+  assert.equal(scanDiff(added('deploy.sh', 'echo "card #$id"; chmod 777 x'))[0]?.why, 'a permission');
+  assert.equal(scanDiff(added('tool.py', 'print(f"issue #{n}"); os.environ["X"]'))[0]?.why, 'a .env file');
+  assert.equal(scanDiff(added('src/a.js', 'const x = 1; // the token'))[0]?.why, 'a key or token', 'a trailing comment is scanned too');
+});
+
+test('comment syntax goes by file type; any other file is scanned whole', () => {
+  assert.deepEqual(scanDiff(added('deploy.sh', '/* x', 'chmod 777 y')).map((h) => `${h.line} ${h.why}`), ['2 a permission'], '/* opens nothing in a .sh');
+  const rc = '.' + 'npmrc';
+  assert.equal(scanDiff(added(rc, '//registry.npmjs.org/:_auth' + 'Token=${NPM}'))[0]?.why, 'a key or token', '// is no comment in that dotfile');
+  assert.equal(scanDiff(added('data.json', '# the token'))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('notes.txt', '<!-- the password -->'))[0]?.why, 'a login or password');
+  assert.equal(scanDiff(added('a.py', '<!-- the password'))[0]?.why, 'a login or password', '<!-- opens nothing in a .py');
+  assert.equal(scanDiff(added('a.css', '# the token'))[0]?.why, 'a key or token', '# is no comment in .css');
+  assert.deepEqual(scanDiff(added('a.go', '// the token', '/* the password */')), []);
+  assert.deepEqual(scanDiff(added('icon.svg', '<!-- the token -->')), []);
+  assert.deepEqual(scanDiff(added('Makefile', '# the token')), []);
+  assert.deepEqual(scanDiff(added('a.rb', '# the token')), []);
+  assert.deepEqual(scanDiff(added('run.zsh', '# the token')), []);
+});
+
+test('an npm token is key material, in a comment too', () => {
+  const npm = 'npm' + '_' + 'a1B2c3D4e5'.repeat(3) + 'f6G7h8';
+  assert.equal(scanDiff(added('conf.txt', 'x=' + npm))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('src/a.js', '// ' + npm))[0]?.why, 'a key or token');
+  assert.equal(scanDiff(added('README.md', 'like ' + npm))[0]?.why, 'a key or token');
+});
+
+test('a stored base that is gone falls back to the main tree branch, and the scan runs', () => {
+  const dir = stacked();
+  execFileSync('git', ['worktree', 'remove', '--force', join(dir, '.claude', 'worktrees', 'card-1')], { cwd: dir });
+  execFileSync('git', ['branch', '-D', 'card-1'], { cwd: dir });
+  assert.equal(cardBase(dir, 2), 'main');
+  const r = spawnSync('node', [PM, 'fleet', 'scan', '2'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 1, r.stderr);
+  assert.match(r.stdout, /against main/);
+});
+
+test('when the whole-file diff fails, the scan falls back to the 3-line diff and says so', () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  writeFileSync(join(dir, 'big.js'), Array.from({ length: 300 }, (_, i) => `export const v${i} = ${i};`).join('\n') + '\n');
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'big'], { cwd: dir });
+  const { path } = fleetBranch(dir, 1);
+  writeFileSync(join(path, 'big.js'), readFileSync(join(path, 'big.js'), 'utf8').replace('v150 = 150', 'token = 150'));
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'x'], { cwd: path });
+  assert.throws(() => cardDiff(dir, 1, 'main', { context: 'all', maxBuffer: 2000 }));
+  const narrow = scanCard(dir, 1, 'main', { maxBuffer: 2000 });
+  assert.equal(narrow.narrow, true);
+  assert.deepEqual(narrow.hits.map((h) => `${h.file}:${h.line}`), ['big.js:151']);
+  assert.match(scanText(1, narrow.hits, 'main', narrow).split('\n')[0], /3-line diff/);
+  const whole = scanCard(dir, 1, 'main');
+  assert.equal(whole.narrow, false);
+  assert.doesNotMatch(scanText(1, whole.hits, 'main', whole), /3-line diff/);
 });
 
 test("the fleet's last stage runs the project's checks and links report.md from the card", () => {
@@ -731,4 +922,433 @@ test("a long fenced text gets a fence longer than its longest run of backticks (
     git('add', 'ticks.md');
   });
   assert.doesNotThrow(() => reviewPack(dir, 1));
+});
+
+const NC = " (reset not checked: usageResets isn't set)";
+
+// What a run cost (#271). Never the real TokenSentinel: usage is passed in, or read through a
+// get that throws, or from a settings folder with no usage address.
+test("a run's cost: each window's share, with the numbers it went between (#271)", () => {
+  const text = costLines({ pcts: { week: 4, '5 hours': 54 } }, { pcts: { week: 4.6, '5 hours': 61 } });
+  assert.equal(text, `## Cost\n- the week: 0.6% of the limit (4% → 4.6%)${NC}\n- the 5 hours: 7.0% of the limit (54% → 61%)${NC}`);
+});
+
+test("a run's cost is not measured when TokenSentinel doesn't answer, or wasn't read at the start (#271)", async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4, '5 hours': 54 } });
+  const down = await readUsage({ usageUrl: 'http://u.test/budget' }, async () => { throw new Error('refused'); });
+  const text = await runCost(dir, 1, { usage: down });
+  assert.equal(text, "## Cost\n- not measured: couldn't read http://u.test/budget: refused");
+  const said = costLines({ said: 'no usage address set' }, { pcts: { week: 5 } });
+  assert.equal(said, '## Cost\n- not measured: no usage address set');
+  assert.match(await runCost(dir, 2, { usage: { pcts: { week: 5 } } }), /not measured: no usage was recorded at the run's start/);
+});
+
+test("a window that reset during the run isn't measured (#271)", () => {
+  const text = costLines({ pcts: { week: 40, '5 hours': 90 } }, { pcts: { week: 41, '5 hours': 12 } });
+  assert.match(text, /- the 5 hours: not measured, it reset during the run/);
+  assert.match(text, /- the week: 1.0% of the limit \(40% → 41%\)/);
+});
+
+test("other runs that overlapped are named, since their cost is in it too (#271)", async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(0) });
+  await recordUsageStart(dir, 268, { pcts: { week: 4.1 } }, { now: at(5) });
+  mkdirSync(runDir(dir, 269), { recursive: true });
+  writeFileSync(join(runDir(dir, 269), 'lock'), JSON.stringify({ pid: 9, started: at(10).toISOString() }));
+  await recordUsageStart(dir, 250, { pcts: { week: 3 } }, { now: new Date(Date.UTC(2026, 10, 17)) }); // the day before: not shared
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(30) });
+  assert.match(text, /\n- shared with #268, #269: their runs ran at the same time, so this counts them too$/);
+});
+
+test('a resumed run keeps the usage from its first start (#271)', async () => {
+  const dir = repo();
+  assert.equal(await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: new Date('2026-11-18T10:00:00Z') }), true);
+  assert.equal(await recordUsageStart(dir, 1, { pcts: { week: 9 } }, { now: new Date('2026-11-18T12:00:00Z') }), false);
+  assert.deepEqual(JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8')), { at: '2026-11-18T10:00:00.000Z', pcts: { week: 4 } });
+  await recordUsageStart(dir, 2, { pct: null, said: 'no usage address set' });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 2), 'usage-start.json'), 'utf8')).said, 'no usage address set');
+});
+
+test('soloagile fleet cost <n> says not measured with no usage address, and exits 0 (#271)', () => {
+  const dir = repo();
+  const home = mkdtempSync(join(tmpdir(), 'home-'));
+  const env = { ...process.env, HOME: home, SOLOAGILE_DIR: home };
+  const run = (...a) => spawnSync('node', [PM, 'fleet', ...a], { cwd: dir, encoding: 'utf8', env });
+  assert.equal(run('preflight', '1').status, 0);
+  assert.match(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'), /no usage address set/, 'preflight records the start');
+  const cost = run('cost', '1');
+  assert.equal(cost.status, 0, cost.stderr);
+  assert.match(cost.stdout, /^## Cost\n- not measured: no usage address set/);
+});
+
+test("the fleet skill's report ends with soloagile fleet cost (#271)", () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  const step7 = skill.slice(skill.indexOf('**7. Test and notes'), skill.indexOf('**8. '));
+  assert.match(step7, /report\.md ends with the output of\s+`soloagile fleet cost <n>`/);
+});
+
+// Round 1 rework (#271).
+const TS = (five, week, fiveReset = 27, weekReset = 9927) => async () => ({
+  json: async () => ({ windows: { five_hour: { used_pct: five, minutes_to_reset: fiveReset }, seven_day: { used_pct: week, minutes_to_reset: weekReset } } }),
+});
+const TS_SETTINGS = { usageUrl: 'http://u.test/budget', usagePaths: { week: 'windows.seven_day.used_pct', '5 hours': 'windows.five_hour.used_pct' } };
+
+test("a run's cost through readUsage with TokenSentinel's JSON gives both windows measured (#271)", async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, await readUsage(TS_SETTINGS, TS(60.0, 5.0)));
+  const text = await runCost(dir, 1, { usage: await readUsage(TS_SETTINGS, TS(64.0, 5.5)) });
+  assert.equal(text, `## Cost\n- the week: 0.5% of the limit (5% → 5.5%)${NC}\n- the 5 hours: 4.0% of the limit (60% → 64%)${NC}`);
+});
+
+test('usageResets: a window whose reset time passed during the run is not measured (#271)', async () => {
+  const settings = { ...TS_SETTINGS, usageResets: { week: 'windows.seven_day.minutes_to_reset', '5 hours': 'windows.five_hour.minutes_to_reset' } };
+  const u = await readUsage(settings, TS(60.0, 5.0));
+  assert.deepEqual(u.resets, { week: 9927, '5 hours': 27 });
+  assert.equal((await readUsage(TS_SETTINGS, TS(60.0, 5.0))).resets, undefined, 'no resets without the setting');
+  const dir = repo();
+  const start = new Date('2026-11-18T10:00:00Z');
+  await recordUsageStart(dir, 1, u, { now: start });
+  const saved = JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'));
+  assert.deepEqual(saved.resetAt, { week: new Date(start.getTime() + 9927 * 60000).toISOString(), '5 hours': '2026-11-18T10:27:00.000Z' });
+  // 5 hours went 60 → 70, higher at the end, but its reset time (10:27) passed by 10:40.
+  const end = await readUsage(settings, TS(70.0, 5.5));
+  const text = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:40:00Z') });
+  assert.match(text, /- the 5 hours: not measured, it reset during the run/);
+  assert.match(text, /- the week: 0\.5% of the limit \(5% → 5\.5%\)/);
+  const atReset = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:28:00Z') });
+  assert.match(atReset, /- the 5 hours: not measured, it reset during the run/, 'a minute after the reset time counts');
+  const before = await runCost(dir, 1, { usage: end, now: new Date('2026-11-18T10:20:00Z') });
+  assert.match(before, /- the 5 hours: 10\.0% of the limit \(60% → 70%\)/);
+});
+
+test('a start saved with no numbers is replaced by a later one with numbers; one with numbers is kept (#271)', async () => {
+  const dir = repo();
+  const file = join(runDir(dir, 1), 'usage-start.json');
+  assert.equal(await recordUsageStart(dir, 1, { pct: null, said: 'refused' }, { now: new Date('2026-11-18T10:00:00Z') }), true);
+  assert.equal(await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4 } }, { now: new Date('2026-11-18T11:00:00Z') }), true);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { at: '2026-11-18T11:00:00.000Z', pcts: { week: 4 }, replaced: '2026-11-18T10:00:00.000Z' });
+  assert.equal(await recordUsageStart(dir, 1, { pct: 9, pcts: { week: 9 } }, { now: new Date('2026-11-18T12:00:00Z') }), false);
+  assert.equal(await recordUsageStart(dir, 1, { pct: null, said: 'refused' }), false);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pcts, { week: 4 });
+});
+
+test('a run that started earlier and is still running overlaps; one that finished before the start does not (#271)', async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(30) });
+  // #270 started 20 minutes before #1 and still holds its lock.
+  await recordUsageStart(dir, 270, { pcts: { week: 3.9 } }, { now: at(10) });
+  writeFileSync(join(runDir(dir, 270), 'lock'), JSON.stringify({ pid: 9, started: at(10).toISOString() }));
+  // #260 started at 10:00 and wrote its report.md at 10:20, before #1 started: not shared.
+  await recordUsageStart(dir, 260, { pcts: { week: 3.5 } }, { now: at(0) });
+  writeFileSync(join(runDir(dir, 260), 'report.md'), '# report\n');
+  utimesSync(join(runDir(dir, 260), 'report.md'), at(20), at(20));
+  // #261 started at 10:00 with no lock, and wrote its report.md at 10:40, after #1 started: shared.
+  await recordUsageStart(dir, 261, { pcts: { week: 3.5 } }, { now: at(0) });
+  writeFileSync(join(runDir(dir, 261), 'report.md'), '# report\n');
+  utimesSync(join(runDir(dir, 261), 'report.md'), at(40), at(40));
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: (pid) => pid === 9 });
+  assert.match(text, /\n- shared with #261, #270: their runs ran at the same time, so this counts them too$/);
+});
+
+test("an unreadable or empty usage-start.json is not measured, and fleet cost exits 0 (#271)", async () => {
+  const dir = repo();
+  mkdirSync(runDir(dir, 1), { recursive: true });
+  writeFileSync(join(runDir(dir, 1), 'usage-start.json'), '');
+  assert.equal(await runCost(dir, 1, { usage: { pcts: { week: 5 } } }), "## Cost\n- not measured: the start reading couldn't be read");
+  writeFileSync(join(runDir(dir, 1), 'usage-start.json'), '{"at": ');
+  assert.equal(await runCost(dir, 1, { usage: { pcts: { week: 5 } } }), "## Cost\n- not measured: the start reading couldn't be read");
+  const home = mkdtempSync(join(tmpdir(), 'home-'));
+  const cost = spawnSync('node', [PM, 'fleet', 'cost', '1'], { cwd: dir, encoding: 'utf8', env: { ...process.env, HOME: home, SOLOAGILE_DIR: home } });
+  assert.equal(cost.status, 0, cost.stderr);
+  assert.match(cost.stdout, /not measured: the start reading couldn't be read/);
+});
+
+test('the share always has one decimal, and the readings are shown as given (#271)', () => {
+  assert.equal(costLines({ pcts: { week: 60 } }, { pcts: { week: 67 } }), `## Cost\n- the week: 7.0% of the limit (60% → 67%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 40.2 } }, { pcts: { week: 40.8 } }), `## Cost\n- the week: 0.6% of the limit (40.2% → 40.8%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 0.1 + 0.2 } }, { pcts: { week: 5 } }), `## Cost\n- the week: 4.7% of the limit (0.3% → 5%)${NC}`);
+  assert.equal(costLines({ pcts: { week: 12 } }, { pcts: { week: 12 } }), `## Cost\n- the week: 0.0% of the limit (12% → 12%)${NC}`);
+});
+
+test("a usage address's login and query are masked before they are saved or printed (#271)", async () => {
+  const dir = repo();
+  const url = 'http://me:hunter2@u.test/budget?token=abc123';
+  const down = await readUsage({ usageUrl: url }, async () => { throw new Error(`refused ${url}`); });
+  assert.match(down.said, /http:\/\/\*\*\*@u\.test\/budget\?…/);
+  await recordUsageStart(dir, 1, down);
+  const saved = readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8');
+  const printed = await runCost(dir, 1, { usage: down });
+  for (const text of [down.said, saved, printed]) {
+    assert.doesNotMatch(text, /hunter2|abc123|me:/);
+  }
+  const noNumber = await readUsage({ usageUrl: url, usagePath: 'nope' }, async () => ({ json: async () => ({}) }));
+  assert.doesNotMatch(noNumber.said, /hunter2|abc123/);
+  assert.match(noNumber.said, /http:\/\/\*\*\*@u\.test\/budget\?… gave no number at nope/);
+  const plain = await readUsage({ usageUrl: 'http://127.0.0.1:8787/budget' }, async () => { throw new Error('refused'); });
+  assert.equal(plain.said, "couldn't read http://127.0.0.1:8787/budget: refused", 'an address with no login or query is shown as it is');
+});
+
+// Round 2 rework (#271).
+test('round 2: a reset value counts only when it is a number above 0 (#271)', async () => {
+  const settings = { ...TS_SETTINGS, usageResets: { week: 'windows.seven_day.minutes_to_reset', '5 hours': 'windows.five_hour.minutes_to_reset' } };
+  for (const bad of [null, '', 0, -5, '30']) {
+    const u = await readUsage(settings, TS(60.0, 5.0, bad, 9927));
+    assert.deepEqual(u.resets, { week: 9927 }, `5 hours reset ${JSON.stringify(bad)}`);
+  }
+});
+
+test("round 2: a measured window with no reset time says its reset wasn't checked (#271)", () => {
+  const start = { pcts: { week: 4, '5 hours': 54 }, resetAt: { week: '2026-11-25T10:00:00.000Z' } };
+  const text = costLines(start, { pcts: { week: 4.6, '5 hours': 61 } }, { now: new Date('2026-11-18T11:00:00Z') });
+  assert.equal(text, "## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%) (reset not checked: usageResets isn't set)");
+});
+
+test('round 2: a replaced start says so in the cost (#271)', async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, { pct: null, said: 'refused' }, { now: new Date('2026-11-18T10:00:00Z') });
+  await recordUsageStart(dir, 1, { pct: 4, pcts: { week: 4 } }, { now: new Date('2026-11-18T11:00:00Z') });
+  const saved = JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8'));
+  assert.equal(saved.replaced, '2026-11-18T10:00:00.000Z');
+  const text = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: new Date('2026-11-18T12:00:00Z') });
+  assert.match(text, /\n- measured from 2026-11-18T11:00:00\.000Z; the first reading at 2026-11-18T10:00:00\.000Z failed$/);
+  // A first start with numbers is never marked replaced.
+  await recordUsageStart(dir, 2, { pct: 4, pcts: { week: 4 } });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 2), 'usage-start.json'), 'utf8')).replaced, undefined);
+});
+
+test("round 2: another run's lock counts only while its pid is alive (#271)", async () => {
+  const dir = repo();
+  const at = (m) => new Date(Date.UTC(2026, 10, 18, 10, m));
+  await recordUsageStart(dir, 1, { pcts: { week: 4 } }, { now: at(30) });
+  // #270 started before #1 and left a lock behind; its pid is gone.
+  await recordUsageStart(dir, 270, { pcts: { week: 3.9 } }, { now: at(10) });
+  writeFileSync(join(runDir(dir, 270), 'lock'), JSON.stringify({ pid: 4242, started: at(10).toISOString() }));
+  const dead = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: () => false });
+  assert.doesNotMatch(dead, /shared with/);
+  const live = await runCost(dir, 1, { usage: { pcts: { week: 5 } }, now: at(50), isAlive: (pid) => pid === 4242 });
+  assert.match(live, /- shared with #270:/);
+});
+
+test("round 2: a window whose reading isn't a number is not measured (#271)", () => {
+  const text = costLines({ pcts: { week: null, '5 hours': 'x' } }, { pcts: { week: 5, '5 hours': 61 } });
+  assert.equal(text, "## Cost\n- the week: not measured, the reading isn't a number\n- the 5 hours: not measured, the reading isn't a number");
+  assert.equal(costLines({ pcts: { week: 4 } }, { pcts: { week: '5' } }), "## Cost\n- the week: not measured, the reading isn't a number");
+});
+
+test('round 2: the address hides a # fragment, and any login in the error text (#271)', async () => {
+  assert.equal(maskUrl('http://host/budget#key=x'), 'http://host/budget#…');
+  assert.equal(maskUrl('http://me:pw@host/budget?t=1#k'), 'http://***@host/budget?…');
+  const settings = { usageUrl: 'http://me:pw@host/budget' };
+  const u = await readUsage(settings, async () => { throw new Error('fetch http://me:pw@host/budget/ failed, see https://a:b@other/x'); });
+  assert.doesNotMatch(u.said, /me:pw|a:b/);
+  assert.match(u.said, /http:\/\/\*\*\*@host\/budget\/ failed, see https:\/\/\*\*\*@other\/x/);
+});
+
+test("round 2: a window resets only a minute after its reset time (#271)", () => {
+  const start = { pcts: { week: 60 }, resetAt: { week: '2026-11-18T10:27:00.000Z' } };
+  const end = { pcts: { week: 70 } };
+  assert.match(costLines(start, end, { now: new Date('2026-11-18T10:27:30Z') }), /- the week: 10\.0% of the limit/);
+  assert.match(costLines(start, end, { now: new Date('2026-11-18T10:28:00Z') }), /- the week: not measured, it reset during the run/);
+});
+
+// #267: a fleet branch is brought up to date with main before Milo's review.
+const T = ['-c', 'user.name=t', '-c', 'user.email=t@t'];
+const commitIn = (cwd, file, text, msg = 'x') => {
+  writeFileSync(join(cwd, file), text);
+  execFileSync('git', ['add', file], { cwd });
+  execFileSync('git', [...T, 'commit', '-qm', msg], { cwd });
+};
+const onMain = () => {
+  const dir = repo();
+  execFileSync('git', ['branch', '-M', 'main'], { cwd: dir });
+  return dir;
+};
+
+test('fleet update brings a branch level with main, then says it is current (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'a.txt', 'card one\n');
+  commitIn(dir, 'b.txt', 'main moved\n');
+  assert.deepEqual(updateBranch(dir, 1), { state: 'merged', base: 'main', path });
+  assert.equal(spawnSync('git', ['merge-base', '--is-ancestor', 'main', 'card-1'], { cwd: dir }).status, 0, 'main is in card-1');
+  assert.ok(existsSync(join(path, 'b.txt')));
+  assert.deepEqual(updateBranch(dir, 1), { state: 'current', base: 'main', path });
+});
+
+test('two cards changing the same file both reach review clashing-free (#267)', () => {
+  const dir = onMain();
+  const one = fleetBranch(dir, 1).path;
+  const two = fleetBranch(dir, 2).path;
+  commitIn(one, 'app.js', 'one\n');
+  commitIn(two, 'app.js', 'two\n');
+  // The first card through is already level with main before its review.
+  assert.ok(['current', 'merged'].includes(updateBranch(dir, 1).state));
+  mergeCard(dir, 1);
+  const clash = updateBranch(dir, 2);
+  assert.deepEqual(clash, { state: 'clash', base: 'main', path: two, files: ['app.js'] });
+  assert.match(readFileSync(join(two, 'app.js'), 'utf8'), /^<<<<<<< /m, 'left mid-merge for Tobin');
+  // Tobin resolves it, keeping both sides' intent, and commits the merge.
+  writeFileSync(join(two, 'app.js'), 'one\ntwo\n');
+  execFileSync('git', ['add', 'app.js'], { cwd: two });
+  execFileSync('git', [...T, 'commit', '-q', '--no-edit'], { cwd: two });
+  assert.deepEqual(updateBranch(dir, 2), { state: 'current', base: 'main', path: two });
+  const diff = execFileSync('git', ['diff', 'main...card-2'], { cwd: dir, encoding: 'utf8' });
+  assert.doesNotMatch(diff, /^[+-]?(<<<<<<<|=======|>>>>>>>)/m, 'what Milo sees has no clash in it');
+  assert.equal(mergeCard(dir, 2).into, 'main');
+  assert.equal(readFileSync(join(dir, 'app.js'), 'utf8'), 'one\ntwo\n');
+});
+
+test('a clash called again reports the same files and starts no new merge (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  const first = updateBranch(dir, 1);
+  assert.equal(first.state, 'clash');
+  const head = execFileSync('git', ['rev-parse', 'MERGE_HEAD'], { cwd: path, encoding: 'utf8' });
+  assert.deepEqual(updateBranch(dir, 1), first);
+  assert.equal(execFileSync('git', ['rev-parse', 'MERGE_HEAD'], { cwd: path, encoding: 'utf8' }), head);
+});
+
+test('fleet update refuses a dirty copy, and a card with no branch (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  writeFileSync(join(path, 'app.js'), 'half done\n');
+  assert.throws(() => updateBranch(dir, 1), /uncommitted changes[\s\S]*app\.js/);
+  assert.throws(() => updateBranch(dir, 2), /no branch card-2/);
+});
+
+test('soloagile fleet update prints the clash and exits 1, or up to date and exits 0 (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  const run = () => spawnSync('node', [PM, 'fleet', 'update', '1'], { cwd: dir, encoding: 'utf8' });
+  const current = run();
+  assert.equal(current.status, 0, current.stderr);
+  assert.match(current.stdout, /soloagile: card-1 is already up to date with main/);
+  commitIn(dir, 'b.txt', 'b\n');
+  const merged = run();
+  assert.equal(merged.status, 0, merged.stderr);
+  assert.match(merged.stdout, /soloagile: brought card-1 up to date with main; no clash/);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  const clash = run();
+  assert.equal(clash.status, 1);
+  assert.match(clash.stdout, /soloagile: card-1 clashes with main in 1 file\(s\), left mid-merge in .*card-1 for Tobin:\n  app\.js\n/);
+});
+
+test('the fleet skill brings the branch up to date before the blind review, and Tobin resolves a clash (#267)', () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  const build = skill.indexOf('**3. Build');
+  const update = skill.indexOf('soloagile fleet update <n>');
+  const review = skill.indexOf('**4. Blind review');
+  assert.ok(build > 0 && build < update && update < review, 'fleet update sits between Build and Blind review');
+  const step = skill.slice(update, review).replace(/\n\s*/g, ' ');
+  assert.match(step, /new Tobin/);
+  assert.match(step, /resolve/);
+  assert.match(step, /## Merge with main/);
+  assert.match(skill.replace(/\n\s*/g, ' '), /after each rework round[^.]*step 3b/i);
+});
+
+// #267 round 1: the findings Orla upheld.
+test('a card main has moved past is refused at merge until fleet update and a resolve (#267)', () => {
+  const dir = onMain();
+  const one = fleetBranch(dir, 1).path;
+  const two = fleetBranch(dir, 2).path;
+  commitIn(one, 'app.js', 'one\n');
+  commitIn(two, 'app.js', 'two\n');
+  // Both reviewed side by side against the old main.
+  assert.equal(updateBranch(dir, 1).state, 'current');
+  assert.equal(updateBranch(dir, 2).state, 'current');
+  assert.equal(mergeCard(dir, 1).into, 'main');
+  const before = execFileSync('git', ['rev-parse', 'main'], { cwd: dir, encoding: 'utf8' });
+  assert.throws(() => mergeCard(dir, 2), /card-2 doesn't have main's latest[\s\S]*soloagile fleet update 2[\s\S]*review/);
+  assert.equal(execFileSync('git', ['rev-parse', 'main'], { cwd: dir, encoding: 'utf8' }), before, 'nothing merged');
+  assert.ok(branches(dir).includes('card-2'));
+  assert.equal(updateBranch(dir, 2).state, 'clash');
+  writeFileSync(join(two, 'app.js'), 'one\ntwo\n');
+  execFileSync('git', ['add', 'app.js'], { cwd: two });
+  execFileSync('git', [...T, 'commit', '-q', '--no-edit'], { cwd: two });
+  assert.equal(mergeCard(dir, 2).into, 'main');
+  assert.equal(readFileSync(join(dir, 'app.js'), 'utf8'), 'one\ntwo\n');
+});
+
+test('the skills send a refused merge back through fleet update, a resolving Tobin and review (#267)', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const fleet = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(fleet, /`soloagile fleet merge <n>`[^.]*refuses[^.]*Tobin[^.]*Milo/);
+  const needs = readFileSync(join(root, 'skills', 'needs', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(needs, /refused[^.]*`soloagile fleet update <number>`[^.]*Tobin[^.]*Milo/);
+});
+
+test('fleet update refuses a branch that still holds conflict markers (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'app.js', '<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> main\n');
+  commitIn(path, 'ok.txt', 'fine\n');
+  assert.throws(() => updateBranch(dir, 1), (e) => /conflict markers/.test(e.message) && /app\.js/.test(e.message) && !/ok\.txt/.test(e.message));
+  commitIn(dir, 'b.txt', 'main moved\n');
+  assert.throws(() => updateBranch(dir, 1), /conflict markers[\s\S]*app\.js/, 'after a clean merge too');
+});
+
+test('only a full set of markers in order counts, so a setext heading passes (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'README.md', 'Status\n=======\n\nAll good.\n');
+  assert.equal(updateBranch(dir, 1).state, 'current');
+  commitIn(path, 'notes.md', '>>>>>>> late\n=======\n<<<<<<< early\n');
+  assert.equal(updateBranch(dir, 1).state, 'current', 'out of order is not a set');
+  commitIn(path, 'README.md', 'Status\n=======\n<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> main\n');
+  assert.throws(() => updateBranch(dir, 1), /conflict markers[\s\S]*README\.md/);
+});
+
+test('the marker check reads a non-ASCII name and skips a symlink or directory (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  mkdirSync(join(path, 'sub'));
+  commitIn(path, 'sub/a.txt', 'fine\n');
+  symlinkSync('sub', join(path, 'link'));
+  execFileSync('git', ['add', 'link'], { cwd: path });
+  execFileSync('git', [...T, 'commit', '-qm', 'link'], { cwd: path });
+  assert.equal(updateBranch(dir, 1).state, 'current', 'a symlink to a directory is not read');
+  commitIn(path, 'café.js', '<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> main\n');
+  assert.throws(() => updateBranch(dir, 1), /conflict markers[\s\S]*café\.js/);
+});
+
+test('a merge resolved but not committed says to commit it, and the CLI exits 1 (#267)', () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  assert.equal(updateBranch(dir, 1).state, 'clash');
+  writeFileSync(join(path, 'app.js'), 'card\nmain\n');
+  execFileSync('git', ['add', 'app.js'], { cwd: path });
+  const r = updateBranch(dir, 1);
+  assert.deepEqual(r, { state: 'resolved', base: 'main', path });
+  assert.match(updateText(1, r), /commit the merge/);
+  const cli = spawnSync('node', [PM, 'fleet', 'update', '1'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(cli.status, 1, cli.stderr);
+  assert.match(cli.stdout, /commit the merge/);
+});
+
+test('fleet update on a detached main tree says it is not on a branch (#267)', () => {
+  const dir = onMain();
+  fleetBranch(dir, 1);
+  execFileSync('git', ['checkout', '-q', '--detach'], { cwd: dir });
+  assert.throws(() => updateBranch(dir, 1), /the main tree isn't on a branch/);
+});
+
+test("fleet update gives the copy's path in every state, and the text uses it (#267)", () => {
+  const dir = onMain();
+  const { path } = fleetBranch(dir, 1);
+  assert.equal(updateBranch(dir, 1).path, path);
+  commitIn(dir, 'b.txt', 'b\n');
+  assert.equal(updateBranch(dir, 1).path, path);
+  commitIn(path, 'app.js', 'card\n');
+  commitIn(dir, 'app.js', 'main\n');
+  const clash = updateBranch(dir, 1);
+  assert.equal(clash.path, path);
+  assert.match(updateText(1, { ...clash, path: '/somewhere/else' }), /left mid-merge in \/somewhere\/else for Tobin/);
 });

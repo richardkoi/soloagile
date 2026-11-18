@@ -61,8 +61,24 @@ don't restart or message him for more turns (a restarted helper gets a fresh cap
 say how far he got and stop. A question in build.md goes to the user as a Needs your
 decision card.
 
+**3b. Up to date with main.** Run `soloagile fleet update <n>`: it merges the main tree's
+branch (usually main) into `card-<n>` inside Tobin's copy, so Milo reviews the change as it
+will merge, not from the card's old base. Up to date or merged with no clash, go on. On a
+clash (exit 1, the copy left mid-merge) start a new Tobin (a new Agent call) with the
+clashing files, the copy's path, and both sides' intent: the card's done when, and the main
+commits that touched those files (`git log card-<n>..main -- <files>`). Tell him to resolve
+them in the copy keeping both sides' intent, run the checks, commit the merge, and add a
+`## Merge with main` section to build.md. Then run `soloagile fleet update <n>` again; it
+must say up to date (it refuses a branch whose changed files still hold conflict markers,
+and says to commit a merge resolved but not committed). Say in report.md whether the update
+was current, clean or a clash, and its files. The user's yes merges later with `soloagile
+fleet merge <n>`, which refuses a branch main has moved past since (another card merged
+first): it goes back through this step, a resolving Tobin and Milo's review before it
+merges.
+
 **4. Blind review (Milo), `pm/runs/<n>/review.md`.** Run `soloagile fleet review <n>`: it
-prints the card's "done when" lines, the diff of `main...card-<n>`, and every changed file
+prints the card's "done when" lines, the diff of `card-<n>` against the branch it was built
+on (usually main), and every changed file
 in full (or, in a long code file, every changed top-level function whole, with line
 numbers). A code file keeps whole blocks whatever its size; a non-code file over 300 lines
 or 60 KB comes as its changed regions with 20 lines either side. Files under a top-level
@@ -79,14 +95,19 @@ real code in Tobin's copy and decide: **upheld** (it's real, with the line that 
 or **rejected** (with the reason, such as the code he couldn't see that handles it). Write
 one verdict per finding. With none upheld, go on. With some upheld, start a new Tobin (a
 new Agent call, never a message to the old one) with the upheld findings, to fix them on
-the same branch and add to build.md; then review the new change (a new Milo given
-`soloagile fleet review <n>`'s output, the same way) and write the new verdicts under a
-`## Round 2` heading. Two rework rounds at most: if findings are still upheld after
+the same branch and add to build.md; after each rework round, run step 3b again (main may
+have moved), then review the new change (a new Milo given `soloagile fleet review <n>`'s
+output, the same way) and write the new verdicts under a `## Round 2` heading. Two rework
+rounds at most: if findings are still upheld after
 the second, move the card to Needs your decision with them, run `soloagile fleet unlock
 <n>`, and stop.
 
 **6. Security list (a script, then Rufus only on a hit), `pm/runs/<n>/security-list.md`.**
-Run `soloagile fleet scan <n>`. With no hits it says so and exits 0: write nothing, start
+Run `soloagile fleet scan <n>`. It compares card-<n> against the branch the card was built
+on (its first line names it; `--base <branch>` chooses another). Its words (token, login and
+the rest) count only in code, not in whole-comment lines of a file type whose comments it
+knows or in Markdown prose; a key itself counts anywhere. If its first line says it read a
+3-line diff, a comment or fence far above a change may have been missed. With no hits it says so and exits 0: write nothing, start
 no one, and go on. With hits (exit 1), start Rufus with the Agent tool, `subagent_type:
 "soloagile:rufus"`, giving him the diff and the scan's lines, and write his reply into
 security-list.md word for word. It is a reading list for the user, never a sign-off.
@@ -101,7 +122,8 @@ the card and its done when, each stage with what it did and its file (security l
 hits, not needed" when the scan was quiet), the checks with their results, and what wasn't
 tested. Then the card's lines, as today: `soloagile card note <n> "tested: …"`, a `not
 tested:` line for the rest, and `soloagile card note <n> "report: pm/runs/<n>/report.md"`
-so the card links it.
+so the card links it. report.md ends with the output of `soloagile fleet cost <n>`, pasted
+as it is: the run's share of the week and the 5 hours, or a not measured line.
 
 **8. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
 `card-<n>`, unmerged and unpushed. Move
