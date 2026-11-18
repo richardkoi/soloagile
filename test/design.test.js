@@ -53,7 +53,7 @@ test("an option's picture shows under that option, in the card's pop-up", () => 
 test('a card with pictures shows a photo icon and how many, on its face', () => {
   const md = { board: BOARD, plan: '', releases: '', overview: '', decisions: '', links: '' };
   const pic = { src: 'designs/x.png', width: 360, height: 200 };
-  const face = (pictures) => renderPage({ name: 'demo', md, builtAt: new Date(2026, 9, 2), template: readTemplate('page.html'), pictures }).html.split('<div class="card-modal"')[0];
+  const face = (pictures) => renderPage({ name: 'demo', md, builtAt: new Date(2026, 9, 2), template: readTemplate('page.html'), pictures }).html.split('<dialog class="card-modal"')[0];
   assert.match(face({ '12-a': pic, '12-b': pic }), /<span class="tag tag-pics" title="2 pictures inside"><svg[^>]*>.*?<\/svg>2<\/span>/);
   assert.match(face({ '12-a': pic, '99-b': pic }), /title="1 picture inside"><svg[^>]*>.*?<\/svg>1<\/span>/, "another card's picture is not counted");
   assert.doesNotMatch(face({ '12-z': pic }), /class="tag tag-pics"/, 'a picture for no option of the card shows nothing');
@@ -97,5 +97,5 @@ test("a card keeps its picked option's picture after soloagile card choose, unti
   const pic = { src: 'designs/12-b.png?v=5', width: 360, height: 200 };
   const { html } = renderPage({ name: 'demo', md, builtAt: new Date(2026, 9, 20), template: readTemplate('page.html'), pictures: { '12-b': pic } });
   assert.match(html, /<li><b class="detail-label">chosen 2026-10-20:<\/b> b\) Six dots<a class="pic-open" href="designs\/12-b\.png\?v=5"[^>]*><img class="option-pic"[^>]*alt="Option b, as a picture"/);
-  assert.match(html.split('<div class="card-modal"')[0], /title="1 picture inside"/);
+  assert.match(html.split('<dialog class="card-modal"')[0], /title="1 picture inside"/);
 });
