@@ -2,7 +2,7 @@
 name: needs
 description: Clear what waits on the user — ask every Needs your decision and Needs your look card as multiple choice, then move the cards and log the answers. Use when the user says "what needs me", "ask me the questions", "clear my waiting" or "clear out Waiting on you".
 argument-hint: "[optional: card numbers, e.g. \"#12 #14\"]"
-allowed-tools: Read, Edit, AskUserQuestion, Bash(soloagile board:*), Bash(soloagile card:*), Bash(soloagile archive:*), Bash(soloagile build:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
+allowed-tools: Read, Edit, AskUserQuestion, Bash(soloagile board:*), Bash(soloagile card:*), Bash(soloagile archive:*), Bash(soloagile build:*), Bash(echo:*), Bash(soloagile fleet:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
 
 The user wants their waiting list cleared. Cards they named, if any: **$ARGUMENTS**
@@ -29,6 +29,8 @@ before any other work: the user answers them together, not one at a time between
   shows them in its pop-up on the page. Say in the question that the pictures are on the
   card, and give the page's link, so the user can look before answering.
 - A look card offers "Yes, done", "Needs a change" and "Not looked yet".
+- A fleet card waiting on its branch (one with a `report:` line) offers "Yes, merge it",
+  "Send it back", "Drop it" and "Not looked yet", and links its report.
 
 **Apply** every answer before asking the next four, with `soloagile card`: `soloagile card
 move <number> done` finishes a card and moves its text to `pm/finished-cards.md`,
@@ -47,6 +49,12 @@ edit that finished a card.
 - "Needs a change", or an answer that says what is wrong: ask what, if they haven't
   said. The card goes back to Doing, with a new first line saying what to fix.
 - "Not looked yet" leaves the card where it is.
+- A fleet card's yes: `soloagile fleet merge <number>` merges branch `card-<n>` and
+  removes its copy and branch; run the checks from `## Checks` in `pm/overview.md` at once,
+  then move it to Done. A check that fails after the merge: say so, and put the card back
+  in Doing with what failed. "Send it back": ask what to fix, `soloagile fleet sendback
+  <number>`, then `soloagile card move <number> doing` with a first line saying what. "Drop
+  it": `soloagile fleet drop <number>`, then `soloagile card drop <number> "<why>"`.
 
 If that leaves a milestone with every card in Done and its "Done when" in `pm/plan.md`
 met, say so and offer `/soloagile:retro`, which closes the milestone and writes its

@@ -309,6 +309,18 @@ The six columns, always in this order and always present, even when empty:
   Claude changes the word as the work moves on; with none, the card counts as `develop`.
   Every other lane implies its stage: Ideas and Up next are Plan, Needs your look is
   Feedback. `soloagile build` reports a stage written anywhere else, except on a design card.
+- **A fleet mark, when the fleet habit is on:** `fleet` (the crew plans, builds, reviews and
+  tests it) or `look` (the short path for visual work), written before the stage:
+  `- #12 Feed parser · M3 · 5 pts · ~40 min · fleet · develop`. Claude marks cards when
+  planning, and the user can mark any: `soloagile card set 12 --mark fleet|look|none`.
+  Before a run, `soloagile fleet preflight 12` refuses a card with no done when or a
+  dirty tree (pm/ aside), writes `pm/runs/12/lock` with the session's pid and start time,
+  clears a lock whose process is gone, and names the stage to start at: the first of
+  plan.md, build.md, review.md, verdicts.md, report.md not yet in `pm/runs/12/`.
+  `soloagile fleet unlock 12` ends the run's lock.
+  The fleet guard (`bin/fleet-guard.js`, a PreToolUse hook) refuses a fleet helper, any
+  agent whose type starts `soloagile:`, a token, the environment, a key, a login or a .env
+  file. Every other session, the user's own included, is left alone.
 - **IDs are never reused.** `<!-- next-id: N -->` holds the next free ID.
 - **Claude changes the board with `soloagile card`**, not by editing the file. The command
   numbers a new card, writes its line, puts it in its lane and rebuilds the page. It is

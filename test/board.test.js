@@ -45,6 +45,7 @@ test('reads id, title, milestone, dated state and detail lines', () => {
     range: null,
     stage: null,
     date: null,
+    mark: null,
     details: ['done when: node --test passes', 'second detail line'],
   });
   assert.deepEqual(look.cards[0].date, { label: 'built', value: '2026-10-01' });

@@ -2,7 +2,7 @@
 name: away
 description: Away mode — ask every waiting question first, then build the board's Up next cards one after another while the user is gone, and save at the end. Use when the user says they are leaving for a while — "I'm off to bed", "going to lunch", "I'll be out", "work while I'm away", "keep going while I'm gone".
 argument-hint: "[optional: how long, or which cards, e.g. \"back at 9\" or \"only M16\"]"
-allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(soloagile board:*), Bash(soloagile card:*), Bash(soloagile usage:*), Bash(soloagile set:*), Bash(soloagile build:*), Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Agent, Skill, Bash(soloagile fleet:*), Bash(git worktree:*), Bash(git branch:*), Bash(soloagile board:*), Bash(soloagile card:*), Bash(soloagile usage:*), Bash(soloagile set:*), Bash(soloagile build:*), Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
 
 The user is going away. What they said about it: **$ARGUMENTS**
@@ -38,6 +38,12 @@ Doing, build it, run the project's checks, write its `tested:` line and a `to lo
 commit it, and move it to Needs your look. The move prints what's left of the run ("What's
 left: 3 in Up next · likely …"): say that line, then go on to the next card. A card
 command that says a card has run past its range prints it too: say it then as well.
+- A card marked `fleet`, with the `fleet` habit on, isn't built directly: run the fleet
+  skill on it (`/soloagile:fleet <n>`). It ends on its own branch `card-<n>`, unmerged, in
+  Needs your look, and waits for the user's yes in the next needs round; then go on to
+  the next card. A helper can't start helpers of its own, so when cards are built in
+  parallel lanes, never give a fleet card to a helper: run it yourself while the helpers
+  build the other lanes as today. With the habit off, build it like any other card.
 - Skip a card that needs the user: an unanswered design, a deploy to a live server, a
   purchase, an account, anything only they can approve. It waits in Needs your decision,
   with the question written on it.
