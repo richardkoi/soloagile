@@ -202,13 +202,13 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   // data-ms and data-later are for the milestone filter, data-id for the search box (template/refresh.html).
   const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${c.id !== null ? ` data-id="${c.id}"` : ''}${later ? ' data-later' : ''}>`;
   if (!c.details.length) {
-    return `${li}<div class="card-top">${top}</div><p class="card-title">${title}</p>${meta}${foot}${picturePage(c, pictures)}</li>`;
+    return `${li}<div class="card-top">${top}</div><h3 class="card-title">${title}</h3>${meta}${foot}${picturePage(c, pictures)}</li>`;
   }
   const open = `<button class="card-open" type="button" commandfor="${modalId}" command="show-modal">${title}</button>`;
   const close = `<button class="modal-close" type="button" commandfor="${modalId}" command="close" aria-label="Close">${icon('x')}</button>`;
   const lines = c.details.map((d) => `<li>${newTab(detailLine(d))}${optionPicture(c, d, pictures)}</li>`).join('');
   const modal = `<dialog class="card-modal" id="${modalId}" closedby="any" aria-labelledby="${modalId}-h"><div class="card-top">${top}${close}</div><h2 class="modal-title" id="${modalId}-h">${title}</h2>${meta}${foot}${rangeLine}${tookLine}${picturePage(c, pictures)}<ul class="modal-body">${lines}</ul></dialog>`;
-  return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><p class="card-title">${open}</p><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
+  return `${li}<div class="card-top">${topWith(picturesTag(c, pictures))}</div><h3 class="card-title">${open}</h3><p class="card-note">${summaryOf(c.details)}</p>${meta}${foot}${modal}</li>`;
 }
 
 // Lanes that fold, and the way their arrow points: towards the board's right side, where
@@ -234,9 +234,11 @@ function renderLane(lane, cards, pictures, today, shorts, batchOf = () => null) 
   // name like "Waiting on you" out of a 1400px window's lane.
   const total = points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : '';
   const sub = `<div class="lane-sub"><div class="lane-hints">${hint}</div>${total}</div>`;
-  const fold = FOLDS[lane.key] ? `<button type="button" class="lane-fold" aria-expanded="true" aria-label="Fold ${esc(lane.name)} to a strip" title="Fold or unfold">${icon(FOLDS[lane.key])}</button>` : '';
-  return `<section class="lane lane-${lane.key}" aria-label="${esc(lane.name)}">
-<div class="lane-head"><div class="lane-title"><span class="lane-icon">${icon(lane.icon)}</span><span class="lane-name">${esc(lane.name)}</span><span class="lane-count">${shown.length}</span>${fold}</div>${sub}</div>
+  const fold = FOLDS[lane.key] ? `<button type="button" class="lane-fold" aria-expanded="true" aria-label="${esc(lane.name)}" title="Fold or unfold">${icon(FOLDS[lane.key])}</button>` : '';
+  // The lane's name is its h2 and each card's title an h3, so a screen reader can jump
+  // between them; the <section> has no name, so it is not one of five region landmarks (#261).
+  return `<section class="lane lane-${lane.key}">
+<div class="lane-head"><div class="lane-title"><span class="lane-icon">${icon(lane.icon)}</span><h2 class="lane-name">${esc(lane.name)}</h2><span class="lane-count">${shown.length}</span>${fold}</div>${sub}</div>
 ${body}
 </section>`;
 }
@@ -322,8 +324,10 @@ const TABS = [
   ['settings', 'Settings', 'sliders-horizontal'],
 ];
 
+// The badge's words sit in a visually-hidden span: a plain <span> can't be named with
+// aria-label (#264).
 function renderNav(waiting) {
-  const badge = waiting ? `<span class="badge" aria-label="${waiting} waiting on you">${waiting}</span>` : '';
+  const badge = waiting ? `<span class="badge">${waiting}<span class="visually-hidden"> waiting on you</span></span>` : '';
   return TABS.map(([id, label, ic]) => `<a href="#${id}">${icon(ic)}${label}${id === 'board' ? badge : ''}</a>`).join('');
 }
 
@@ -389,7 +393,10 @@ function renderProgress(plan) {
 }
 
 // "### M1 — The page · in progress" and the text under it -> a fold-out: the milestone's
-// tag, name and status pill on the summary line, its text inside. Done ones start folded.
+// tag, name and status pill in an h3, its text below. Done ones start folded.
+// The h3 holds the button that folds it, not <details>: a heading inside <summary> is lost
+// to screen readers that read <summary> as a button (#261). template/refresh.html folds it
+// and opens it for a #plan-M9 link; hidden="until-found" lets Ctrl+F still find a folded one.
 // A milestone not done says how long its cards still to build should take (#209).
 function milestoneHeadings(html, plan, board, batchOf = () => null) {
   const current = currentMilestone(plan, board);
@@ -399,11 +406,12 @@ function milestoneHeadings(html, plan, board, batchOf = () => null) {
       const s = STATUS[status];
       const isCurrent = current?.id === id;
       const pill = `${s.label}${date ? ` ${shortDate({ label: null, value: date })}` : ''}`;
-      const h3 = `<h3 class="ms-h ms-h-${slug(status)}">${milestoneTag(id)}<span>${title}</span><span class="st ${isCurrent ? 'st-open' : s.tone}">${pill}</span></h3>`;
+      const open = status !== 'done';
+      const h3 = `<h3 class="ms-h ms-h-${slug(status)}"><button class="ms-toggle" type="button" aria-expanded="${open}" aria-controls="plan-${id}-body"><span class="ms-row">${milestoneTag(id)}<span>${title}</span><span class="st ${isCurrent ? 'st-open' : s.tone}">${pill}</span></span></button></h3>`;
       const left = status === 'done' ? 0 : cardsLeft(board, id);
       const guess = left ? batchOf(left) : null;
       const leftLine = guess ? `<p class="ms-left">${left} card${left === 1 ? '' : 's'} left · ${esc(batchText(guess))}</p>` : '';
-      return `<details class="ms-fold" id="plan-${id}"${status === 'done' ? '' : ' open'}><summary>${h3}</summary><div class="ms-body">${leftLine}${body}</div></details>`;
+      return `<div class="ms-fold" id="plan-${id}">${h3}<div class="ms-body" id="plan-${id}-body"${open ? '' : ' hidden="until-found"'}>${leftLine}${body}</div></div>`;
     },
   );
 }

@@ -44,8 +44,8 @@ test('renders every tab, the cards and the header summary', () => {
     assert.match(html, new RegExp(`class="tab tab-${tab}"`));
   }
   assert.match(html, /Write <code>soloagile build<\/code>/);
-  assert.match(html, /<span class="lane-name">Waiting on you<\/span><span class="lane-count">2<\/span>/);
-  assert.match(html, /<span class="badge" aria-label="2 waiting on you">2<\/span>/);
+  assert.match(html, /<h2 class="lane-name">Waiting on you<\/h2><span class="lane-count">2<\/span>/);
+  assert.match(html, /<span class="badge">2<span class="visually-hidden"> waiting on you<\/span><\/span>/);
   assert.match(html, /Working on <b class="ms-ink ms-c1">M1<\/b> The page/);
   assert.doesNotMatch(html, /class="ms-strip"/, 'no row of milestone chips in the header (#217)');
   assert.match(html, /<span class="updated-word">Updated <\/span>30 Sep, 15:04/);
@@ -162,8 +162,8 @@ test("a look that can't happen yet is marked Later, sits last and isn't counted 
   assert.match(html, /<li class="card-x card-later"[^>]*>.*<span class="st st-quiet"><svg[^]*?<\/svg>Later<\/span>.*Check the page.*From 1 Oct/);
   assert.match(html, /<li class="card-x card-look"[^>]*>.*Check the phone/, 'its day has come, so it is an ordinary look');
   assert.ok(html.indexOf('Check the phone') < html.indexOf('Check the page'), 'later looks come last');
-  assert.match(html, /<span class="lane-name">Waiting on you<\/span><span class="lane-count">2<\/span>/);
-  assert.match(html, /<span class="badge" aria-label="2 waiting on you">2<\/span>/);
+  assert.match(html, /<h2 class="lane-name">Waiting on you<\/h2><span class="lane-count">2<\/span>/);
+  assert.match(html, /<span class="badge">2<span class="visually-hidden"> waiting on you<\/span><\/span>/);
 });
 
 test('a waiting card says how long it has waited; a later look and a queued card do not', () => {
@@ -181,13 +181,13 @@ test('a card with no description has nothing to open', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   assert.doesNotMatch(html, /<button class="card-open"/);
   assert.doesNotMatch(html, /<dialog class="card-modal"/);
-  assert.match(html, /<p class="card-title">Check the page<\/p>/);
+  assert.match(html, /<h3 class="card-title">Check the page<\/h3>/);
 });
 
 test('Done shows the last 48 hours: today and the two days before', () => {
   const done = '## Done\n- #4 Today · M1 · 2026-09-30\n- #5 Two days back · M1 · 2026-09-28\n- #6 Three days back · M1 · 2026-09-27\n- #7 No date\n';
   const { html } = renderPage({ name: 'demo', md: { ...md, board: md.board.replace('## Done\n', done) }, builtAt, template });
-  assert.match(html, /<span class="lane-name">Done<\/span><span class="lane-count">3<\/span>.*<div class="lane-sub"><div class="lane-hints"><span class="lane-hint">last 48 hours<\/span><\/div>/);
+  assert.match(html, /<h2 class="lane-name">Done<\/h2><span class="lane-count">3<\/span>.*<div class="lane-sub"><div class="lane-hints"><span class="lane-hint">last 48 hours<\/span><\/div>/);
   assert.match(html, /Today/);
   assert.match(html, /Two days back/);
   assert.doesNotMatch(html, /Three days back/);
@@ -198,15 +198,29 @@ test('plan shows progress and a status on each milestone', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   assert.match(html, /<b>1 of 2<\/b> milestones done/);
   assert.match(html, /<span class="seg seg-done"/);
-  assert.match(html, /<h3 class="ms-h ms-h-done"><span class="tag tag-proj ms-c0"><svg[^>]*>.*?<\/svg>M0<\/span><span>Convention<\/span><span class="st st-go">Done 30 Sep<\/span><\/h3>/);
+  assert.match(html, /<h3 class="ms-h ms-h-done"><button class="ms-toggle" type="button" aria-expanded="false" aria-controls="plan-M0-body"><span class="ms-row"><span class="tag tag-proj ms-c0"><svg[^>]*>.*?<\/svg>M0<\/span><span>Convention<\/span><span class="st st-go">Done 30 Sep<\/span><\/span><\/button><\/h3>/);
   assert.match(html, /<h3 class="ms-h ms-h-in-progress">.*<span class="st st-open">In progress<\/span>/);
 });
 
 test('plan milestones fold out: finished ones start folded, the rest open', () => {
   const plan = '# Plan\n## Milestones\n### M0 — Done one · done 2026-09-30\nOld text.\n\n### M1 — Open one · in progress\nNew text.\n';
   const { html } = renderPage({ name: 'demo', md: { ...md, plan }, builtAt, template });
-  assert.match(html, /<details class="ms-fold" id="plan-M0"><summary><h3 class="ms-h ms-h-done">.*?<\/summary><div class="ms-body">\s*<p>Old text\.<\/p>\s*<\/div><\/details>/s);
-  assert.match(html, /<details class="ms-fold" id="plan-M1" open><summary><h3 class="ms-h ms-h-in-progress">.*?<p>New text\.<\/p>/s);
+  // The heading holds the button that folds it (#261): a heading inside <summary> is lost to
+  // screen readers that read <summary> as a button. A folded body stays findable with Ctrl+F.
+  assert.match(html, /<div class="ms-fold" id="plan-M0"><h3 class="ms-h ms-h-done"><button class="ms-toggle" type="button" aria-expanded="false" aria-controls="plan-M0-body">.*?<\/h3><div class="ms-body" id="plan-M0-body" hidden="until-found">\s*<p>Old text\.<\/p>\s*<\/div><\/div>/s);
+  assert.match(html, /<div class="ms-fold" id="plan-M1"><h3 class="ms-h ms-h-in-progress"><button class="ms-toggle" type="button" aria-expanded="true" aria-controls="plan-M1-body">.*?<div class="ms-body" id="plan-M1-body">\s*<p>New text\.<\/p>/s);
+  assert.doesNotMatch(html, /<summary>(?:(?!<\/summary>).)*<h[1-6]/s, 'no heading inside a <summary> (#261)');
+});
+
+test('lanes and cards are headings a screen reader can jump between, and the lanes are not landmarks (#261)', () => {
+  const board = md.board.replace('- #1 Write `soloagile build` · M1\n', '- #1 Write `soloagile build` · M1\n  a line that opens\n');
+  const { html } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
+  const lanes = html.match(/<section class="lane [^"]*"[^>]*>/g);
+  assert.equal(lanes.length, 5);
+  for (const lane of lanes) assert.doesNotMatch(lane, /aria-label/, 'a named <section> is a region landmark; five of them is noise');
+  assert.equal(html.match(/<h2 class="lane-name">/g).length, 5, "each lane's name is an h2");
+  assert.doesNotMatch(html, /<span class="lane-name">|<p class="card-title">/);
+  assert.match(html, /<h3 class="card-title"><button class="card-open" type="button" commandfor="[^"]+" command="show-modal">/, 'a card that opens holds its button in the h3');
 });
 
 // The plan's first open milestone is M1, but the cards being worked belong to later ones.
@@ -253,7 +267,7 @@ test('each link gets an icon for where it points', () => {
 test('an empty lane says so in words, and no badge when nothing waits (#226)', () => {
   const calm = { ...md, board: md.board.replace(/^- #[23] .*\n/gm, '') };
   const { html } = renderPage({ name: 'demo', md: calm, builtAt, template });
-  assert.match(html, /<span class="lane-name">Waiting on you<\/span><span class="lane-count">0<\/span>.*\n<p class="lane-empty">Nothing waiting on you<\/p>/);
+  assert.match(html, /<h2 class="lane-name">Waiting on you<\/h2><span class="lane-count">0<\/span>.*\n<p class="lane-empty">Nothing waiting on you<\/p>/);
   assert.match(html, /<p class="lane-empty">Claude isn&#39;t building anything<\/p>/);
   assert.doesNotMatch(html, /lane-empty">&mdash;/, 'no dash: it meant nothing on its own');
   assert.doesNotMatch(html, /class="badge"/);
@@ -293,7 +307,7 @@ test('names HTML-escape, and the only scripts are the theme and keep-awake switc
   const { html } = renderPage({ name: '<b>x</b>', md, builtAt, template });
   assert.match(html, /<h1 class="header-title">&lt;b&gt;x&lt;\/b&gt;<\/h1>/);
   assert.equal((html.match(/<script/gi) || []).length, 2);
-  assert.match(html, /function toggleTheme\(\)/);
+  assert.match(html, /function setTheme\(choice\)/);
   assert.match(html, /function toggleAwake\(\)/);
 });
 
@@ -302,7 +316,7 @@ test('an Awake button sits between the "?" and the Dark/Light switch, off until 
   const header = html.match(/<header class="header">[^]*?<\/header>/)[0];
   assert.match(header, /<button class="btn btn-ghost awake" type="button" onclick="toggleAwake\(\)" aria-pressed="false" aria-label="Keep the screen awake">/);
   assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('toggleAwake()'), 'after the guide');
-  assert.ok(header.indexOf('toggleAwake()') < header.indexOf('toggleTheme()'), 'before the Dark/Light switch');
+  assert.ok(header.indexOf('toggleAwake()') < header.indexOf('popovertarget="theme-menu"'), 'before the theme button');
   assert.match(html, /localStorage\.getItem\('pm-awake'\) === 'on'/, 'each browser remembers it, off by default');
   assert.match(html, /\[data-awake="none"\] \.awake \{ display: none; \}/, 'hidden where the browser has no wake lock');
   assert.match(html, /document\.addEventListener\('visibilitychange', holdAwake\)/, 'taken again when the page shows');
@@ -356,10 +370,11 @@ test('a "?" in the header opens the command guide: one list, in the order of a s
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   const header = html.match(/<header class="header">[^]*?<\/header>/)[0];
   assert.match(header, /<button class="btn btn-ghost help" type="button" commandfor="guide" command="show-modal" aria-label="What you can say">\?<\/button>/);
-  assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('toggleTheme()'), 'it sits before the Dark/Light switch');
+  assert.ok(header.indexOf('commandfor="guide"') < header.indexOf('popovertarget="theme-menu"'), 'it sits before the theme button');
   const guide = html.match(/<dialog class="card-modal guide" id="guide" closedby="any" aria-labelledby="guide-h">[^]*?<\/ul>\s*<\/dialog>/)[0];
   assert.match(guide, /commandfor="guide" command="close" aria-label="Close"/);
-  assert.doesNotMatch(header + guide, /popover/, 'a dialog, not a popover (#259)');
+  // The guide and its button are a dialog, not a popover (#259); the theme menu (#258) is a popover.
+  assert.doesNotMatch(header.match(/<button class="btn btn-ghost help"[^>]*>/)[0] + guide, /popover/, 'a dialog, not a popover (#259)');
   const rows = [...guide.matchAll(/<li>(.*)<\/li>/g)].map((m) => m[1]);
   assert.deepEqual(rows.map((r) => r.match(/<b class="guide-say">(.*?)<\/b>/)[1]),
     ['“catch me up”', '“what needs me”', '“#7 yes”', '“commit”', '“ship it”', '“retro”', '“done for today”', '/clear', 'Esc Esc']);
@@ -376,7 +391,7 @@ test('each milestone has its own colour, one of eight taken in turn by its numbe
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   assert.match(html, /<span class="tag tag-proj ms-c\d"><svg[^>]*>.*?<\/svg>M\d+<\/span><span class="card-id">/, "a card's milestone tag carries its colour");
   for (const n of [0, 1, 2, 3, 4, 5, 6, 7]) {
-    assert.equal(html.match(new RegExp(`--ms-${n}: #`, 'g'))?.length, 2, `colour ${n} is set for dark and for light`);
+    assert.match(html, new RegExp(`--ms-${n}: light-dark\\(#[0-9A-F]{6}, #[0-9A-F]{6}\\);`), `colour ${n} is set for light and for dark`);
     assert.match(html, new RegExp(`\\.ms-c${n} \\{ --m: var\\(--ms-${n}\\); \\}`));
   }
 });
@@ -486,15 +501,23 @@ test('a search box finds a card by its words or number (#132)', () => {
 test("each lane's heading shows its total points, and a lane with none shows no total (#133)", () => {
   const board = '# Board\n<!-- next-id: 9 -->\n## Ideas\n- #1 A · M1 · 2 pts\n- #2 B · M1 · 3 pts\n## Up next\n- #3 C · M1\n## Doing\n- #4 D · M1 · 1 pt · develop\n## Needs your look\n## Needs your decision\n## Done\n';
   const { html } = renderPage({ name: 'demo', md: { ...md, board }, builtAt, template });
-  assert.match(html, /<span class="lane-name">Ideas<\/span><span class="lane-count">2<\/span>.*?<div class="lane-sub">.*?<span class="lane-points">5 pts<\/span><\/div>/);
-  assert.match(html, /<span class="lane-name">Doing<\/span><span class="lane-count">1<\/span>.*?<span class="lane-points">1 pt<\/span><\/div>/);
-  assert.match(html, /<span class="lane-name">Up next<\/span><span class="lane-count">1<\/span><\/div><div class="lane-sub"><div class="lane-hints">[^]*?<\/div><\/div>\n/);
+  assert.match(html, /<h2 class="lane-name">Ideas<\/h2><span class="lane-count">2<\/span>.*?<div class="lane-sub">.*?<span class="lane-points">5 pts<\/span><\/div>/);
+  assert.match(html, /<h2 class="lane-name">Doing<\/h2><span class="lane-count">1<\/span>.*?<span class="lane-points">1 pt<\/span><\/div>/);
+  assert.match(html, /<h2 class="lane-name">Up next<\/h2><span class="lane-count">1<\/span><\/div><div class="lane-sub"><div class="lane-hints">[^]*?<\/div><\/div>\n/);
+});
+
+test('the waiting badge carries its words in a visually-hidden span, not an aria-label on a span (#264)', () => {
+  const { html } = renderPage({ name: 'demo', md, builtAt, template });
+  const badge = html.match(/<span class="badge"[^]*?<\/span><\/span>/);
+  assert.ok(badge, 'the board tab has a badge');
+  assert.doesNotMatch(badge[0], /aria-label/);
+  assert.match(badge[0], /<span class="visually-hidden"> waiting on you<\/span>/);
 });
 
 test('Ideas and Done have a fold button, and the page remembers which are folded (#134)', () => {
   const { html } = renderPage({ name: 'demo', md, builtAt, template });
   for (const [key, name] of [['ideas', 'Ideas'], ['done', 'Done']]) {
-    assert.match(html, new RegExp(`<section class="lane lane-${key}"[^>]*>\\n<div class="lane-head">.*<button type="button" class="lane-fold" aria-expanded="true" aria-label="Fold ${name} to a strip"`));
+    assert.match(html, new RegExp(`<section class="lane lane-${key}"[^>]*>\\n<div class="lane-head">.*<button type="button" class="lane-fold" aria-expanded="true" aria-label="${name}"`));
   }
   for (const key of ['waiting', 'doing', 'up-next']) {
     assert.doesNotMatch(html.split(`lane-${key}"`)[1].split('</section>')[0], /lane-fold/);

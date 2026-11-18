@@ -1,4 +1,35 @@
 <script>
+/* The open tab (#260). On load and on each hashchange: the open tab's link gets
+   aria-current="page" (so a screen reader hears "current page", and the CSS draws its bar
+   from it), the window title names the tab ("soloagile - Settings - PM"; on the home page,
+   "Session flow - PM"), and on a phone, where the strip swipes, the strip slides so the tab
+   is in view. The open tab follows the same rule as the :has() CSS: the anchor the hash
+   targets; a milestone on the Plan tab (#plan-M9) counts as Plan; anything else, the first tab. */
+(function () {
+  var nav = document.querySelector('.dk-nav');
+  if (!nav) return;
+  var links = nav.querySelectorAll('a');
+  var project = nav.getAttribute('data-project');
+  function name(a) {
+    // The link's own words, without its icon or its count badge.
+    return Array.prototype.filter.call(a.childNodes, function (n) { return n.nodeType === 3; })
+      .map(function (n) { return n.textContent; }).join('').trim();
+  }
+  function mark() {
+    // A hash that can't be decoded (#%) throws a URIError; it counts as no target, so the first tab.
+    var target = null;
+    try { target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch (e) {}
+    var href = !target ? '' : target.classList.contains('anchor') ? '#' + target.id : target.classList.contains('ms-fold') ? '#plan' : '';
+    var open = (href && nav.querySelector('a[href="' + href + '"]')) || links[0];
+    links.forEach(function (a) { if (a === open) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    document.title = (project ? project + ' - ' : '') + name(open) + ' - PM';
+    // Only when the strip swipes (a phone); container: 'nearest' scrolls the strip, never the page.
+    if (nav.scrollWidth > nav.clientWidth) open.scrollIntoView({ block: 'nearest', inline: 'nearest', container: 'nearest' });
+  }
+  // The listener goes first, so a later hash still updates the tab even if this first mark() fails.
+  window.addEventListener('hashchange', mark);
+  mark();
+})();
 /* A batch's guess on Up next (#209): the build wrote "likely 3.5 h · surely 5 h"; when it
    would end, "(by 16:30)", is counted from the moment the page is opened, and said only
    when that is today (#229). */
@@ -88,11 +119,11 @@
   try { var kept = localStorage.getItem(key); if (kept !== null) folded = JSON.parse(kept); } catch (e) {}
   document.querySelectorAll('.lane-fold').forEach(function (b) {
     var lane = b.closest('.lane');
-    var name = lane.getAttribute('aria-label');
+    var name = lane.querySelector('.lane-name').textContent;
     function set(on) {
       lane.classList.toggle('folded', on);
+      // The label stays the lane's name; open or shut is said by aria-expanded alone (#264).
       b.setAttribute('aria-expanded', String(!on));
-      b.setAttribute('aria-label', (on ? 'Unfold ' : 'Fold ') + name + (on ? '' : ' to a strip'));
     }
     set(folded.indexOf(name) >= 0);
     b.addEventListener('click', function () {
@@ -104,10 +135,39 @@
     });
   });
 })();
+/* Plan: a milestone's heading button folds its body (#261). A #plan-M9 link opens that
+   milestone, and Ctrl+F opens a folded one it finds (hidden="until-found" fires beforematch). */
+(function () {
+  function set(fold, on) {
+    var body = fold.querySelector('.ms-body');
+    fold.querySelector('.ms-toggle').setAttribute('aria-expanded', String(on));
+    if (on) body.removeAttribute('hidden'); else body.setAttribute('hidden', 'until-found');
+  }
+  document.querySelectorAll('.ms-fold').forEach(function (fold) {
+    fold.querySelector('.ms-toggle').addEventListener('click', function () {
+      set(fold, this.getAttribute('aria-expanded') !== 'true');
+    });
+    fold.querySelector('.ms-body').addEventListener('beforematch', function () { set(fold, true); });
+  });
+  function fromHash() {
+    // A hash that can't be decoded (such as #%) names no milestone, rather than throwing.
+    var id = '';
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
+    var t = id && document.getElementById(id);
+    if (t && t.classList.contains('ms-fold')) set(t, true);
+  }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
 /* Long lanes (#219, #220): Up next, Ideas and Done show their first 10 cards (5 on a phone,
    where lanes stack), then a "Show all N" button. The count is of the cards the milestone menu leaves; while the search box has
    words every card shows, so a match is never hidden; a card opened by its number has its
-   lane shown in full first. A lane's choice lasts until the page is opened again. */
+   lane shown in full first. A lane's choice lasts until the page is opened again.
+   The cards past the first are hidden="until-found" (#263), so the browser's find in page
+   still finds them: Chrome fires beforematch on the card and shows it, and its lane opens
+   in full. The milestone menu hides cards with a plain hidden; only that counts as
+   filtered out here. A browser without until-found hides them as plain hidden. */
+function soloagileFiltered(li) { return li.hasAttribute('hidden') && li.getAttribute('hidden') !== 'until-found'; }
 (function () {
   var phone = window.matchMedia('(max-width: 620px)');
   var FIRST = 10;
@@ -116,11 +176,13 @@
     var body = lane.querySelector('.lane-body');
     if (!body) return;
     var key = lane.className.match(/lane-([a-z-]+)/)[1];
-    var cards = Array.prototype.filter.call(body.querySelectorAll(':scope > .card-x'), function (li) { return !li.hidden; });
+    var cards = Array.prototype.filter.call(body.querySelectorAll(':scope > .card-x'), function (li) { return !soloagileFiltered(li); });
     FIRST = phone.matches ? 5 : 10;
     var long = cards.length > FIRST && (phone.matches || key !== 'waiting');
-    cards.forEach(function (li, i) { li.classList.toggle('over', long && !open[key] && !searching && i >= FIRST); });
-    body.querySelectorAll(':scope > .card-x[hidden]').forEach(function (li) { li.classList.remove('over'); });
+    cards.forEach(function (li, i) {
+      if (long && !open[key] && !searching && i >= FIRST) li.setAttribute('hidden', 'until-found');
+      else li.removeAttribute('hidden');
+    });
     var more = lane.querySelector('.lane-more');
     if (!more) {
       more = document.createElement('button');
@@ -128,6 +190,8 @@
       more.className = 'lane-more';
       more.addEventListener('click', function () { open[key] = !open[key]; limit(lane); if (!open[key]) lane.scrollIntoView({ block: 'nearest' }); });
       body.after(more);
+      // Find in page hit a card past the first: open the lane, so the rest show too.
+      body.addEventListener('beforematch', function () { open[key] = true; limit(lane); });
     }
     more.hidden = !long || searching || body.hidden;
     more.textContent = open[key] ? 'Show the first ' + FIRST : 'Show all ' + cards.length;
@@ -152,6 +216,10 @@
   if (!box) return;
   var note = document.querySelector('.card-find-note');
   var cards = document.querySelectorAll('li.card-x');
+  // The note is a live region, so it is written about 300ms after typing stops, not on every
+  // key (#264); the cards light and dim at once.
+  var noteTimer;
+  function say(text) { clearTimeout(noteTimer); note.textContent = text; }
   function light() {
     var q = box.value.trim().toLowerCase();
     var n = 0;
@@ -159,9 +227,15 @@
       var hit = q && li.textContent.toLowerCase().indexOf(q) >= 0;
       li.classList.toggle('find-hit', !!hit);
       li.classList.toggle('find-dim', !!q && !hit);
-      if (hit && !li.hidden) n++;
+      if (hit && !soloagileFiltered(li)) n++;
     });
-    note.textContent = !q ? '' : /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
+    // An emptied box clears the note at once, so an old count never outlives the lit cards.
+    if (!q) say('');
+    else {
+      var text = /^#?\d+$/.test(q) ? 'Enter opens card #' + q.replace('#', '') : n + (n === 1 ? ' card matches' : ' cards match');
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(function () { note.textContent = text; }, 300);
+    }
     if (window.soloagileLimit) window.soloagileLimit(!!q && !/^#?\d+$/.test(q));
   }
   box.addEventListener('input', light);
@@ -170,10 +244,10 @@
     var m = box.value.trim().match(/^#?(\d+)$/);
     if (e.key !== 'Enter' || !m) return;
     var li = document.querySelector('li.card-x[data-id="' + m[1] + '"]');
-    if (!li) { note.textContent = 'no card #' + m[1] + ' on this page'; return; }
+    if (!li) { say('no card #' + m[1] + ' on this page'); return; }
     var menu = document.querySelector('.ms-filter select');
-    if (li.hidden && menu) { menu.value = ''; menu.dispatchEvent(new Event('change')); }
-    if (li.classList.contains('over') && window.soloagileLimit) window.soloagileLimit(false, li);
+    if (soloagileFiltered(li) && menu) { menu.value = ''; menu.dispatchEvent(new Event('change')); }
+    if (li.hasAttribute('hidden') && window.soloagileLimit) window.soloagileLimit(false, li);
     var modal = li.querySelector('.card-modal');
     if (modal) modal.showModal(); else li.scrollIntoView({ block: 'center' });
   });
