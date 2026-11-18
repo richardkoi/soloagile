@@ -72,9 +72,9 @@
 <main>
   <a class="back" href="../">&larr; soloagile's page</a>
   <h1>The build fleet</h1>
-  <p class="lead">A crew of five that takes one card from plan to finished code, checks it
+  <p class="lead">A crew of six that takes one card from plan to finished code, checks it
   three different ways, and then waits for you. Nothing goes into the main code until you say yes.</p>
-  <span class="status">Planned: milestone M34, not built yet</span>
+  <span class="status">Planned: milestones M34 and M36, not built yet</span>
 
   <h2>Meet the crew</h2>
   <p class="sub">Each worker is an animal from Aesop's Fables. The animal tells you its job.</p>
@@ -95,6 +95,10 @@
       <div><h3>Milo the Mole</h3><p class="job">The blind reviewer</p>
       <p>Sees only the changes and what the card asked for, and feels along every line for a weak spot. He's a different AI model, so he doesn't share Tobin's blind spots.</p>
       <p class="never">Can't open other files or run anything.</p></div></div>
+    <div class="who"><img src="cora-crane.webp" alt="Cora the Crane">
+      <div><h3>Cora the Crane</h3><p class="job">The designer</p>
+      <p>Sees the whole screen from above. Before anything on screen is built she sketches it with one recommendation; after, she checks the phone and desktop pictures against it.</p>
+      <p class="never">Never approves a look. Your eye has the last word.</p></div></div>
     <div class="who"><img src="rufus-watchdog.webp" alt="Rufus the Watchdog">
       <div><h3>Rufus the Watchdog</h3><p class="job">The security lister</p>
       <p>Called only when a quick search of the changes finds logins, keys or passwords. Then he barks at every such line and lists them for you to read.</p>
@@ -102,12 +106,14 @@
   </div>
 
   <h2>One run, step by step</h2>
-  <p class="sub">For a card that changes logic or data, or anything risky. Claude marks those when planning, and you can mark any card. Cards that are only about looks build as they do today, because your eye is their check. Every step writes a short file, so you can see what happened.</p>
+  <p class="sub">For a card that changes logic or data, or anything risky. Claude marks those when planning, and you can mark any card. Cards that are only about looks take a short path: Cora and Tobin. Every step writes a short file, so you can see what happened.</p>
   <ol class="run">
     <li><img src="ada-ant.webp" alt=""><div><h3>Ada checks the gate</h3>
       <p>Is the card ready? If any box isn't ticked, the run stops here. <span class="file">doctor.md</span></p></div></li>
     <li><img src="orla-owl.webp" alt=""><div><h3>Orla writes the plan</h3>
       <p>She reads the card and the code around it. If there's a real choice to make, it becomes a question for you on the board and the run waits. <span class="file">plan.md</span></p></div></li>
+    <li><img src="cora-crane.webp" alt=""><div><h3>Cora sketches the screen</h3>
+      <p>Only when the card changes something on screen: a small mock-up and one recommendation. A real choice comes to you, with pictures. <span class="file">design.md</span></p></div></li>
     <li><img src="tobin-tortoise.webp" alt=""><div><h3>Tobin builds it</h3>
       <p>In his own copy of the code, on a branch named after the card, with a test for each "done when". <span class="file">build.md</span></p></div></li>
     <li><img src="milo-mole.webp" alt=""><div><h3>Milo reviews it blind</h3>
@@ -119,6 +125,8 @@
       <p>Only if a quick search finds changes near logins, keys or passwords: each one with its file and line. <span class="file">security-list.md</span></p></div></li>
     <li><img src="orla-owl.webp" alt=""><div><h3>Orla tests and writes it up</h3>
       <p>Runs the project's checks, takes phone pictures for anything on screen, writes what was and wasn't tested, and leaves the work waiting on its own branch. <span class="file">report.md</span></p></div></li>
+    <li><img src="cora-crane.webp" alt=""><div><h3>Cora checks the pictures</h3>
+      <p>Phone and desktop, light and dark, against her sketch. Anything off goes back to Tobin before you see it.</p></div></li>
     <li class="you"><span class="num">You</span><div><h3>You decide</h3>
       <p>The card waits in <b>Needs your look</b>. Read the report and Rufus's list, then say yes and it's merged into the main code, send it back with a note, or drop it.</p></div></li>
   </ol>
@@ -147,7 +155,8 @@
     <li><b>No helper can read your passwords or keys.</b> A guard blocks it, and the first run proves the guard works.</li>
     <li><b>Spotted something else?</b> It becomes an Ideas card, never a sneaky extra fix.</li>
     <li><b>It knows when to stop:</b> at 98% of your usage, after a set number of turns per step, and after two rounds of fixes.</li>
-    <li><b>Looks skip it.</b> Cards that are only about how something looks build as today; the crew costs more than it would catch there.</li>
+    <li><b>Look cards take a short path:</b> just Cora and Tobin, with no blind review or security list.</li>
+    <li><b>The right tools for the job:</b> Orla picks which Claude skills each worker loads, and writes down why.</li>
   </ul>
 
   <footer>Pictures made in Gemini. The crew in full: docs/fleet-crew.md in the soloagile repo.
