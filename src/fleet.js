@@ -99,7 +99,8 @@ export function preflightText(id, { stage, file, cleared, said }) {
 // as { at, pcts, resetAt }, or { at, said } when there were no numbers. A resumed run keeps a
 // start with numbers; a start with none (or one that can't be read) gives way to a later one
 // that has them, and keeps the failed one's time as replaced. resetAt is each window's reset
-// time, from usageResets.
+// time, from usageResets; resetsSet says usageResets was set, even when no window had a
+// reset value (#274).
 export async function recordUsageStart(repo, id, usage, { now = new Date() } = {}) {
   const file = join(runDir(repo, id), 'usage-start.json');
   const u = usage ?? (await readUsage());
@@ -113,6 +114,7 @@ export async function recordUsageStart(repo, id, usage, { now = new Date() } = {
   if (numbers) {
     start = { at: now.toISOString(), pcts: u.pcts };
     if (typeof old?.at === 'string') start.replaced = old.at;
+    if (u.resets) start.resetsSet = true;
     if (u.resets && Object.keys(u.resets).length) {
       start.resetAt = Object.fromEntries(Object.entries(u.resets).map(([n, min]) => [n, new Date(now.getTime() + min * 60000).toISOString()]));
     }
@@ -127,7 +129,9 @@ export async function recordUsageStart(repo, id, usage, { now = new Date() } = {
 // trimmed to one decimal against float noise (4% → 4.6%). A window lower at the end than at
 // the start, or whose reset time (start.resetAt) had come by now, reset during the run, so
 // its share is unknown; a minute's grace after resetAt allows for the reading's rounding to
-// whole minutes. A window with no resetAt says its reset wasn't checked. A start that replaced
+// whole minutes. A window with no resetAt says its reset wasn't checked, and why: with
+// start.resetsSet, usageResets was set but gave no reset value for it at the start; without
+// it (including starts written before #274), usageResets isn't set. A start that replaced
 // a failed one (start.replaced) says when each was read, as ISO times.
 // others: cards whose runs overlapped, whose cost is in the same numbers.
 export function costLines(start, end, { others = [], now = new Date() } = {}) {
@@ -139,7 +143,8 @@ export function costLines(start, end, { others = [], now = new Date() } = {}) {
     for (const [name, from] of Object.entries(start.pcts)) {
       const to = end.pcts[name];
       const resetAt = Date.parse(start.resetAt?.[name]);
-      const unchecked = Number.isFinite(resetAt) ? '' : " (reset not checked: usageResets isn't set)";
+      const why = start.resetsSet ? `no reset reading for the ${name} at the start` : "usageResets isn't set";
+      const unchecked = Number.isFinite(resetAt) ? '' : ` (reset not checked: ${why})`;
       if (to == null) lines.push(`- the ${name}: not measured, no reading at the end`);
       else if (!Number.isFinite(from) || !Number.isFinite(to)) lines.push(`- the ${name}: not measured, the reading isn't a number`);
       else if (to < from || now.getTime() >= resetAt + 60000) lines.push(`- the ${name}: not measured, it reset during the run`);

@@ -90,7 +90,7 @@ const COMMANDS = [
   ['set [habit on|off] [--all]', 'switch a habit for this project, or every project; alone, list them'],
   ['pictures <card> [files…] [--url <address>] [--caption "…"] [--by "<command>"]', "a card's own page of pictures, and the script that takes them again"],
   ['retake <card>', "take a card's pictures again, from its kept script"],
-  ['cleanup [--dry-run] [--days 7]', 'clear merged helper worktrees, old shots folders, and old cards\' picture pages'],
+  ['cleanup [--dry-run] [--days 7]', 'clear merged helper worktrees, old shots folders (card copies\' too), and old cards\' picture pages'],
   ['backup', "run the project's backup command, named in pm/settings.json"],
   ['rule "<the rule>" [--from "retro of M3, #12"]', "add a standing rule to the project's CLAUDE.md"],
   ['rule --remove <n>', 'take standing rule n out of CLAUDE.md and renumber the rest'],

@@ -1186,6 +1186,29 @@ test("round 2: a measured window with no reset time says its reset wasn't checke
   assert.equal(text, "## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%) (reset not checked: usageResets isn't set)");
 });
 
+test('usageResets set but a window had no reset value at the start: the cost says the reading was missing (#274)', async () => {
+  const settings = { ...TS_SETTINGS, usageResets: { week: 'windows.seven_day.minutes_to_reset', '5 hours': 'windows.five_hour.minutes_to_reset' } };
+  const dir = repo();
+  await recordUsageStart(dir, 1, await readUsage(settings, TS(54.0, 4.0, null, 9927)), { now: new Date('2026-11-18T10:00:00Z') });
+  const text = await runCost(dir, 1, { usage: await readUsage(settings, TS(61.0, 4.6)), now: new Date('2026-11-18T11:00:00Z') });
+  assert.equal(text, '## Cost\n- the week: 0.6% of the limit (4% → 4.6%)\n- the 5 hours: 7.0% of the limit (54% → 61%) (reset not checked: no reset reading for the 5 hours at the start)');
+  // Neither window had a value: both say so, and neither blames the setting.
+  const none = repo();
+  await recordUsageStart(none, 1, await readUsage(settings, TS(54.0, 4.0, null, null)), { now: new Date('2026-11-18T10:00:00Z') });
+  const both = await runCost(none, 1, { usage: await readUsage(settings, TS(61.0, 4.6)), now: new Date('2026-11-18T11:00:00Z') });
+  assert.match(both, /- the week: .* \(reset not checked: no reset reading for the week at the start\)/);
+  assert.match(both, /- the 5 hours: .* \(reset not checked: no reset reading for the 5 hours at the start\)/);
+  assert.doesNotMatch(both, /usageResets isn't set/);
+});
+
+test("usageResets not set: the cost still says usageResets isn't set (#274)", async () => {
+  const dir = repo();
+  await recordUsageStart(dir, 1, await readUsage(TS_SETTINGS, TS(54.0, 4.0)), { now: new Date('2026-11-18T10:00:00Z') });
+  assert.equal(JSON.parse(readFileSync(join(runDir(dir, 1), 'usage-start.json'), 'utf8')).resetsSet, undefined);
+  const text = await runCost(dir, 1, { usage: await readUsage(TS_SETTINGS, TS(61.0, 4.6)), now: new Date('2026-11-18T11:00:00Z') });
+  assert.equal(text, `## Cost\n- the week: 0.6% of the limit (4% → 4.6%)${NC}\n- the 5 hours: 7.0% of the limit (54% → 61%)${NC}`);
+});
+
 test('round 2: a replaced start says so in the cost (#271)', async () => {
   const dir = repo();
   await recordUsageStart(dir, 1, { pct: null, said: 'refused' }, { now: new Date('2026-11-18T10:00:00Z') });

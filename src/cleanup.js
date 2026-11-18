@@ -2,6 +2,8 @@
 //   - helper worktrees under .claude/worktrees whose branch is merged and nothing is left uncommitted
 //   - soloagile shots folders (pm-shots-*) in the temp folder, untouched for a week; a card's
 //     own go sooner, when it moves to Needs your look (clearCardShots)
+//   - card copy shots folders (soloagile-card-<n>-*, made by shots --card) in the temp folder,
+//     untouched for a week (#276)
 //   - card picture pages (pm/designs/card-<n>/) of cards finished over a week ago; their
 //     kept script in pm/takes/ stays, so `soloagile retake` brings one back
 // A session start runs it once a week when the weekly-cleanup habit is on.
@@ -64,6 +66,7 @@ export function cleanupProject(repo, { days = 7, now = new Date(), dry = false, 
   if (existsSync(temp)) {
     for (const f of readdirSync(temp)) {
       if (f.startsWith('pm-shots-') && old(join(temp, f))) gone(join(temp, f), 'an old shots folder');
+      else if (/^soloagile-card-\d+-/.test(f) && old(join(temp, f))) gone(join(temp, f), "an old card copy's shots folder");
     }
   }
   const designs = join(repo, 'pm', 'designs');
