@@ -45,6 +45,22 @@ test("cleanup: old shots folders, and the picture pages of cards finished over a
   assert.deepEqual([1, 2, 3].map((id) => existsSync(join(repo, 'pm', 'designs', `card-${id}`))), [false, true, true], 'recent or unfinished cards keep theirs');
 });
 
+test('cleanup: an old soloagile-card-<n>-* folder (shots --card, #270) is listed by --dry-run and removed; a new one stays (#276)', () => {
+  const repo = project();
+  const temp = mkdtempSync(join(tmpdir(), 'soloagile-temp-'));
+  for (const [name, age] of [['soloagile-card-7-abc', 9], ['soloagile-card-7-new', 1]]) {
+    mkdirSync(join(temp, name, 'pm'), { recursive: true });
+    aged(join(temp, name), age);
+  }
+  const dry = cleanupProject(repo, { now: NOW, temp, dry: true }).filter((l) => l.includes('soloagile-card-'));
+  assert.equal(dry.length, 1);
+  assert.match(dry[0], /^would remove an old card copy's shots folder: .*soloagile-card-7-abc$/);
+  assert.ok(existsSync(join(temp, 'soloagile-card-7-abc')), 'a dry run removes nothing');
+  const said = cleanupProject(repo, { now: NOW, temp });
+  assert.match(said.join('\n'), /removed an old card copy's shots folder: .*soloagile-card-7-abc/);
+  assert.deepEqual(['soloagile-card-7-abc', 'soloagile-card-7-new'].map((f) => existsSync(join(temp, f))), [false, true]);
+});
+
 test('cleanup removes a helper worktree once its work is merged, and keeps a fresh one and one with work left', () => {
   const repo = project();
   git(repo, 'init', '-q', '-b', 'main');
