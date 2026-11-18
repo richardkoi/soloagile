@@ -372,7 +372,7 @@ body:has(#settings:target) .tab-settings { display: block; }
 .card-took { margin-top: 6px; text-align: right; font-size: var(--font-xs); color: var(--text-muted); }
 .card-range { margin-top: 6px; text-align: right; font-size: var(--font-xs); color: var(--text-muted); }
 .pts .guess { font-weight: var(--weight-regular); margin-left: 6px; padding-left: 6px; border-left: 1px solid currentColor; }
-.card-title { color: var(--text-primary); font-size: var(--font-base); line-height: 1.35; overflow-wrap: anywhere; }
+.card-title { color: var(--text-primary); font-size: var(--font-base); font-weight: var(--weight-regular); line-height: 1.35; overflow-wrap: anywhere; }
 .card-meta { margin-top: 6px; font-size: var(--font-xs); color: var(--text-muted); }
 /* The card's one short line: anything past two lines is cut off with "…". */
 .card-note { margin-top: 5px; font-size: var(--font-xs); color: var(--text-faint); line-height: 1.35; overflow-wrap: anywhere;
@@ -525,13 +525,17 @@ body:has(#settings:target) .tab-settings { display: block; }
 .dated-title { color: var(--text-primary); }
 /* Plan: a milestone folds out; the arrow turns when it is open. */
 .ms-fold { margin: var(--space-md) 0; }
-.ms-fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
-.ms-fold > summary::-webkit-details-marker { display: none; }
-.ms-fold > summary::before { content: ""; flex: none; width: 9px; height: 9px; margin: 0 4px 0 2px; border-right: 3px solid var(--text-muted);
+/* The h3 holds the button (#261); the button lays out as the old summary line did: the
+   arrow, then the tag, name and pill wrapping in .ms-row. */
+/* Padding, not margin: inside the old summary line the h3's margin never collapsed. */
+.ms-fold > h3 { display: block; margin: 0; padding: var(--space-sm) 0; }
+.ms-toggle { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+  width: 100%; display: flex; align-items: center; gap: 8px; }
+.ms-row { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.ms-toggle::before { content: ""; flex: none; width: 9px; height: 9px; margin: 0 4px 0 2px; border-right: 3px solid var(--text-muted);
   border-bottom: 3px solid var(--text-muted); transform: rotate(-45deg); transition: transform 0.15s; }
-.ms-fold[open] > summary::before { transform: rotate(45deg); }
-.ms-fold > summary h3 { margin: var(--space-sm) 0; flex: 1; }
-.ms-fold > summary:focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; }
+.ms-toggle[aria-expanded="true"]::before { transform: rotate(45deg); }
+.ms-toggle:focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; }
 .ms-body { padding-left: 25px; }
 
 .sha { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-xs) !important; color: var(--text-muted); }

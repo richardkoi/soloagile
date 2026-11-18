@@ -418,3 +418,54 @@ test("a card's pop-up is a modal dialog: Tab stays inside, Escape and a tap outs
   assert.deepEqual(seen.escaped, { modal: false, open: false, focusOnOpener: true }, 'Escape closes it, and focus is back on the card');
   assert.deepEqual(seen.tapped, { modal: false, open: false, focusOnOpener: true }, 'a tap outside closes it, and focus is back on the card');
 });
+
+test('the fold button folds a lane and names it; a milestone heading opens and shuts its body, and #plan-M1 opens it (#261)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-heads261-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), board('A card'));
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n## Milestones\n### M1 — Old one · done 2026-09-30\nOld words.\n\n### M2 — New one · in progress\nNew words.\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const steps = {};
+    steps.fold = await run(`(() => { const b = document.querySelector('.lane-done .lane-fold'); const before = b.getAttribute('aria-label'); b.click();
+      return { before, after: b.getAttribute('aria-label'), folded: b.closest('.lane').classList.contains('folded') }; })()`);
+    const ms = (id) => `(() => { const f = document.getElementById('plan-${id}'); return { expanded: f.querySelector('.ms-toggle').getAttribute('aria-expanded'), shown: !f.querySelector('.ms-body').hidden }; })()`;
+    steps.start = { m1: await run(ms('M1')), m2: await run(ms('M2')) };
+    await run(`document.querySelector('#plan-M2 .ms-toggle').click()`);
+    steps.shut = await run(ms('M2'));
+    await run(`document.querySelector('#plan-M2 .ms-toggle').click()`);
+    steps.reopened = await run(ms('M2'));
+    await run(`location.hash = '#plan-M1'`);
+    await new Promise((ok) => setTimeout(ok, 200));
+    steps.linked = await run(ms('M1'));
+    steps.planShown = await run(`!!document.querySelector('.tab-plan').offsetParent`);
+    return steps;
+  });
+  assert.deepEqual(seen.fold, { before: 'Fold Done to a strip', after: 'Unfold Done', folded: true }, "the lane's name comes from its heading now");
+  assert.deepEqual(seen.start, { m1: { expanded: 'false', shown: false }, m2: { expanded: 'true', shown: true } }, 'a done milestone starts folded');
+  assert.deepEqual(seen.shut, { expanded: 'false', shown: false });
+  assert.deepEqual(seen.reopened, { expanded: 'true', shown: true });
+  assert.deepEqual(seen.linked, { expanded: 'true', shown: true }, '#plan-M1 opens that milestone');
+  assert.equal(seen.planShown, true);
+});
+
+test("a page opened at a hash that can't be decoded (#%) still opens a folded milestone from a later #plan-M1 (#261)", { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-badhash261-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), board('A card'));
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n## Milestones\n### M1 — Old one · done 2026-09-30\nOld words.\n\n### M2 — New one · in progress\nNew words.\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const seen = await withPage(pathToFileURL(out).href + '#%', async (page) => {
+    await new Promise((ok) => setTimeout(ok, 300));
+    const run = async (expression) => (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+    const hash = await run('location.hash');
+    await run(`location.hash = '#plan-M1'`);
+    await new Promise((ok) => setTimeout(ok, 200));
+    return { hash, m1: await run(`document.querySelector('#plan-M1 .ms-toggle').getAttribute('aria-expanded') + ' ' + !document.querySelector('#plan-M1 .ms-body').hidden`) };
+  });
+  assert.equal(seen.hash, '#%', 'the page really opened at #%');
+  assert.equal(seen.m1, 'true true', '#plan-M1 opens the folded milestone after a bad hash');
+});
