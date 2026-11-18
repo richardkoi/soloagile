@@ -1,14 +1,42 @@
 <!-- Tab icon: a small kanban board in the lane colours, on parchment so it shows on dark and light
      tab bars. It is inline because the page server serves only the page and its design pictures. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23F5EDE0'/%3E%3Crect x='5.5' y='6' width='5.5' height='20' rx='1.5' fill='%23C98500'/%3E%3Crect x='13.25' y='6' width='5.5' height='11' rx='1.5' fill='%23D95926'/%3E%3Crect x='21' y='6' width='5.5' height='15.5' rx='1.5' fill='%23199E70'/%3E%3C/svg%3E">
+<meta name="color-scheme" content="light dark">
 <script>
-/* Theme: dark unless this browser chose light. Runs before paint so there's no flash. */
-try { if (localStorage.getItem('pm-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (e) {}
-function toggleTheme() {
-  var root = document.documentElement, next = root.dataset.theme === 'light' ? 'dark' : 'light';
-  root.dataset.theme = next;
-  try { localStorage.setItem('pm-theme', next); } catch (e) {}
+/* Theme (template/theme.html): the computer's light or dark setting, unless this browser
+   picked Light or Dark, saved under pm-theme (soloagile shots sets it too). Runs before paint
+   so there's no flash. System removes pm-theme; a saved choice is kept even when the
+   computer later changes to match it. Another open tab that changes it is followed. */
+function showTheme(choice) {
+  var root = document.documentElement, meta = document.querySelector('meta[name="color-scheme"]');
+  if (choice === 'light' || choice === 'dark') root.dataset.theme = choice; else delete root.dataset.theme;
+  if (meta) meta.content = root.dataset.theme || 'light dark';
+  var pick = document.querySelector('#theme-menu input[value="' + (root.dataset.theme || 'system') + '"]');
+  if (pick) pick.checked = true;
 }
+function savedTheme() { try { return localStorage.getItem('pm-theme'); } catch (e) { return null; } }
+function setTheme(choice) {
+  try { if (choice === 'light' || choice === 'dark') localStorage.setItem('pm-theme', choice); else localStorage.removeItem('pm-theme'); } catch (e) {}
+  showTheme(choice);
+}
+showTheme(savedTheme());
+window.addEventListener('storage', function (e) { if (e.key === 'pm-theme' || e.key === null) showTheme(savedTheme()); });
+// The list: picking a radio (click or arrow keys) applies it at once and the list stays open.
+// Opening it puts focus on the chosen radio; Tab out of it closes it (Esc and a click outside
+// close it by themselves). A focusout with no relatedTarget is a mouse press on a label's text
+// or the list's padding, which moves focus to nothing: closing then would lose the click.
+document.addEventListener('DOMContentLoaded', function () {
+  var menu = document.getElementById('theme-menu');
+  if (!menu) return;
+  showTheme(savedTheme());
+  menu.addEventListener('change', function (e) { setTheme(e.target.value); });
+  menu.addEventListener('toggle', function (e) { if (e.newState === 'open') menu.querySelector('input:checked').focus(); });
+  menu.addEventListener('focusout', function (e) {
+    var to = e.relatedTarget;
+    if (!to || menu.contains(to) || to.closest('[popovertarget="theme-menu"]')) return;
+    if (menu.matches(':popover-open')) menu.hidePopover();
+  });
+});
 /* Keep awake (template/awake.html): off unless this browser turned it on. While on, the page
    holds a screen wake lock, so the computer doesn't sleep through a long session. The browser
    lets go whenever the page is hidden, and each rebuild reloads the page, so the lock is taken
@@ -70,37 +98,29 @@ document.addEventListener('DOMContentLoaded', showAwake);
   --width-reading: 1000px; --width-wide: 1600px;
 }
 
-/* ---------- tokens: dark (default) ---------- */
-:root, [data-theme="dark"] {
-  color-scheme: dark;
-  --bg-canvas: #0D100D; --bg-surface: #161A15; --bg-overlay: #222820; --bg-inset: #1C211A;
-  --border-default: #666C5C; --border-muted: #2A2E26;
-  --text-primary: #E8E0CE; --text-secondary: #C4BAA4; --text-muted: #A8A18E; --text-faint: #918A78;
-  --accent-link: #8AAD6A; --accent-green: #7AAD5A; --accent-yellow: #D4A843; --accent-orange: #CC7744;
-  --accent-green-bg: #7AAD5A20; --accent-yellow-bg: #D4A84320; --accent-orange-bg: #CC774420;
-  --accent-link-bg: #8AAD6A20; --brand-swatch: #B89438;
-  --proj-1: #3987e5; --proj-2: #d95926; --proj-3: #199e70; --proj-4: #c98500;
-  --proj-5: #d55181; --proj-7: #9085e9; --proj-ink: 100%;
-  --pts-lo: #8FC46C; --pts-hi: #F58A7C;
-  --ms-0: #A3C95A; --ms-1: #5AA2F0; --ms-2: #E08A4A; --ms-3: #B79CF2;
-  --ms-4: #E87BA4; --ms-5: #3FBFAE; --ms-6: #D9B648; --ms-7: #5CC4E6;
+/* ---------- tokens: colour, light then dark ----------
+   The page follows the computer's light or dark setting (color-scheme: light dark), unless
+   this browser picked Light or Dark in the header: then the early script sets data-theme and
+   the color-scheme meta tag, and the root's color-scheme follows. Each colour is
+   light-dark(light, dark), so it takes whichever scheme the root has. */
+:root {
+  color-scheme: light dark;
+  --bg-canvas: light-dark(#F5EDE0, #0D100D); --bg-surface: light-dark(#FBF6EF, #161A15); --bg-overlay: light-dark(#EDE4D4, #222820); --bg-inset: light-dark(#F0E8DA, #1C211A);
+  --border-default: light-dark(#928464, #666C5C); --border-muted: light-dark(#E4D8C4, #2A2E26);
+  --text-primary: light-dark(#1A1210, #E8E0CE); --text-secondary: light-dark(#3A2E28, #C4BAA4); --text-muted: light-dark(#554C40, #A8A18E); --text-faint: light-dark(#6B6154, #918A78);
+  --accent-link: light-dark(#2A4060, #8AAD6A); --accent-green: light-dark(#3A7D2A, #7AAD5A); --accent-yellow: light-dark(#6E5600, #D4A843); --accent-orange: light-dark(#B8520A, #CC7744);
+  --accent-green-bg: light-dark(#3A7D2A18, #7AAD5A20); --accent-yellow-bg: light-dark(#9A7A0018, #D4A84320); --accent-orange-bg: light-dark(#B8520A18, #CC774420);
+  --accent-link-bg: light-dark(#2A406018, #8AAD6A20); --brand-swatch: light-dark(#C62831, #B89438);
+  --proj-1: light-dark(#2a78d6, #3987e5); --proj-2: light-dark(#eb6834, #d95926); --proj-3: light-dark(#1baf7a, #199e70); --proj-4: light-dark(#eda100, #c98500);
+  --proj-5: light-dark(#e87ba4, #d55181); --proj-7: light-dark(#4a3aa7, #9085e9);
+  --pts-lo: light-dark(#2A641C, #8FC46C); --pts-hi: light-dark(#9A1A14, #F58A7C);
+  --ms-0: light-dark(#4A6A12, #A3C95A); --ms-1: light-dark(#1F5FB0, #5AA2F0); --ms-2: light-dark(#A8480C, #E08A4A); --ms-3: light-dark(#5B3FB5, #B79CF2);
+  --ms-4: light-dark(#B0306A, #E87BA4); --ms-5: light-dark(#0F6F62, #3FBFAE); --ms-6: light-dark(#7A5C00, #D9B648); --ms-7: light-dark(#0E6585, #5CC4E6);
+  /* The pink pill's text: darkened on light so it reads (was a --proj-ink percentage). */
+  --proj-5-ink: light-dark(color-mix(in srgb, #e87ba4 78%, black), #d55181);
 }
-
-/* ---------- tokens: light ---------- */
-[data-theme="light"] {
-  color-scheme: light;
-  --bg-canvas: #F5EDE0; --bg-surface: #FBF6EF; --bg-overlay: #EDE4D4; --bg-inset: #F0E8DA;
-  --border-default: #928464; --border-muted: #E4D8C4;
-  --text-primary: #1A1210; --text-secondary: #3A2E28; --text-muted: #554C40; --text-faint: #6B6154;
-  --accent-link: #2A4060; --accent-green: #3A7D2A; --accent-yellow: #6E5600; --accent-orange: #B8520A;
-  --accent-green-bg: #3A7D2A18; --accent-yellow-bg: #9A7A0018; --accent-orange-bg: #B8520A18;
-  --accent-link-bg: #2A406018; --brand-swatch: #C62831;
-  --proj-1: #2a78d6; --proj-2: #eb6834; --proj-3: #1baf7a; --proj-4: #eda100;
-  --proj-5: #e87ba4; --proj-7: #4a3aa7; --proj-ink: 78%;
-  --pts-lo: #2A641C; --pts-hi: #9A1A14;
-  --ms-0: #4A6A12; --ms-1: #1F5FB0; --ms-2: #A8480C; --ms-3: #5B3FB5;
-  --ms-4: #B0306A; --ms-5: #0F6F62; --ms-6: #7A5C00; --ms-7: #0E6585;
-}
+:root[data-theme="dark"], :root:has(> head > meta[name="color-scheme"][content="dark"]) { color-scheme: dark; }
+:root[data-theme="light"], :root:has(> head > meta[name="color-scheme"][content="light"]) { color-scheme: light; }
 
 /* ---------- base ---------- */
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -110,9 +130,6 @@ a { color: var(--accent-link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; border-radius: var(--radius-sm); }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: 0.01ms !important; }
-}
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dk-skip { position: absolute; left: -9999px; top: 0; z-index: 999; background: var(--bg-surface); color: var(--accent-link);
   border: 1px solid var(--accent-link); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md); font-size: var(--font-sm); }
@@ -133,6 +150,36 @@ button { font-family: inherit; }
 .header-right { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); }
 .updated { font-size: var(--font-xs); color: var(--text-muted); }
 @media (max-width: 1100px) { .header { flex-wrap: wrap; } .header-right { justify-content: flex-start; } }
+/* The desktop header in two slim rows (#257), so it stays under 12% of the screen.
+   Row 1: the title with the subtitle beside it, the time at the right.
+   Row 2: the tabs, with ?, Awake and Dark/Light at the right end.
+   Desktop only: the phone keeps its own short header (#227) further down. */
+@media (min-width: 701px) {
+  :root { --header-pad-y: 10px; --header-h: 100px; }   /* 99px measured at 1400 wide */
+  .header { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "title right" "nav right"; row-gap: 6px; column-gap: var(--space-lg); align-items: center; }
+  .header-left { display: contents; }
+  .header-left > div { grid-area: title; display: flex; align-items: baseline; gap: var(--space-md); min-width: 0; }
+  .header-title { font-size: var(--font-xl); flex: none; }
+  /* A long subtitle ends in "…" instead of wrapping, so the header's height never changes. */
+  .header-subtitle { margin: 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dk-nav { grid-area: nav; }
+  /* The time on row 1; the buttons under it. The ? popover's div is display:none while
+     closed, so it takes no cell. */
+  .header-right { grid-area: right; display: grid; grid-auto-flow: column; justify-content: end; justify-items: end;
+    align-items: center; gap: 6px var(--space-sm); align-self: stretch; grid-template-rows: auto auto; }
+  .header-right .updated { grid-row: 1; grid-column: 1 / -1; }
+  .header-right > :not(.updated) { grid-row: 2; }
+  /* The sticky header covers the top of the window: a focused card or a #plan-M9 target is
+     scrolled to land below it rather than under it. */
+  html { scroll-padding-top: calc(var(--header-h) + var(--space-sm)); }
+}
+/* Narrower, the tabs wrap onto more lines (measured on soloagile's and weatherglider's pages:
+   a second line below about 1190px, a third below 855px, a fourth below 730px), so the band
+   kept clear grows with them, with a little room to spare at each step. */
+@media (min-width: 701px) and (max-width: 1200px) { :root { --header-h: 148px; } }
+@media (min-width: 701px) and (max-width: 860px) { :root { --header-h: 196px; } }
+@media (min-width: 701px) and (max-width: 760px) { :root { --header-h: 244px; } }
 
 /* ---------- nav (the page's tabs) ----------
    Each link targets an empty anchor at the top of the page, so switching never
@@ -141,7 +188,8 @@ button { font-family: inherit; }
 .anchor { display: block; height: 0; }
 .dk-nav { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 .dk-nav a { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-base); color: var(--text-muted);
-  padding: 6px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); white-space: nowrap; }
+  padding: 6px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); white-space: nowrap;
+  position: relative; }
 .dk-nav a:hover { color: var(--accent-link); border-color: var(--accent-link); text-decoration: none; }
 body:not(:has(.anchor:target, .ms-fold:target)) .dk-nav a[href="#board"],
 body:has(#board:target) .dk-nav a[href="#board"],
@@ -151,6 +199,13 @@ body:has(#releases:target) .dk-nav a[href="#releases"],
 body:has(#docs:target) .dk-nav a[href="#docs"],
 body:has(#links:target) .dk-nav a[href="#links"],
 body:has(#settings:target) .dk-nav a[href="#settings"] { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
+/* The open tab's shape (#260), so it isn't shown by colour alone: a 3px bar on its bottom
+   edge, between the rounded corners, drawn from aria-current (set by the script in
+   refresh.html). It is a border, not a background, so a Windows contrast theme keeps it;
+   absolutely placed, so the tab keeps its size. */
+.dk-nav a[aria-current="page"]::after { content: ""; position: absolute;
+  inset: auto var(--radius-md) 0; border-block-end: 3px solid var(--accent-link); }
+@media (forced-colors: active) { .dk-nav a[aria-current="page"]::after { border-color: Highlight; } }
 .tab { display: none; }
 body:not(:has(.anchor:target, .ms-fold:target)) .tab-board,
 body:has(#board:target) .tab-board,
@@ -176,13 +231,37 @@ body:has(#settings:target) .tab-settings { display: block; }
 /* ---------- buttons ---------- */
 .btn { display: inline-flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md); border: 1px solid transparent; font-size: var(--font-sm); cursor: pointer;
-  transition: all var(--transition-fast); }
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast); }
 .btn-ghost { background: none; border-color: var(--border-default); color: var(--text-muted); }
 .btn-ghost:hover { background: var(--bg-overlay); border-color: var(--accent-link); color: var(--text-secondary); }
 .theme-swatch { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border-default);
   flex-shrink: 0; background: var(--brand-swatch); }
-.theme-name::after { content: "Dark"; }
-[data-theme="light"] .theme-name::after { content: "Light"; }
+/* The theme button says the choice (Light, Dark or System), with the dot in the brand colour of
+   the theme on screen. All three words are in the markup and CSS shows the one that applies,
+   so it is right before any script runs. Lit like the open tab while its list is open. */
+.theme-word { display: none; }
+:root:not([data-theme]) .theme-word-system, [data-theme="light"] .theme-word-light, [data-theme="dark"] .theme-word-dark { display: inline; }
+.theme-btn { anchor-name: --theme-btn; }
+.header-right:has(.theme-menu:popover-open) .theme-btn { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
+/* Its list: under the button, right edges lined up. Without anchor positioning it sits under
+   the header at the right. */
+.theme-menu { position: fixed; inset: auto; top: 72px; right: var(--space-md); margin: 0; width: 210px;
+  background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); box-shadow: 0 6px 20px #0005; padding: 6px; }
+@supports (position-area: bottom) {
+  .theme-menu { position-anchor: --theme-btn; position-area: bottom span-left; top: auto; right: auto; margin-top: 4px; }
+}
+.theme-menu fieldset { border: 0; }
+.theme-menu legend { font-size: var(--font-xs); color: var(--text-muted); padding: 4px 10px 6px; }
+.theme-opt { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: var(--space-sm) 10px;
+  border-radius: var(--radius-md); font-size: var(--font-base); cursor: pointer; }
+.theme-opt:hover { background: var(--bg-overlay); }
+.theme-opt:has(:checked) { background: var(--accent-link-bg); color: var(--text-primary); }
+.theme-opt input { accent-color: var(--accent-link); width: 16px; height: 16px; margin: 0; }
+/* System says what the computer is set to now. */
+.theme-now { margin-left: auto; font-size: var(--font-xs); color: var(--text-muted); }
+.theme-now-light { display: none; }
+@media (prefers-color-scheme: light) { .theme-now-dark { display: none; } .theme-now-light { display: inline; } }
 /* Keep awake (template/awake.html): lit like the open tab while on. Hidden where the browser
    has no wake lock, such as a page served over plain http. */
 [data-awake="on"] .awake { background: var(--accent-link-bg); color: var(--accent-link); border-color: var(--accent-link); }
@@ -214,7 +293,6 @@ body:has(#settings:target) .tab-settings { display: block; }
 .ms-left { margin: 0 0 8px; font-size: var(--font-sm); color: var(--text-muted); }
 .lane-body { list-style: none; padding: var(--space-sm); display: flex; flex-direction: column; gap: var(--space-sm); flex: 1; }
 /* A long lane's cards past its first ones (#219), and the button that shows them. */
-.card-x.over { display: none; }
 .lane-more { margin: 0 var(--space-sm) var(--space-sm); padding: 6px; border: 1px dashed var(--border-default);
   border-radius: var(--radius-md); background: none; color: var(--accent-link); font: inherit; font-size: var(--font-sm); cursor: pointer; }
 .lane-more:hover { background: var(--accent-link-bg); }
@@ -290,7 +368,7 @@ body:has(#settings:target) .tab-settings { display: block; }
 .card-took { margin-top: 6px; text-align: right; font-size: var(--font-xs); color: var(--text-muted); }
 .card-range { margin-top: 6px; text-align: right; font-size: var(--font-xs); color: var(--text-muted); }
 .pts .guess { font-weight: var(--weight-regular); margin-left: 6px; padding-left: 6px; border-left: 1px solid currentColor; }
-.card-title { color: var(--text-primary); font-size: var(--font-base); line-height: 1.35; overflow-wrap: anywhere; }
+.card-title { color: var(--text-primary); font-size: var(--font-base); font-weight: var(--weight-regular); line-height: 1.35; overflow-wrap: anywhere; }
 .card-meta { margin-top: 6px; font-size: var(--font-xs); color: var(--text-muted); }
 /* The card's one short line: anything past two lines is cut off with "…". */
 .card-note { margin-top: 5px; font-size: var(--font-xs); color: var(--text-faint); line-height: 1.35; overflow-wrap: anywhere;
@@ -308,7 +386,7 @@ body:has(#settings:target) .tab-settings { display: block; }
 
 /* ---------- card modal ---------- */
 /* A card with a description opens it in a modal. Its title is a button stretched over
-   the whole card; the browser's Popover API opens it, and closes it on Esc, on the
+   the whole card; it opens a modal <dialog> (#259), which closes on Esc, on the
    close button, or on a click outside. */
 .card-x { position: relative; }
 .card-open { font: inherit; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
@@ -316,8 +394,9 @@ body:has(#settings:target) .tab-settings { display: block; }
 .card-open:focus-visible { outline: none; }
 .card-x:has(.card-open:hover) { background: color-mix(in srgb, var(--hue) 20%, var(--bg-surface)); }
 .card-x:has(.card-open:focus-visible) { outline: 2px solid var(--accent-link); outline-offset: 2px; }
-/* margin: auto centres it; the reset at the top would otherwise pin it to the corner. */
-.card-modal { margin: auto; width: min(640px, calc(100vw - 2 * var(--space-md))); max-height: calc(100dvh - 2 * var(--space-lg));
+/* margin: auto centres it; the reset at the top would otherwise pin it to the corner.
+   max-width: none drops a modal dialog's own cap, which made it 6px narrower on a phone. */
+.card-modal { margin: auto; max-width: none; width: min(640px, calc(100vw - 2 * var(--space-md))); max-height: calc(100dvh - 2 * var(--space-lg));
   overflow-y: auto; overscroll-behavior: contain; background: var(--bg-surface); color: var(--text-secondary);
   border: 1px solid var(--border-default); border-left: 4px solid var(--hue); border-radius: var(--radius-lg); padding: var(--space-lg); }
 .card-modal::backdrop { background: rgb(0 0 0 / 0.65); }
@@ -380,7 +459,10 @@ body:has(#settings:target) .tab-settings { display: block; }
 .ms-filter { display: flex; align-items: center; gap: var(--space-sm); }
 .ms-filter-label { color: var(--text-muted); font-size: var(--font-sm); }
 .ms-filter select { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-overlay); color: var(--text-primary); max-width: min(360px, 100%); min-width: 0; }
-.card-x[hidden], .lane-body[hidden], .ms-none[hidden] { display: none; }
+/* Not on hidden="until-found" (#263): a display rule there would stop find in page. Chrome
+   keeps that card's box, though empty, so it leaves no border, padding or flex gap. */
+.card-x[hidden]:not([hidden="until-found"]), .lane-body[hidden], .ms-none[hidden] { display: none; }
+.card-x[hidden="until-found"] { position: absolute; border: 0; padding: 0; box-shadow: none; }
 .ms-fold { scroll-margin-top: var(--space-md); }
 /* The photo icon: a card with pictures inside, and how many. */
 .tag-pics { background: var(--accent-link-bg); color: var(--accent-link); border: 1px solid var(--accent-link); }
@@ -390,7 +472,7 @@ body:has(#settings:target) .tab-settings { display: block; }
 .st-hold  { background: var(--accent-yellow-bg); color: var(--accent-yellow); }
 .st-quiet { background: var(--bg-overlay);       color: var(--text-muted); }
 /* Look shares its card's pink, via My Board's project-pill formula. */
-.st-look  { background: color-mix(in srgb, var(--proj-5) 15%, transparent); color: color-mix(in srgb, var(--proj-5) var(--proj-ink), black); }
+.st-look  { background: color-mix(in srgb, var(--proj-5) 15%, transparent); color: var(--proj-5-ink); }
 /* Story points run from green (1) to red (13): each step is further along the mix from
    --pts-lo to --pts-hi, through yellow and orange. The end colours are picked so the text
    keeps at least 4.5:1 against its own tint on every card, in both themes. */
@@ -442,13 +524,19 @@ body:has(#settings:target) .tab-settings { display: block; }
 .dated-title { color: var(--text-primary); }
 /* Plan: a milestone folds out; the arrow turns when it is open. */
 .ms-fold { margin: var(--space-md) 0; }
-.ms-fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
-.ms-fold > summary::-webkit-details-marker { display: none; }
-.ms-fold > summary::before { content: ""; flex: none; width: 9px; height: 9px; margin: 0 4px 0 2px; border-right: 3px solid var(--text-muted);
-  border-bottom: 3px solid var(--text-muted); transform: rotate(-45deg); transition: transform 0.15s; }
-.ms-fold[open] > summary::before { transform: rotate(45deg); }
-.ms-fold > summary h3 { margin: var(--space-sm) 0; flex: 1; }
-.ms-fold > summary:focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; }
+/* The h3 holds the button (#261); the button lays out as the old summary line did: the
+   arrow, then the tag, name and pill wrapping in .ms-row. */
+/* Padding, not margin: inside the old summary line the h3's margin never collapsed. */
+.ms-fold > h3 { display: block; margin: 0; padding: var(--space-sm) 0; }
+.ms-toggle { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+  width: 100%; display: flex; align-items: center; gap: 8px; }
+.ms-row { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.ms-toggle::before { content: ""; flex: none; width: 9px; height: 9px; margin: 0 4px 0 2px; border-right: 3px solid var(--text-muted);
+  border-bottom: 3px solid var(--text-muted); transform: rotate(-45deg);
+  /* Reduced motion: the arrow turns at once (colour changes elsewhere still fade, #262). */
+  @media (prefers-reduced-motion: no-preference) { transition: transform 0.15s; } }
+.ms-toggle[aria-expanded="true"]::before { transform: rotate(45deg); }
+.ms-toggle:focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; }
 .ms-body { padding-left: 25px; }
 
 .sha { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-xs) !important; color: var(--text-muted); }
@@ -548,6 +636,12 @@ body:has(#settings:target) .tab-settings { display: block; }
 .chart-table th:first-child { text-align: left; }
 .chart-table thead th { color: var(--text-muted); font-weight: var(--weight-semibold); }
 
+/* The phone strip's fades (#260): registered, so the scroll-driven animations below can
+   ease them; unregistered custom properties would jump. */
+@property --fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes nav-fade-start { to { --fade-start: var(--fade-size); } }
+@keyframes nav-fade-end { from { --fade-end: var(--fade-size); } }
 /* ---------- phone ---------- */
 @media (max-width: 700px) {
   :root { --container-pad: var(--space-sm); --header-pad-y: var(--space-sm); --header-pad-x: var(--space-md); }
@@ -562,9 +656,22 @@ body:has(#settings:target) .tab-settings { display: block; }
   .header-right { grid-area: right; display: grid; grid-template-columns: auto auto auto; justify-items: end; align-items: center; gap: 4px var(--space-sm); }
   [data-awake="none"] .header-right { grid-template-columns: auto auto; }   /* no Awake button, so no empty column */
   .header-right .updated { grid-column: 1 / -1; grid-row: 2; white-space: nowrap; }
-  .updated-word, .theme-name, .awake-name { display: none; }
+  .updated-word, .awake-name { display: none; }
+  /* The theme button shows the dot alone; its word stays for screen readers. */
+  .theme-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* Each edge of the strip fades only while more tabs wait past it (#260): an opaque mask
+     minus a band at each end, each band's width driven by the strip's own scroll. With no
+     scroll-driven animations, no fade. The scroll padding stops the open tab, scrolled to by
+     refresh.html, clear of the fades. */
   .dk-nav { grid-area: nav; flex-wrap: nowrap; overflow-x: auto; gap: 4px; scrollbar-width: none; overscroll-behavior-x: contain;
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+    --fade-size: 32px; scroll-padding-inline: var(--fade-size);
+    mask:
+      linear-gradient(black, black) no-clip subtract,
+      linear-gradient(to right, black, transparent) 0 0 / var(--fade-start) 100% no-repeat no-clip,
+      linear-gradient(to right, transparent, black) 100% 0 / var(--fade-end) 100% no-repeat no-clip;
+    animation: nav-fade-start linear both, nav-fade-end linear both;
+    animation-timeline: scroll(self inline);
+    animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%; }
   .dk-nav::-webkit-scrollbar { display: none; }
   .dk-nav a { padding: 6px 8px; flex-shrink: 0; }
   .panel-x, .card-modal { padding: var(--space-md); }
