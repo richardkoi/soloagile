@@ -469,3 +469,30 @@ test("a page opened at a hash that can't be decoded (#%) still opens a folded mi
   assert.equal(seen.hash, '#%', 'the page really opened at #%');
   assert.equal(seen.m1, 'true true', '#plan-M1 opens the folded milestone after a bad hash');
 });
+
+test('reduced motion stops the Plan arrow turning but keeps the buttons\' colour change; without it the arrow still turns (#262)', { skip: !findBrowser() && 'no browser here' }, async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'pm-motion-'));
+  mkdirSync(join(repo, 'pm'));
+  writeFileSync(join(repo, 'pm', 'board.md'), board('A card'));
+  writeFileSync(join(repo, 'pm', 'plan.md'), '# Plan\n### M1 — One · not started\n');
+  const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
+  const look = (motion) => withPage(pathToFileURL(out).href, async (page) => {
+    await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: motion }] });
+    await new Promise((ok) => setTimeout(ok, 300));
+    const expression = `(() => {
+      const arrow = getComputedStyle(document.querySelector('.ms-toggle'), '::before');
+      const btn = getComputedStyle(document.querySelector('.btn'));
+      const props = btn.transitionProperty.split(',').map((s) => s.trim());
+      const durs = btn.transitionDuration.split(',').map((s) => s.trim());
+      const colour = props.findIndex((p) => p === 'all' || p === 'color');
+      return { arrow: arrow.transitionProperty + ' ' + arrow.transitionDuration, btnProps: props, btnColour: colour < 0 ? '0s' : durs[colour % durs.length] };
+    })()`;
+    return (await page.send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+  });
+  const reduced = await look('reduce');
+  assert.match(reduced.arrow, / 0s$/, `with reduced motion the arrow does not animate: ${reduced.arrow}`);
+  assert.equal(reduced.btnColour, '0.15s', 'with reduced motion a button still fades its colour');
+  assert.ok(!reduced.btnProps.includes('all'), `a button transitions only its colours, not all: ${reduced.btnProps}`);
+  const full = await look('no-preference');
+  assert.equal(full.arrow, 'transform 0.15s', 'without reduced motion the arrow still turns');
+});
