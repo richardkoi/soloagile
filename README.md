@@ -41,6 +41,8 @@ open it in a browser and leave it open. It refreshes itself as cards move.
 
 For a long session, press **Awake** in the page's header: while the page is on screen, the
 computer won't go to sleep. The screen stays lit too, and each browser remembers the choice.
+The page follows the computer's light or dark setting; the header's theme picker can fix it
+to Light or Dark instead.
 
 ## What you say
 
@@ -54,7 +56,6 @@ computer won't go to sleep. The screen stays lit too, and each browser remembers
 | "I'm off to bed" | Claude asks every waiting question now, then builds Up next while you're away, and saves |
 | "build these in parallel" | Helpers build independent cards at once, each in its own copy of the code, then Claude merges them |
 | "what order should we build these in?" | Claude suggests an order for the milestones and Up next with a reason each, asks you questions to tweak it, then applies it. "Put #12 first" just moves that card |
-
 | "run the fleet on #12" | A crew of helpers designs, builds and reviews one card on its own branch, and leaves it for your yes. Off until you switch on the fleet habit (`soloagile set fleet on`); see [the crew](docs/fleet-crew.md) |
 
 Each habit, away mode among them, can be switched off on the page's Settings tab.
