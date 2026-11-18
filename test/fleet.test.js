@@ -201,3 +201,10 @@ test('soloagile fleet scan reads card-<n> against main and exits 1 on a hit', ()
   assert.equal(loud.status, 1);
   assert.match(loud.stdout, /quiet\.js:2  a key or token/);
 });
+
+test("the fleet's last stage runs the project's checks and links report.md from the card", () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  assert.match(skill, /pm\/runs\/<n>\/report\.md/);
+  assert.match(skill, /`## Checks` in `pm\/overview\.md`/);
+  assert.match(skill, /soloagile card note <n> "report: pm\/runs\/<n>\/report\.md"/);
+});

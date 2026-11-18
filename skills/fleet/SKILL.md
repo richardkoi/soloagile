@@ -1,6 +1,6 @@
 ---
 name: fleet
-description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Tobin's build in his own copy and branch, Milo's blind review, Orla's fact-check and the security list — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
+description: Run the build fleet on one card marked fleet — Ada's preflight, Orla's plan, Tobin's build in his own copy and branch, Milo's blind review, Orla's fact-check, the security list, and the test and notes — ending on a waiting branch for the user's yes. Use when the user says "run the fleet on #12", "fleet this card" or "let the crew build it", and only with the fleet habit on.
 argument-hint: "<card number>"
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git worktree:*), Bash(git branch:*), Bash(soloagile card:*), Bash(soloagile fleet:*), Bash(soloagile set:*), Bash(echo:*), Bash(${CLAUDE_PLUGIN_ROOT}/bin/soloagile:*)
 ---
@@ -60,11 +60,18 @@ no one, and go on. With hits (exit 1), start Rufus with the Agent tool, `subagen
 "soloagile:rufus"`, giving him the diff and the scan's lines, and write his reply into
 security-list.md word for word. It is a reading list for the user, never a sign-off.
 
-**7. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
-`card-<n>`, unmerged and unpushed. The stage after the security list (test and notes) comes
-with a later card; until then say plainly that it didn't run. Move
-the card to Needs your look with a `tested:` line naming what ran and a `not tested:`
-line for the rest, and tell the user the branch and the run's files.
+**7. Test and notes (Orla), `pm/runs/<n>/report.md`.** In Tobin's copy, run the project's
+checks from `## Checks` in `pm/overview.md`, as for any card; for anything in a browser,
+run `soloagile shots <url>` on the copy's build and read its pictures. Write report.md:
+the card and its done when, each stage with what it did and its file (security list: "no
+hits, not needed" when the scan was quiet), the checks with their results, and what wasn't
+tested. Then the card's lines, as today: `soloagile card note <n> "tested: …"`, a `not
+tested:` line for the rest, and `soloagile card note <n> "report: pm/runs/<n>/report.md"`
+so the card links it.
+
+**8. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
+`card-<n>`, unmerged and unpushed. Move
+the card to Needs your look, and tell the user the branch and the report.
 
 Never: merge, push, write the card's code, or move a card to Done. Only the user's yes does
 that.
