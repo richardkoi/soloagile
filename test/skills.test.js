@@ -87,3 +87,17 @@ test('plan.md, build.md and report.md are checklists of about 20 lines, no prose
 test('the fleet skill is shorter than before #300 (1945 words)', () => {
   assert.ok(read('fleet').split(/\s+/).filter(Boolean).length < 1900);
 });
+
+test('Tobin commits as soon as his new tests pass, before the full checks and build.md (#283)', () => {
+  const tobin = readFileSync(join(AGENTS, 'tobin.md'), 'utf8');
+  assert.match(tobin, /Commit on `card-<n>` as soon as the new tests pass, before the full checks and before\s+build\.md/);
+  assert.ok(tobin.indexOf('as soon as the new tests pass') < tobin.indexOf('Write build.md'));
+  assert.match(read('fleet'), /commits as soon as his new tests pass, before the full checks and his notes \(#283\)/);
+});
+
+test('plan.md is a checklist of 20 lines at most, without restating the card (#307)', () => {
+  const plan = step(read('fleet'), '**2. Plan', '**Several');
+  assert.match(plan, /checklist of 20\s+lines at most \(#307\)/);
+  assert.match(plan, /No background,\s+no restating the card, no code/);
+  assert.match(plan, /## Files to change/);
+});

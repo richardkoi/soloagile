@@ -40,14 +40,13 @@ a run that stopped part way skips the stages whose files are already in `pm/runs
 
 **2. Plan (Orla), writes `pm/runs/<n>/plan.md`.** Read the card in full
 (`soloagile card show <n>`), its chosen design if it has one (its "chosen" line, and its
-picture in `pm/designs/`), and the code it will touch. Write plan.md as a checklist: the
-card and its done when; a `## Files to change` section naming each file in backticks and
-how it changes, a line each (`soloagile fleet clash` reads it); one test per "done when";
-the test command and the project's checks, from `## Checks` in `pm/overview.md`; what is
-out of the card; open risks; and a `## Skills` section
-naming, for Tobin and for Cora, the installed skills that fit this card and why (from the
-skills listed in your session, or the project's own), or "none" for a worker no skill
-fits. Milo and Rufus have no tools, so they load none. A real choice the card and design
+picture in `pm/designs/`), and the code it will touch. Write plan.md as a checklist of 20
+lines at most (#307), one line per item: the card's number and title (not its text); a
+`## Files to change` section naming each file in backticks and how it changes (`soloagile
+fleet clash` reads it); one test per "done when"; the checks, from `## Checks` in
+`pm/overview.md`; what is out of the card; open risks; and a `## Skills` section of one
+line each for Tobin and Cora: the installed skills that fit, or "none". No background,
+no restating the card, no code. Milo and Rufus have no tools, so they load none. A real choice the card and design
 don't make: don't guess, stop on a choice.
 
 **Several fleet cards at once** (#278): only cards whose plans name different files run
@@ -72,6 +71,7 @@ with the Agent tool, `subagent_type: "soloagile:tobin"`, without `isolation` (hi
 made), giving him the card, plan.md in full, his copy's path, the full path for build.md,
 his checklist, and the skills plan.md names for him, to load with the Skill tool before
 anything else (the same for Cora in 2b and 7). Check his transcript shows each Skill call.
+He commits as soon as his new tests pass, before the full checks and his notes (#283).
 When he returns, read build.md and check his branch has a commit
 (`git log main..card-<n> --oneline`). If he stopped at his turn cap with the card unbuilt,
 don't restart or message him for more turns (a restarted helper gets a fresh cap, #232):

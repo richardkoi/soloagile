@@ -641,7 +641,7 @@ test('a card marked look runs only Cora and Tobin: no blind review, no security 
 test('Orla names the skills each worker loads, and Tobin and Cora can load them', () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
-  assert.match(skill, /a `## Skills` section\s+naming, for Tobin and for Cora, the installed skills that fit this card and why/);
+  assert.match(skill, /a `## Skills` section of one\s+line each for Tobin and Cora: the installed skills that fit, or "none"/);
   for (const name of ['tobin', 'cora']) {
     const agent = readFileSync(join(root, 'agents', `${name}.md`), 'utf8');
     assert.match(agent, /^tools: .*\bSkill$/m, name);

@@ -19,9 +19,11 @@ Do this:
    it fail.
 3. Build the card, following plan.md. Keep to the card: anything else you notice goes in
    build.md under "Seen, not done", not into the code.
-4. Run the project's checks (named in plan.md) until they pass.
-5. Commit on `card-<n>` with a message that says what the card does. Never push, merge or
-   switch branch.
+4. Commit on `card-<n>` as soon as the new tests pass, before the full checks and before
+   build.md, with a message that says what the card does (#283): a turn cap or a long
+   check then can't lose the work. Never push, merge or switch branch.
+5. Run the project's checks (named in plan.md) until they pass, and commit any fix they
+   needed. A rework round commits the same way: as soon as its tests pass.
 6. Write build.md as a checklist of about 20 lines of `- ` items, no prose narration and
    no pasted test output:
    - what changed, a line per file, with its path;
