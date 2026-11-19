@@ -1633,3 +1633,10 @@ test("the fleet skill starts Milo with soloagile fleet milo, never by pasting hi
   assert.doesNotMatch(step4, /subagent_type: "soloagile:milo"/);
   assert.match(step5, /soloagile fleet milo <n> --round 2/);
 });
+
+test("a fleet run's cost gives its tokens beside the percentages (#286)", () => {
+  const text = costLines({ pcts: { week: 4 } }, { pcts: { week: 4 } }, { tokens: '1.2M' });
+  assert.match(text, /\n- tokens: 1\.2M, from this project's own logs \(its copies and helpers too\)$/);
+  assert.doesNotMatch(costLines({ pcts: { week: 4 } }, { pcts: { week: 4 } }), /tokens/, 'none when not read');
+  assert.match(costLines({ said: 'no usage address set' }, { pcts: { week: 5 } }, { tokens: '40k' }), /- tokens: 40k/, 'tokens even when the percentages are not measured');
+});

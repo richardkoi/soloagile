@@ -11,6 +11,7 @@ import { parseBoard } from './board.js';
 import { moveCard } from './card.js';
 import { localDate } from './init.js';
 import { readUsage } from './usage.js';
+import { tokensSince } from './costs.js';
 
 // Each stage leaves one file; a run resumes at the first one missing. The security list is
 // written only when the script finds something (#238), so it isn't a stage of its own here.
@@ -136,7 +137,7 @@ export async function recordUsageStart(repo, id, usage, { now = new Date() } = {
 // it (including starts written before #274), usageResets isn't set. A start that replaced
 // a failed one (start.replaced) says when each was read, as ISO times.
 // others: cards whose runs overlapped, whose cost is in the same numbers.
-export function costLines(start, end, { others = [], now = new Date() } = {}) {
+export function costLines(start, end, { others = [], now = new Date(), tokens } = {}) {
   const lines = ['## Cost'];
   const has = (u) => u?.pcts && Object.keys(u.pcts).length;
   const reading = (x) => String(Math.round(x * 10) / 10);
@@ -154,6 +155,8 @@ export function costLines(start, end, { others = [], now = new Date() } = {}) {
     }
     if (start.replaced) lines.push(`- measured from ${start.at}; the first reading at ${start.replaced} failed`);
   }
+  // exact where the percentages are whole numbers (#286); '–' or none when not read
+  if (tokens && tokens !== '–') lines.push(`- tokens: ${tokens}, from this project's own logs (its copies and helpers too)`);
   if (others.length) lines.push(`- shared with ${others.map((n) => `#${n}`).join(', ')}: their runs ran at the same time, so this counts them too`);
   return lines.join('\n');
 }
@@ -162,7 +165,7 @@ export function costLines(start, end, { others = [], now = new Date() } = {}) {
 // run overlapped when it started (its usage-start.json or lock) before now and either started
 // inside this run, still holds a lock whose pid is alive, or wrote its report.md after this
 // run's start. A lock left by a dead process says nothing about now.
-export async function runCost(repo, id, { usage, now = new Date(), isAlive = alive } = {}) {
+export async function runCost(repo, id, { usage, now = new Date(), isAlive = alive, projectsDir } = {}) {
   const file = join(runDir(repo, id), 'usage-start.json');
   let start = { said: "no usage was recorded at the run's start" };
   if (existsSync(file)) {
@@ -191,7 +194,7 @@ export async function runCost(repo, id, { usage, now = new Date(), isAlive = ali
       if (began >= from || held || reported) others.push(Number(m));
     }
   }
-  return costLines(start, end, { others, now });
+  return costLines(start, end, { others, now, tokens: tokensSince(repo, start.at, now, projectsDir) });
 }
 
 // Tobin's own copy of the code (#235): a git worktree on branch card-<n>, under
