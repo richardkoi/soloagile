@@ -60,7 +60,7 @@ import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
 import { logCost } from '../src/costs.js';
-import { cardBase, clash, clashText, cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, reviewPack, runCost, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
+import { cardBase, clash, clashText, cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, reviewPack, runCost, runMilo, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
 // is installed beside this one, the whole command goes to it, stdin and all, so an old
@@ -383,8 +383,8 @@ if (cmd === 'fleet') {
       process.exit(2);
     }
   }
-  if (!['preflight', 'unlock', 'branch', 'update', 'review', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
-    console.error('usage: soloagile fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>], branch <card> [--from <card>], clash <card> <card>…)');
+  if (!['preflight', 'unlock', 'branch', 'update', 'review', 'milo', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
+    console.error('usage: soloagile fleet preflight|branch|update|review|milo|scan|cost|unlock|merge|sendback|drop <card>   (milo <card> [--round <r>], scan <card> [--base <branch>], branch <card> [--from <card>], clash <card> <card>…)');
     process.exit(2);
   }
   try {
@@ -405,6 +405,21 @@ if (cmd === 'fleet') {
       dropRun(process.cwd(), id);
       console.log(`soloagile: dropped #${id}'s fleet work: its copy, branch card-${id} and pm/runs/${id}/`);
     } else if (verb === 'review') await say(reviewPack(process.cwd(), id)); // Milo's pack (#268)
+    else if (verb === 'milo') {
+      // Milo's review, run with his pack on its input and written to review.md (#277)
+      const at = rest.indexOf('--round');
+      const round = at >= 0 ? Number(rest[at + 1]) : 1;
+      if (!Number.isInteger(round) || round < 1) {
+        console.error('usage: soloagile fleet milo <card> [--round <r>]');
+        process.exit(2);
+      }
+      try {
+        await say(runMilo(process.cwd(), id, { round }));
+      } catch (err) {
+        console.error(`soloagile: ${err.message}`);
+        process.exit(1);
+      }
+    }
     else if (verb === 'scan') {
       // Exit 1 on a hit, so a script can tell; the hits are on stdout either way.
       // It compares against the branch the card was built on, or --base <branch> (#269).

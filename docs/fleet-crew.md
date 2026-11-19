@@ -9,7 +9,7 @@ says, at a glance, what its worker does.
 | **Orla** | Owl | Lead: plans, picks the skills each worker loads, fact-checks, tests, writes the notes, opens the PR | the main session |
 | **Ada** | Ant | Preflight: checks the card is ready before anyone starts | a script, no AI |
 | **Tobin** | Tortoise | Builder: the only one who writes code | a helper, strongest model |
-| **Milo** | Mole | Blind reviewer: judges the change by feel alone | a helper, a different model |
+| **Milo** | Mole | Blind reviewer: judges the change by feel alone | his own claude run, a different model |
 | **Cora** | Crane | Designer: designs first, checks the pictures after | a helper, strong model |
 | **Rufus** | Watchdog | Security lister: barks at every risky line | a helper, mid model |
 
@@ -47,7 +47,8 @@ says, at a glance, what its worker does.
 - **Character:** sceptical and blunt. Feels along every changed line for a weak spot.
 - **Does:** gets only the changes and the "done when", nothing else, and lists the
   problems he finds in `review.md`. Runs on a different Claude model than Tobin, so he
-  doesn't share Tobin's blind spots.
+  doesn't share Tobin's blind spots. `soloagile fleet milo <n>` starts him in his own
+  `claude -p` run with the pack on his input, so it reaches him whole, never retyped.
 - **Never:** reads the rest of the code, runs commands, or edits anything. He has no tools.
 
 ## Cora the Crane, the Designer

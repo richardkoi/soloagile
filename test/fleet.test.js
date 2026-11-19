@@ -212,8 +212,8 @@ test('Milo reviews blind: no tools, a different model from Tobin, and two rework
   assert.match(milo, /^model: sonnet$/m);
   assert.match(milo, /^tools: \[\]$/m);
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
-  assert.match(skill, /subagent_type:\s+"soloagile:milo"/);
-  assert.match(skill, /give\s+Milo\s+its\s+output\s+whole\s+and\s+nothing\s+else/);
+  assert.match(skill, /soloagile fleet milo <n>/); // his own run, the pack on his input (#277)
+  assert.match(skill, /gives\s+it\s+to\s+him\s+whole\s+on\s+his\s+input/);
   assert.match(skill, /Two\s+rework\s+rounds\s+at\s+most/);
   assert.match(skill, /a\s+new\s+Agent\s+call,\s+never\s+a\s+message\s+to\s+the\s+old\s+one/);
 });
@@ -1549,4 +1549,87 @@ test("fleet clash leaves code names out of a plan's files (#278)", () => {
   mkdirSync(join(dir, 'pm', 'runs', '1'), { recursive: true });
   writeFileSync(join(dir, 'pm', 'runs', '1', 'plan.md'), '## Files to change\n- `tools/x.mjs` reads `main.title.away` and `Menu.row_key`, see `game/main.gd` and `README.md`\n');
   assert.deepEqual(cardFiles(dir, 1), ['tools/x.mjs', 'game/main.gd', 'README.md']);
+});
+
+// #277: Milo is started by a command, so his pack never passes through Orla's own words.
+// A stand-in claude records what it was given and answers as Milo would.
+const fakeClaude = (reply = 'No findings.') => {
+  const bin = mkdtempSync(join(tmpdir(), 'fake-claude-'));
+  const file = join(bin, 'claude');
+  writeFileSync(file, `#!/bin/sh
+out="${bin}"
+pwd > "$out/cwd"
+for a in "$@"; do printf '%s\\n--ARG--\\n' "$a"; done > "$out/args"
+cat > "$out/stdin"
+cat "$out/reply"
+`);
+  writeFileSync(join(bin, 'reply'), `${reply}\n`);
+  chmodSync(file, 0o755);
+  return { bin, file, read: (n) => readFileSync(join(bin, n), 'utf8') };
+};
+const argsOf = (raw) => raw.split('\n--ARG--\n').slice(0, -1);
+
+test("soloagile fleet milo <n> gives Milo the review pack whole on his input and writes his reply to review.md (#277)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  const fake = fakeClaude('### 1. off by one\nwhere: big.js 202\nwhy: x\nseverity: low');
+  const r = spawnSync('node', [PM, 'fleet', 'milo', '1'], { cwd: dir, encoding: 'utf8', env: { ...process.env, SOLOAGILE_CLAUDE: fake.file } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(fake.read('stdin'), reviewPack(dir, 1), 'the pack, byte for byte');
+  const review = readFileSync(join(runDir(dir, 1), 'review.md'), 'utf8');
+  assert.match(review, /### 1\. off by one\nwhere: big\.js 202/);
+  assert.match(r.stdout, /off by one/, "Orla sees his reply, for the fact-check");
+});
+
+test("Milo still can't read anything else: no tools, no settings or CLAUDE.md, an empty folder, his own prompt (#277)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  const fake = fakeClaude();
+  const r = spawnSync('node', [PM, 'fleet', 'milo', '1'], { cwd: dir, encoding: 'utf8', env: { ...process.env, SOLOAGILE_CLAUDE: fake.file } });
+  assert.equal(r.status, 0, r.stderr);
+  const args = argsOf(fake.read('args'));
+  const after = (flag) => args[args.indexOf(flag) + 1];
+  assert.ok(args.includes('-p'));
+  assert.equal(after('--tools'), '', 'no tools at all');
+  assert.equal(after('--setting-sources'), 'local', "the user's settings, hooks and CLAUDE.md stay out");
+  assert.ok(args.includes('--strict-mcp-config'), 'no MCP servers');
+  assert.ok(args.includes('--no-session-persistence'));
+  assert.equal(after('--model'), 'sonnet', 'a different model from Tobin');
+  const milo = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'agents', 'milo.md'), 'utf8');
+  assert.equal(after('--system-prompt'), milo.replace(/^---\n[\s\S]*?\n---\n/, '').trim());
+  const cwd = fake.read('cwd').trim();
+  assert.notEqual(cwd, dir);
+  assert.ok(!cwd.startsWith(dir), 'not inside the project');
+  assert.ok(!existsSync(cwd), 'the empty folder is gone afterwards');
+  assert.ok(!args.some((a) => a.includes('ZEBRAPLAN') || a.includes('ZEBRABUILD')), 'no plan or build notes');
+  assert.ok(!fake.read('stdin').includes('ZEBRA'));
+});
+
+test("soloagile fleet milo <n> --round 2 adds the new reply under a Round 2 heading (#277)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  const env = (f) => ({ ...process.env, SOLOAGILE_CLAUDE: f.file });
+  spawnSync('node', [PM, 'fleet', 'milo', '1'], { cwd: dir, encoding: 'utf8', env: env(fakeClaude('FIRST')) });
+  const r = spawnSync('node', [PM, 'fleet', 'milo', '1', '--round', '2'], { cwd: dir, encoding: 'utf8', env: env(fakeClaude('No findings.')) });
+  assert.equal(r.status, 0, r.stderr);
+  const review = readFileSync(join(runDir(dir, 1), 'review.md'), 'utf8');
+  assert.match(review, /FIRST[\s\S]*\n## Round 2\n\nNo findings\.\n$/);
+});
+
+test("soloagile fleet milo <n> exits 1 and writes nothing when Milo's run fails (#277)", () => {
+  const dir = packRepo((d) => edit(d, 'big.js', '  return 150;', '  return 150 + 1;'));
+  const bin = mkdtempSync(join(tmpdir(), 'fake-claude-'));
+  writeFileSync(join(bin, 'claude'), '#!/bin/sh\ncat >/dev/null\necho "not logged in" >&2\nexit 3\n');
+  chmodSync(join(bin, 'claude'), 0o755);
+  const r = spawnSync('node', [PM, 'fleet', 'milo', '1'], { cwd: dir, encoding: 'utf8', env: { ...process.env, SOLOAGILE_CLAUDE: join(bin, 'claude') } });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /not logged in/);
+  assert.ok(!existsSync(join(runDir(dir, 1), 'review.md')));
+});
+
+test("the fleet skill starts Milo with soloagile fleet milo, never by pasting his pack (#277)", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
+  const step4 = skill.split('**4. Blind review')[1].split('**5.')[0];
+  const step5 = skill.split('**5. Fact-check')[1].split('**6.')[0];
+  assert.match(step4, /soloagile fleet milo <n>/);
+  assert.doesNotMatch(step4, /subagent_type: "soloagile:milo"/);
+  assert.match(step5, /soloagile fleet milo <n> --round 2/);
 });

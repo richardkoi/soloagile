@@ -103,10 +103,13 @@ or 60 KB comes as its changed regions with 20 lines either side. Files under a t
 `pm/` are left out of the pack entirely, named only: no board, plan or run notes reach him.
 The pack ends with its size; over 120 KB it gives the diff alone with a note saying so, and
 when even the diff is over 120 KB it gives each changed file's `git diff --stat` line and
-says the change is too big for a blind review: then say so in report.md. Start Milo with the Agent tool, `subagent_type: "soloagile:milo"`, and give Milo
-its output whole and nothing else: not the card's title, the plan, build.md or any other
-code. He has no tools and runs on a different model from Tobin. Write his reply into
-review.md word for word.
+says the change is too big for a blind review: then say so in report.md. Then start Milo
+with `soloagile fleet milo <n>` (#277), never the Agent tool and never by pasting the pack:
+it makes the same pack and gives it to him whole on his input, in his own `claude -p` run
+with agents/milo.md as his prompt, no tools, no settings, hooks or CLAUDE.md, in an empty
+folder, on a different model from Tobin. It writes his reply into review.md word for word
+and prints it. It exits 1 if his run fails: say so in report.md and stop at Needs your
+decision rather than reviewing him yourself.
 
 **5. Fact-check (Orla), `pm/runs/<n>/verdicts.md`.** For each of Milo's findings, read the
 real code in Tobin's copy and decide: **upheld** (it's real, with the line that proves it)
@@ -114,8 +117,9 @@ or **rejected** (with the reason, such as the code he couldn't see that handles 
 one verdict per finding. With none upheld, go on. With some upheld, start a new Tobin (a
 new Agent call, never a message to the old one) with the upheld findings, to fix them on
 the same branch and add to build.md; after each rework round, run step 3b again (main may
-have moved), then review the new change (a new Milo given `soloagile fleet review <n>`'s
-output, the same way) and write the new verdicts under a `## Round 2` heading. Two rework
+have moved), then review the new change with `soloagile fleet milo <n> --round 2` (a new Milo, the same
+way; it adds his reply to review.md under `## Round 2`) and write the new verdicts under a
+`## Round 2` heading. Two rework
 rounds at most: if findings are still upheld after
 the second, move the card to Needs your decision with them, run `soloagile fleet unlock
 <n>`, and stop.

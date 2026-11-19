@@ -2,8 +2,10 @@
 // runs once at a time, and the stage a run starts or resumes at. A run's files live in
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
 import { moveCard } from './card.js';
@@ -886,3 +888,32 @@ export const clashText = ({ files, shared }) => [
     ? shared.map(({ a, b, files: both }) => `#${a} and #${b} share ${both.join(', ')}: one after the other, not side by side`)
     : ['no two share a file: they can run side by side']),
 ].join('\n');
+
+// Milo's blind review run as its own claude process (#277): the pack goes in on his
+// input straight from reviewPack, so Orla never retypes or trims it. He gets no tools, no
+// MCP servers, no user or project settings (so no hooks, plugins or CLAUDE.md), and an
+// empty folder to run in; his system prompt is agents/milo.md's body. Round 1 writes
+// review.md, a later round adds its reply under "## Round <r>". Returns his reply.
+export function runMilo(repo, id, { round = 1, claude = process.env.SOLOAGILE_CLAUDE || 'claude' } = {}) {
+  const pack = reviewPack(repo, id);
+  const agent = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'agents', 'milo.md'), 'utf8');
+  const prompt = agent.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
+  const empty = mkdtempSync(join(tmpdir(), 'soloagile-milo-'));
+  let r;
+  try {
+    r = spawnSync(claude, ['-p', '--model', 'sonnet', '--tools', '', '--strict-mcp-config', '--no-session-persistence',
+      '--setting-sources', 'local', '--system-prompt', prompt], { cwd: empty, input: pack, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  } finally {
+    rmSync(empty, { recursive: true, force: true });
+  }
+  if (r.error) throw new Error(`Milo's run didn't start: ${r.error.message}`);
+  if (r.status !== 0) throw new Error(`Milo's run failed (exit ${r.status}): ${(r.stderr || r.stdout).trim()}`);
+  const reply = r.stdout.trim();
+  if (!reply) throw new Error("Milo's run gave no reply");
+  const dir = runDir(repo, id);
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, 'review.md');
+  if (round > 1 && existsSync(file)) writeFileSync(file, `${readFileSync(file, 'utf8').trimEnd()}\n\n## Round ${round}\n\n${reply}\n`);
+  else writeFileSync(file, `${reply}\n`);
+  return reply;
+}
