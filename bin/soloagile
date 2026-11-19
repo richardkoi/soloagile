@@ -61,6 +61,7 @@ import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
 import { logCost } from '../src/costs.js';
 import { stageCostText } from '../src/stagecost.js';
+import { runFleet } from '../src/fleetrun.js';
 import { cardBase, clash, clashText, cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, reviewPack, runCost, runMilo, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
@@ -103,6 +104,7 @@ const COMMANDS = [
   ['link [repo]', "print the address of the project's page"],
   ['shots <url> [dir] | shots --card <n> [dir] [--click …] [--type …] [--press …] [--wait …]', "four screenshots: desktop and phone, dark and light; --card builds the page from card-<n>'s copy first"],
   ['design <card> <letter> <mock-up> [width]', "a mock-up's picture, under an option of a waiting card"],
+  ['fleet run <card> [--root <project>] [--permission-mode <mode>]', "a card's whole fleet run in its own claude -p session (auto permission mode unless told), its output in pm/runs/<n>/session.log; prints a summary of 20 lines or fewer and exits 1 when the run fails or leaves no report"],
   ['fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>', "a fleet run: its checks and lock (refuses a card with no done when or a dirty tree, says the stage to start at), the builder's own copy on branch card-<n> (branch <card> [--from <card>] to build on another card's branch), bringing that branch up to date with main before review (exits 1 on a clash, left for the builder), the blind reviewer's pack (done when, diff, changed code in full), the security scan of its code against the branch it was built on (scan <card> --base <branch> to choose), what the run cost of the week and the 5 hours and its tokens and minutes by stage (cost <card> [--root <project>]), the lock's end, and on the user's look: merge, send back to Build, or drop"],
   ['herdr [--sound <name or file>] [--dry-run]', 'install or update the Herdr add-ons, keeping their sound, and bind F3 to the board if free'],
 ].map(([usage, does]) => `  soloagile ${usage}  ${does}`).join('\n');
@@ -384,9 +386,26 @@ if (cmd === 'fleet') {
       process.exit(2);
     }
   }
-  if (!['preflight', 'unlock', 'branch', 'update', 'review', 'milo', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
-    console.error('usage: soloagile fleet preflight|branch|update|review|milo|scan|cost|unlock|merge|sendback|drop <card>   (milo <card> [--round <r>], cost <card> [--root <project>], scan <card> [--base <branch>], branch <card> [--from <card>], clash <card> <card>…)');
+  if (!['run', 'preflight', 'unlock', 'branch', 'update', 'review', 'milo', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
+    console.error('usage: soloagile fleet run|preflight|branch|update|review|milo|scan|cost|unlock|merge|sendback|drop <card>   (run <card> [--root <project>] [--permission-mode <mode>], milo <card> [--round <r>], cost <card> [--root <project>], scan <card> [--base <branch>], branch <card> [--from <card>], clash <card> <card>…)');
     process.exit(2);
+  }
+  // soloagile fleet run <n>: the card's fleet in its own claude -p session, and only a short
+  // summary back (#299). Its full output is in pm/runs/<n>/session.log.
+  if (verb === 'run') {
+    const flag = (name) => {
+      const at = rest.indexOf(name);
+      if (at < 0) return undefined;
+      if (!rest[at + 1] || rest[at + 1].startsWith('--')) {
+        console.error('usage: soloagile fleet run <card> [--root <project>] [--permission-mode <mode>]');
+        process.exit(2);
+      }
+      return rest[at + 1];
+    };
+    const mode = flag('--permission-mode');
+    const r = runFleet(resolve(flag('--root') ?? process.cwd()), id, mode ? { mode } : {});
+    await say(r.text);
+    process.exit(r.status);
   }
   try {
     if (verb === 'preflight') {

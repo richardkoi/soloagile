@@ -87,3 +87,16 @@ test('plan.md, build.md and report.md are checklists of about 20 lines, no prose
 test('the fleet skill is shorter than before #300 (1945 words)', () => {
   assert.ok(read('fleet').split(/\s+/).filter(Boolean).length < 1900);
 });
+
+test('the fleet skill runs in an inner claude -p session; the outer one starts soloagile fleet run and relays its summary (#299)', () => {
+  const raw = read('fleet');
+  // printenv, not ${…:-…} or $VAR: Claude Code hands those back unrun instead of preloading them
+  assert.match(raw, /!`printenv SOLOAGILE_FLEET_INNER \|\| echo outer`/);
+  const text = fleet();
+  assert.match(text, /Session says `outer`[^.]*: don't run the steps here/);
+  assert.match(text, /Run `soloagile fleet run <n>` with Bash and `run_in_background: true`/);
+  assert.match(text, /time guess/);
+  assert.match(text, /relay its summary/);
+  assert.match(text, /Only an inner session \(Session says `1`\) runs the steps/);
+  assert.ok(raw.indexOf('**Outer or inner session**') < raw.indexOf('**1. Preflight'), 'before the steps');
+});
