@@ -33,7 +33,7 @@ export const HABITS = [
     rule: 'Ask waiting questions together in one round, up to four to a call, each multiple choice with the recommended option first and an open answer last. Gather the questions before starting work, not one at a time between steps.' },
   // off: a habit that starts switched off until the user turns it on (#233).
   { key: 'fleet', name: 'The build fleet', what: 'A crew of helpers plans, builds, reviews and tests a card marked fleet, ending on a waiting branch.', card: 233, off: true,
-    rule: 'When planning a card, mark logic, data and risky cards fleet and pure visual cards look: soloagile card set <n> --mark fleet|look (the user can mark any card, and none takes it off). Before a fleet run, soloagile fleet preflight <n> refuses a card with no done when or a dirty tree, locks the card and says which stage to start at; soloagile fleet unlock <n> when the run ends.' },
+    rule: 'When planning a card, mark fleet only a card of 3 points or more, or one of any size touching keys, logins, permissions or data; mark pure visual cards look; other cards build the normal way: soloagile card set <n> --mark fleet|look (the user can mark any card, and none takes it off). Before a fleet run, soloagile fleet preflight <n> refuses a card with no done when, a plain card under 3 points or a dirty tree, locks the card and says which stage to start at; soloagile fleet unlock <n> when the run ends.' },
 ];
 
 const projectFile = (repo) => join(resolve(repo), 'pm', 'settings.json');

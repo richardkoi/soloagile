@@ -21,6 +21,9 @@ export const STAGE_FILES = [['plan', 'plan.md'], ['build', 'build.md'], ['review
 // Cora's design comes after the plan, so a run starting at plan is at design too.
 export const DOING_STAGE = { plan: 'design', build: 'develop', review: 'test', verdicts: 'test', test: 'test', done: 'test' };
 
+// How many fleet runs may go at once (#303).
+export const MAX_RUNS = 2;
+
 export const runDir = (repo, id) => join(resolve(repo), 'pm', 'runs', String(id));
 
 // A pid is alive when signal 0 reaches it. EPERM means it lives under someone else.
@@ -49,6 +52,11 @@ export function ownerPid(start = process.ppid) {
   return start;
 }
 
+// A card touching keys, tokens, .env, logins, passwords, permissions, secrets or data (#298):
+// told by a word in its title or its details. Such a card takes the fleet at any size.
+const RISKY_CARD = /\b(keys?|tokens?|logins?|passwords?|permissions?|secrets?|data)\b|\.env\b/i;
+export const isRisky = (card) => [card.title, ...card.details].some((t) => RISKY_CARD.test(t));
+
 // Refuses with the reason, or locks the card, moves it to Doing at its stage (#266) and says
 // where the run starts. Fleet cards may sit in Doing together, one per run.
 // Returns { stage, file, cleared, said } where cleared is a stale lock that was removed and
@@ -58,6 +66,11 @@ export function preflight(repo, id, { pid = ownerPid(), now = new Date(), isAliv
   const card = parseBoard(board).columns.flatMap((c) => c.cards).find((c) => c.id === id);
   if (!card) throw new Error(`#${id} isn't on the board`);
   if (!card.details.some((d) => /^done when:/i.test(d))) throw new Error(`#${id} has no done when, so the crew can't tell when it's built: soloagile card set ${id} --done-when "…"`);
+  // A fleet run costs about 4x a normal build, so only 3 points or more, or a risky card,
+  // takes it (#298). A look card keeps its short path; a card with no points is refused below.
+  if (card.mark !== 'look' && card.points !== null && card.points < 3 && !isRisky(card)) {
+    throw new Error(`#${id} is ${card.points} point${card.points === 1 ? '' : 's'} and not risky: build it the normal way`);
+  }
   const status = spawnSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8' });
   if (status.status !== 0) throw new Error(`${repo} isn't a git repository`);
   const dirty = status.stdout.split('\n').filter((l) => l.trim() && !/^.. pm\//.test(l));
@@ -70,6 +83,12 @@ export function preflight(repo, id, { pid = ownerPid(), now = new Date(), isAliv
     if (isAlive(lock.pid)) throw new Error(`#${id} is already running (pid ${lock.pid}, since ${lock.started}); soloagile fleet unlock ${id} if it isn't`);
     cleared = lock; // its run crashed or was stopped: the files it left stay, and the run resumes
   }
+  // Two fleet runs at most at once (#303): other cards' locks whose process is still alive.
+  const runs = join(resolve(repo), 'pm', 'runs');
+  const live = existsSync(runs) ? readdirSync(runs).filter((d) => /^\d+$/.test(d) && Number(d) !== id).sort((a, b) => a - b).filter((d) => {
+    try { return isAlive(JSON.parse(readFileSync(join(runs, d, 'lock'), 'utf8')).pid); } catch { return false; }
+  }) : [];
+  if (live.length >= MAX_RUNS) throw new Error(`two fleet runs are going already (${live.map((d) => `#${d}`).join(', ')}): wait for one to end, or soloagile fleet unlock <n> for one that isn't running`);
   const next = STAGE_FILES.find(([, file]) => !existsSync(join(dir, file)));
   const stage = next ? next[0] : 'done';
   // Worked out before the lock is written, so a card the board refuses (no points, say)

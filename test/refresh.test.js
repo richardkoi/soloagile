@@ -59,6 +59,22 @@ function serve(file) {
   });
 }
 
+// Two fleet copies run these tests side by side (#303), so nothing here takes a fixed port:
+// the stand-in server asks the OS for a free one, and the browser's DevTools port is 0 too.
+test('two page servers started at once get their own ports', async () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'ports-')), 'index.html');
+  writeFileSync(out, 'x');
+  const [a, b] = await Promise.all([serve(out), serve(out)]);
+  try {
+    assert.ok(a.address().port > 0);
+    assert.notEqual(a.address().port, b.address().port);
+  } finally {
+    a.close();
+    b.close();
+  }
+  assert.match(readFileSync(new URL('../src/shots.js', import.meta.url), 'utf8'), /--remote-debugging-port=0/, 'the browser picks its own DevTools port');
+});
+
 test('a page served over http refreshes after a card read during the rebuild is closed', { skip: !findBrowser() && 'no browser here' }, async () => {
   const repo = project('First title');
   const { out } = buildProject(repo, new Date('2026-10-02T12:00:00.000Z'));
