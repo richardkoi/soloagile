@@ -328,6 +328,9 @@ The six columns, always in this order and always present, even when empty:
   dirty tree (pm/ aside), writes `pm/runs/12/lock` with the session's pid and start time,
   clears a lock whose process is gone, and names the stage to start at: the first of
   plan.md, build.md, review.md, verdicts.md, report.md not yet in `pm/runs/12/`.
+  Two fleet runs go at most at once (#303): with two other cards' locks still held by live
+  processes, preflight refuses a third and names them. Each copy's browser tests take
+  their own ports (the OS picks them), so two copies can run `node --test` side by side.
   `soloagile fleet unlock 12` ends the run's lock.
   `soloagile fleet branch 12` makes the builder's copy on branch `card-12`. A copy lacks
   what git doesn't keep, so `"fleetLinks"` in `pm/settings.json` names those paths, such as

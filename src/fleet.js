@@ -21,6 +21,9 @@ export const STAGE_FILES = [['plan', 'plan.md'], ['build', 'build.md'], ['review
 // Cora's design comes after the plan, so a run starting at plan is at design too.
 export const DOING_STAGE = { plan: 'design', build: 'develop', review: 'test', verdicts: 'test', test: 'test', done: 'test' };
 
+// How many fleet runs may go at once (#303).
+export const MAX_RUNS = 2;
+
 export const runDir = (repo, id) => join(resolve(repo), 'pm', 'runs', String(id));
 
 // A pid is alive when signal 0 reaches it. EPERM means it lives under someone else.
@@ -80,6 +83,12 @@ export function preflight(repo, id, { pid = ownerPid(), now = new Date(), isAliv
     if (isAlive(lock.pid)) throw new Error(`#${id} is already running (pid ${lock.pid}, since ${lock.started}); soloagile fleet unlock ${id} if it isn't`);
     cleared = lock; // its run crashed or was stopped: the files it left stay, and the run resumes
   }
+  // Two fleet runs at most at once (#303): other cards' locks whose process is still alive.
+  const runs = join(resolve(repo), 'pm', 'runs');
+  const live = existsSync(runs) ? readdirSync(runs).filter((d) => /^\d+$/.test(d) && Number(d) !== id).sort((a, b) => a - b).filter((d) => {
+    try { return isAlive(JSON.parse(readFileSync(join(runs, d, 'lock'), 'utf8')).pid); } catch { return false; }
+  }) : [];
+  if (live.length >= MAX_RUNS) throw new Error(`two fleet runs are going already (${live.map((d) => `#${d}`).join(', ')}): wait for one to end, or soloagile fleet unlock <n> for one that isn't running`);
   const next = STAGE_FILES.find(([, file]) => !existsSync(join(dir, file)));
   const stage = next ? next[0] : 'done';
   // Worked out before the lock is written, so a card the board refuses (no points, say)

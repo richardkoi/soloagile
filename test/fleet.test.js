@@ -76,6 +76,19 @@ test('preflight refuses a plain card under 3 points with the reason, and passes 
   assert.equal(preflight(dir, 1, { pid: 1, isAlive: () => false }).stage, 'plan', 'a 3-point card passes');
 });
 
+test('preflight refuses a third fleet run while two are running, and lets it go once one ends (#303)', () => {
+  const dir = repo();
+  writeFileSync(join(dir, 'pm', 'board.md'), BOARD.replace('- #2 No done when yet · M1 · 2 pts', '- #2 Store the data · M1 · 3 pts · fleet\n  done when: it is stored\n- #3 Parse the log · M1 · 5 pts · fleet\n  done when: the log parses'));
+  const live = new Set([11, 22]);
+  const isAlive = (pid) => live.has(pid);
+  preflight(dir, 1, { pid: 11, isAlive });
+  preflight(dir, 2, { pid: 22, isAlive });
+  assert.throws(() => preflight(dir, 3, { pid: 33, isAlive }), /^Error: two fleet runs are going already \(#1, #2\): wait for one to end/);
+  assert.equal(existsSync(join(runDir(dir, 3), 'lock')), false, 'the refused run is not locked');
+  live.delete(22); // #2's run stopped
+  assert.equal(preflight(dir, 3, { pid: 33, isAlive }).stage, 'plan');
+});
+
 test('preflight refuses a card with no done when, and a dirty tree', () => {
   const dir = repo();
   assert.throws(() => preflight(dir, 2), /#2 has no done when/);
