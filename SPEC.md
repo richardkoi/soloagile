@@ -323,6 +323,11 @@ The six columns, always in this order and always present, even when empty:
   clears a lock whose process is gone, and names the stage to start at: the first of
   plan.md, build.md, review.md, verdicts.md, report.md not yet in `pm/runs/12/`.
   `soloagile fleet unlock 12` ends the run's lock.
+  `soloagile fleet branch 12` makes the builder's copy on branch `card-12`. A copy lacks
+  what git doesn't keep, so `"fleetLinks"` in `pm/settings.json` names those paths, such as
+  `["data/game", "web/node_modules"]`: each is linked from the main tree, whole when the copy
+  lacks it, or entry by entry into a folder git keeps. A card that writes into a link writes
+  into the main tree's.
   The fleet guard (`bin/fleet-guard.js`, a PreToolUse hook) refuses a fleet helper, any
   agent whose type starts `soloagile:`, a token, the environment, a key, a login or a .env
   file. Every other session, the user's own included, is left alone.

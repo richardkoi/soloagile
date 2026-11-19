@@ -2,8 +2,8 @@
 // runs once at a time, and the stage a run starts or resumes at. A run's files live in
 // pm/runs/<card>/; the lock is pm/runs/<card>/lock, holding the pid and start time.
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { readArchive } from './archive.js';
 import { parseBoard } from './board.js';
 import { moveCard } from './card.js';
@@ -214,14 +214,55 @@ export function fleetBranch(repo, id, { from } = {}) {
     mkdirSync(dirname(exclude), { recursive: true });
     writeFileSync(exclude, `${excluded}${excluded && !excluded.endsWith('\n') ? '\n' : ''}.claude/worktrees/\n`);
   }
-  if (existsSync(path)) return { path, branch, made: false };
+  if (existsSync(path)) return { path, branch, made: false, linked: [], linkedFrom: [] };
   const known = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root }).status === 0;
   if (known) git('worktree', 'add', path, branch);
   else {
     git('worktree', 'add', '-b', branch, path, ...(from ? [from] : []));
     if (from) git('config', `branch.${branch}.fleetBase`, from);
   }
-  return { path, branch, made: true };
+  return { path, branch, made: true, ...linkIgnored(root, path, exclude) };
+}
+
+// A new copy lacks what git doesn't keep: fetched data, node_modules, a game engine's
+// import cache (#282). pm/settings.json's fleetLinks names those paths, and each is linked
+// from the main tree: whole when the copy lacks it, or, for a folder git keeps (a .gitkeep),
+// each entry the copy lacks. Links, not copies (Rich, 2026-11-18): fast and free of disk,
+// but a card that writes into them writes into the main tree's. A path the main tree lacks
+// is skipped, and one outside the project refused. Git sees a link as a file, so an ignore
+// line for folders (node_modules/) misses it: each link also goes in the repo's own
+// info/exclude, which the copies share. Returns { linked, linkedFrom }: the links made and
+// the fleetLinks paths they came from, as given relative to the project.
+function linkIgnored(root, copy, exclude) {
+  let paths = [];
+  try {
+    paths = JSON.parse(readFileSync(join(root, 'pm', 'settings.json'), 'utf8')).fleetLinks ?? [];
+  } catch {
+    return { linked: [], linkedFrom: [] };
+  }
+  const linked = [];
+  const linkedFrom = [];
+  const link = (rel) => {
+    mkdirSync(dirname(join(copy, rel)), { recursive: true });
+    symlinkSync(join(root, rel), join(copy, rel));
+    linked.push(rel);
+  };
+  for (const raw of paths) {
+    const rel = relative(root, resolve(root, String(raw)));
+    if (!rel || rel.startsWith('..') || resolve(root, rel) !== join(root, rel)) continue;
+    if (!existsSync(join(root, rel))) continue;
+    linkedFrom.push(rel);
+    if (!existsSync(join(copy, rel))) link(rel);
+    else if (statSync(join(root, rel)).isDirectory() && statSync(join(copy, rel)).isDirectory()) {
+      for (const entry of readdirSync(join(root, rel))) {
+        if (!existsSync(join(copy, rel, entry))) link(join(rel, entry));
+      }
+    }
+  }
+  const had = readFileSync(exclude, 'utf8').split('\n');
+  const add = linked.map((rel) => `/${rel.split('\\').join('/')}`).filter((line) => !had.includes(line));
+  if (add.length) writeFileSync(exclude, `${had.join('\n').replace(/\n*$/, '\n')}${add.join('\n')}\n`);
+  return { linked, linkedFrom };
 }
 
 // The security scan (#238): a plain search of a change's added lines for keys, tokens, .env,

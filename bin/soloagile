@@ -419,6 +419,9 @@ if (cmd === 'fleet') {
       const b = fleetBranch(process.cwd(), id, { from });
       if (b.made) console.log(`soloagile: made #${id}'s copy on branch ${b.branch}${from ? ` from ${from}` : ''}: ${b.path}`);
       else console.log(`soloagile: found #${id}'s copy on branch ${b.branch}${from ? '; --from ignored, the branch exists' : ''}: ${b.path}`);
+      // each fleetLinks path once, not every entry linked inside a kept folder
+      const named = [...new Set(b.linked.map((p) => b.linkedFrom.find((r) => p === r || p.startsWith(`${r}/`)) ?? p))];
+      if (named.length) console.log(`soloagile: linked from the main tree: ${named.join(', ')} (${b.linked.length} links)`);
     }
     else console.log(unlock(process.cwd(), id) ? `soloagile: #${id} is unlocked` : `soloagile: #${id} had no lock`);
   } catch (err) {

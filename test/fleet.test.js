@@ -1460,3 +1460,27 @@ test('a turn-cap notice while the helper\'s background work still runs is not a 
   const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
   assert.match(skill, /turn cap.*background work (is )?still running.*not a stop.*wait for (his|the) hand-back/i);
 });
+
+test("fleet branch links the main tree's git-ignored paths named in fleetLinks into a new copy (#282)", () => {
+  const dir = repo();
+  const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'pipe' });
+  writeFileSync(join(dir, '.gitignore'), 'node_modules/\ndata/*\n!data/.gitkeep\ncache/\n');
+  mkdirSync(join(dir, 'data'));
+  writeFileSync(join(dir, 'data', '.gitkeep'), '');
+  git('add', '.gitignore', 'data/.gitkeep');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'ignores');
+  mkdirSync(join(dir, 'node_modules', 'lib'), { recursive: true });
+  writeFileSync(join(dir, 'node_modules', 'lib', 'index.js'), 'x\n');
+  writeFileSync(join(dir, 'data', 'storm.json'), '{}\n');
+  writeFileSync(join(dir, 'pm', 'settings.json'), JSON.stringify({ fleetLinks: ['node_modules', 'data', 'cache', '../outside'] }));
+  const made = fleetBranch(dir, 1);
+  const copy = made.path;
+  assert.equal(readFileSync(join(copy, 'node_modules', 'lib', 'index.js'), 'utf8'), 'x\n', 'a path missing from the copy is linked whole');
+  assert.equal(readFileSync(join(copy, 'data', 'storm.json'), 'utf8'), '{}\n', "a folder git keeps gets the main tree's entries it lacks");
+  assert.ok(!existsSync(join(copy, 'cache')), 'a path the main tree lacks is skipped');
+  assert.ok(!existsSync(join(dirname(copy), 'outside')), 'a path outside the project is refused');
+  assert.deepEqual(made.linked, ['node_modules', 'data/storm.json']);
+  assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: copy, encoding: 'utf8' }), '', 'the links leave the copy clean');
+  const run = spawnSync('node', [PM, 'fleet', 'branch', '2'], { cwd: dir, encoding: 'utf8' });
+  assert.match(run.stdout, /linked from the main tree: node_modules, data \(2 links\)/);
+});
