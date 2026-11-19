@@ -54,6 +54,28 @@
     });
   });
 })();
+/* When each Doing card should be done, and Doing's last (#272): said again in the reader's
+   own time each minute, with how far over once past, in amber. */
+(function () {
+  function hhmm(d) {
+    var t = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ' + t;
+  }
+  function spoken(m) { return m < 90 ? Math.max(1, Math.round(m)) + ' min' : Math.round(m / 30) / 2 + ' h'; }
+  function tick() {
+    var now = Date.now();
+    document.querySelectorAll('[data-due]').forEach(function (el) {
+      var due = new Date(el.getAttribute('data-due'));
+      var over = (now - due.getTime()) / 60000;
+      var said = (el.classList.contains('lane-due') ? 'last by ' : 'by ') + hhmm(due) + (over >= 1 ? ' \u00b7 over by ' + spoken(over) : '');
+      var text = el.lastChild && el.lastChild.nodeType === 3 ? el.lastChild : el.appendChild(document.createTextNode(''));
+      if (el.classList.contains('lane-due')) el.textContent = said; else text.nodeValue = said;
+      el.classList.toggle('over', over >= 1);
+    });
+  }
+  tick();
+  setInterval(tick, 60000);
+})();
 /* How long each waiting card has waited, counted again as the page opens: the build wrote
    it too, but a quiet project's page may be days old. */
 (function () {

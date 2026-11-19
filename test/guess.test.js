@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseCardLine } from '../src/board.js';
 import { addCard } from '../src/card.js';
-import { batchGuess, batchText, builtCards, byWhen, cardsLeft, guessRange, guessSays, leftSays, overrunning, rangeOf, replayBatches, replayLeft, replayRanges, shares } from '../src/guess.js';
+import { batchGuess, batchText, builtCards, byWhen, cardsLeft, dueTimes, guessRange, guessSays, leftSays, overrunning, rangeOf, replayBatches, replayLeft, replayRanges, shares } from '../src/guess.js';
 import { formatEvent, parseHistory } from '../src/history.js';
 
 // A card that spent `minutes` in Doing, then reached the user's look, one after another.
@@ -130,4 +130,18 @@ test('the learning report: inside range by week, guesses beside the median, and 
   assert.match(html, /No card carries a range yet; replayed on the past, 8 of 8 cards \(100%\)/);
   assert.match(html, /1 of 1 took no longer than 'surely'/);
   assert.equal(learningReport([]), '');
+});
+
+test('a Doing card is due its guess after it moved to Doing, less any earlier spell in Doing (#272)', () => {
+  const events = parseHistory([
+    '- 2026-11-11 09:00 · Doing · #6 Back again · M1 · 2 pts · ~30 min · develop',
+    '- 2026-11-11 09:10 · Up next · #6 Back again · M1 · 2 pts · ~30 min',
+    '- 2026-11-11 10:00 · Doing · #7 Long one · M1 · 3 pts · ~35 min (20-65 min) · develop',
+    '- 2026-11-11 10:00 · Doing · #6 Back again · M1 · 2 pts · ~30 min · develop',
+  ].join('\n'));
+  const board = { columns: [{ name: 'Doing', cards: [{ id: 7, guess: 35 }, { id: 6, guess: 30 }, { id: 9, guess: null }] }] };
+  const due = dueTimes(events, board);
+  assert.deepEqual(due.get(7), new Date(2026, 10, 11, 10, 35));
+  assert.deepEqual(due.get(6), new Date(2026, 10, 11, 10, 20), 'ten minutes were spent in an earlier spell');
+  assert.equal(due.has(9), false, 'a card with no guess has no due time');
 });

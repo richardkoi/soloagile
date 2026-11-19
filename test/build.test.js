@@ -584,3 +584,12 @@ test('the page says every time one way: minutes under 90, then hours in halves (
   assert.match(html, /8 pts<span class="guess" title="Guessed build time">~1\.5 h<\/span>/);
   assert.match(html, /<p class="card-range">usually 60 min to 3\.5 h for a card like this<\/p>/);
 });
+
+test("each Doing card shows 'by HH:MM', and the Doing lane's head when the last should end (#272)", () => {
+  const board = md.board.replace('## Doing\n', '## Doing\n- #5 Build it · M1 · 2 pts · ~30 min · develop\n  done when: built\n- #6 And this · M1 · 1 pt · ~20 min · develop\n  done when: built\n').replace('next-id: 4', 'next-id: 7');
+  const history = '# History\n\n- 2026-09-30 14:00 · Doing · #5 Build it · M1 · 2 pts · ~30 min · develop\n- 2026-09-30 14:30 · Doing · #6 And this · M1 · 1 pt · ~20 min · develop\n';
+  const { html } = renderPage({ name: 'demo', md: { ...md, board, history }, builtAt, template });
+  assert.match(html, /<p class="card-due" data-due="[^"]+">[^<]*<svg[^]*?by 14:30<\/p>/);
+  assert.match(html, /<span class="lane-hint lane-due" data-due="[^"]+">last by 14:50<\/span>/);
+  assert.match(html, /over by/, "the page's script says how far over once past");
+});

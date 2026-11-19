@@ -262,6 +262,29 @@ export function overrunning(events, board, now = new Date()) {
   return out;
 }
 
+// When each Doing card should be done (#272, Rich's pick: a clock time): its guess after
+// the open spell in Doing began, less the minutes earlier spells already spent. Map id → Date;
+// a card with no guess has none.
+export function dueTimes(events, board) {
+  const doing = board.columns.find((c) => c.name === 'Doing')?.cards ?? [];
+  const due = new Map();
+  for (const card of doing) {
+    if (card.guess == null) continue;
+    let since = null;
+    let worked = 0;
+    for (const e of events) {
+      if (e.id !== card.id) continue;
+      const working = e.lane === 'Doing' || (e.lane === 'Needs your decision' && e.stage === 'design');
+      if (since !== null && !working) {
+        worked += when(e.at) - since;
+        since = null;
+      } else if (working && since === null) since = when(e.at);
+    }
+    if (since !== null) due.set(card.id, new Date(since + card.guess * 60000 - worked));
+  }
+  return due;
+}
+
 // "What's left: 2 in Up next and 1 in Doing · likely 40 min (by 17:20) · surely 1 h (by 17:40)".
 export function leftSays(events, board, now = new Date()) {
   const count = (name) => (board.columns.find((c) => c.name === name)?.cards ?? []).filter((c) => c.points !== null).length;

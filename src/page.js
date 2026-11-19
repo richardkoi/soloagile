@@ -1,7 +1,7 @@
 // Turns a project's pm/*.md text into the finished page HTML (no file I/O here,
 // so tests can render without touching disk).
 import { learningReport } from './learning.js';
-import { batchFrom, batchText, cardsLeft, shares, spoken } from './guess.js';
+import { batchFrom, batchText, byWhen, cardsLeft, dueTimes, shares, spoken } from './guess.js';
 import { Marked, marked } from '../vendor/marked.esm.js';
 import { archivedDetails, doneCutoff } from './archive.js';
 import { COLUMNS, SCALE, SHORT_LINE, STAGES, isDesign, isLater, msClass, parseBoard, parsePlan, stageOf } from './board.js';
@@ -193,7 +193,7 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   const built = c.guess != null && c.took != null;
   const size = c.points !== null ? sizeTag(c.points, c.guess, built ? c.took : null) : '';
   const left = wheel || (size ? meta : '');
-  const foot = left || size ? `<div class="card-foot">${left}${size}</div>` : '';
+  let foot = left || size ? `<div class="card-foot">${left}${size}</div>` : '';
   if (left === meta) meta = '';
   // Once built, a guessed card says how close the guess came, under its foot.
   const tookLine = built ? `<p class="card-took">guessed ${spoken(c.guess)}, took ${spoken(c.took)}</p>` : '';
@@ -201,6 +201,10 @@ function renderCard(c, column, laneKey, modalId, later, pictures, today, shorts)
   const rangeLine = c.range ? `<p class="card-range">usually ${spoken(c.range[0])} to ${spoken(c.range[1])} for a card like this</p>` : '';
   // data-ms and data-later are for the milestone filter, data-id for the search box (template/refresh.html).
   const li = `<li class="card-x card-${tone}" data-ms="${esc(c.milestone ?? '')}"${c.id !== null ? ` data-id="${c.id}"` : ''}${later ? ' data-later' : ''}>`;
+  // When a Doing card should be done (#272): the build writes it, the page's script says it
+  // again in the reader's time and how far over once past (template/refresh.html).
+  const due = c.due ? `<p class="card-due" data-due="${c.due.toISOString()}">${icon('clock')}by ${byWhen(c.due, 0)}</p>` : '';
+  foot += due;
   if (!c.details.length) {
     return `${li}<div class="card-top">${top}</div><h3 class="card-title">${title}</h3>${meta}${foot}${picturePage(c, pictures)}</li>`;
   }
@@ -229,7 +233,11 @@ function renderLane(lane, cards, pictures, today, shorts, batchOf = () => null) 
   const batch = guess ? `<span class="lane-batch" data-likely="${guess.likely}" data-surely="${guess.surely}">${batchText(guess).split(' · ').map((t) => `<span>${esc(t)}</span>`).join('')}</span>` : '';
   // Every heading is two rows (#224): the name and count, then a hint (on Up next, its batch
   // guess) and the points. The CSS gives the second row the same height in every lane.
-  const hint = batch || (lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : '');
+  // Doing's head: when the last of its cards should be done (#272).
+  const dues = lane.key === 'doing' ? shown.map(({ card }) => card.due).filter(Boolean) : [];
+  const last = dues.length ? new Date(Math.max(...dues.map((d) => d.getTime()))) : null;
+  const lastDue = last ? `<span class="lane-hint lane-due" data-due="${last.toISOString()}">last by ${byWhen(last, 0)}</span>` : '';
+  const hint = batch || lastDue || (lane.hint ? `<span class="lane-hint">${esc(lane.hint)}</span>` : '');
   // The points total sits at the hint row's right end: on the first row it pushed a long
   // name like "Waiting on you" out of a 1400px window's lane.
   const total = points ? `<span class="lane-points">${points} ${points === 1 ? 'pt' : 'pts'}</span>` : '';
@@ -271,11 +279,12 @@ function renderFilter(cards, shorts) {
 // A Done card is one line on the board. Its detail lines are in the archive, so it still
 // opens in full. `finished` is that archive's text.
 // took: card number -> minutes it spent being built, from the history (buildTimes).
-function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took = new Map(), batchOf = () => null) {
+// due: card number -> when a Doing card should be done (dueTimes, #272).
+function renderBoard(board, builtAt, pictures, finished = '', shorts = {}, took = new Map(), batchOf = () => null, due = new Map()) {
   const today = ymd(builtAt);
   const kept = finished ? archivedDetails(finished) : new Map();
   const full = (card, column) => (column === 'Done' && !card.details.length && kept.has(card.id) ? { ...card, details: kept.get(card.id) } : card);
-  const inFull = (card, column) => ({ ...full(card, column), took: took.get(card.id) ?? null });
+  const inFull = (card, column) => ({ ...full(card, column), took: took.get(card.id) ?? null, due: column === 'Doing' ? due.get(card.id) ?? null : null });
   const cardsOf = (names) =>
     names
       .flatMap((column) => (board.columns.find((c) => c.name === column)?.cards ?? []).map((card) => ({ card: inFull(card, column), column, later: isLater(card, column, today) })))
@@ -472,7 +481,7 @@ export function renderPage({ name, md, builtAt, template, pictures = {}, stampUr
   const took = new Map(buildTimes(events).map((c) => [c.id, c.minutes]));
   const list = shares(events);
   const batchOf = (n) => batchFrom(list, n);
-  const { html: boardHtml, filter, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])), took, batchOf);
+  const { html: boardHtml, filter, waiting } = renderBoard(board, builtAt, pictures, md.finished ?? '', Object.fromEntries(plan.milestones.map((m) => [m.id, m.short])), took, batchOf, dueTimes(events, board));
   const empty = (what) => `<p class="empty">No ${what} yet.</p>`;
   const parts = {
     name: esc(plan.title ?? name),
