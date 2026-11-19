@@ -315,11 +315,16 @@ The six columns, always in this order and always present, even when empty:
   Every other lane implies its stage: Ideas and Up next are Plan, Needs your look is
   Feedback. `soloagile build` reports a stage written anywhere else, except on a design card.
 - **A fleet mark, when the fleet habit is on:** `fleet` (the crew plans, builds, reviews and
-  tests it; a card of 1 or 2 points skips Milo's review and the fact-check, #279) or `look`
-  (the short path for visual work), written before the stage:
-  `- #12 Feed parser · M3 · 5 pts · ~40 min · fleet · develop`. Claude marks cards when
-  planning, and the user can mark any: `soloagile card set 12 --mark fleet|look|none`.
-  Before a run, `soloagile fleet preflight 12` refuses a card with no done when or a
+  tests it) or `look` (the short path for visual work), written before the stage:
+  `- #12 Feed parser · M3 · 5 pts · ~40 min · fleet · develop`. A fleet run costs about
+  4x a normal build, so Claude marks fleet only a card of 3 points or more, or one of any
+  size touching keys, logins, permissions or data; pure visual cards look; the rest build
+  the normal way (#298, replacing #279's lighter path). The user can mark any card:
+  `soloagile card set 12 --mark fleet|look|none`.
+  Before a run, `soloagile fleet preflight 12` refuses a card with no done when, a card
+  under 3 points that isn't risky ("#12 is 2 points and not risky: build it the normal
+  way"; risky means its title or a detail line names a key, token, .env, login, password,
+  permission, secret or data; a look card is never refused for size), or a
   dirty tree (pm/ aside), writes `pm/runs/12/lock` with the session's pid and start time,
   clears a lock whose process is gone, and names the stage to start at: the first of
   plan.md, build.md, review.md, verdicts.md, report.md not yet in `pm/runs/12/`.

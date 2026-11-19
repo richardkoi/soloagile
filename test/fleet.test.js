@@ -60,8 +60,20 @@ test('a card line carries its fleet or look mark, and card set changes it', () =
 test('the fleet habit starts off and tells Claude to mark cards when it is on', () => {
   const fleet = habitStates(null, { settings: {} }).find((h) => h.key === 'fleet');
   assert.equal(fleet.on, false);
-  assert.match(HABITS.find((h) => h.key === 'fleet').rule, /mark logic, data and risky cards fleet and pure visual cards look/);
+  const rule = HABITS.find((h) => h.key === 'fleet').rule;
+  assert.match(rule, /mark fleet only a card of 3 points or more, or one of any size touching keys, logins, permissions or data; mark pure visual cards look; other cards build the normal way/);
+  assert.doesNotMatch(rule, /mark logic, data and risky cards fleet/);
   assert.equal(habitStates(null, { settings: { habits: { fleet: true } } }).find((h) => h.key === 'fleet').on, true);
+});
+
+test('preflight refuses a plain card under 3 points with the reason, and passes a risky one or one of 3 points (#298)', () => {
+  const dir = repo();
+  writeFileSync(join(dir, 'pm', 'board.md'), BOARD.replace('- #2 No done when yet · M1 · 2 pts', '- #2 Tidy the footer · M1 · 2 pts · fleet\n  done when: the footer lines up'));
+  assert.throws(() => preflight(dir, 2, { pid: 1, isAlive: () => false }), /^Error: #2 is 2 points and not risky: build it the normal way$/);
+  assert.equal(existsSync(join(runDir(dir, 2), 'lock')), false, 'a refused card is not locked');
+  writeFileSync(join(dir, 'pm', 'board.md'), BOARD.replace('- #2 No done when yet · M1 · 2 pts', '- #2 Keep the API token out of the log · M1 · 2 pts · fleet\n  done when: the log has no token'));
+  assert.equal(preflight(dir, 2, { pid: 1, isAlive: () => false }).stage, 'plan', 'a 2-point risky card passes');
+  assert.equal(preflight(dir, 1, { pid: 1, isAlive: () => false }).stage, 'plan', 'a 3-point card passes');
 });
 
 test('preflight refuses a card with no done when, and a dirty tree', () => {

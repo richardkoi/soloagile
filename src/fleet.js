@@ -49,6 +49,11 @@ export function ownerPid(start = process.ppid) {
   return start;
 }
 
+// A card touching keys, tokens, .env, logins, passwords, permissions, secrets or data (#298):
+// told by a word in its title or its details. Such a card takes the fleet at any size.
+const RISKY_CARD = /\b(keys?|tokens?|logins?|passwords?|permissions?|secrets?|data)\b|\.env\b/i;
+export const isRisky = (card) => [card.title, ...card.details].some((t) => RISKY_CARD.test(t));
+
 // Refuses with the reason, or locks the card, moves it to Doing at its stage (#266) and says
 // where the run starts. Fleet cards may sit in Doing together, one per run.
 // Returns { stage, file, cleared, said } where cleared is a stale lock that was removed and
@@ -58,6 +63,11 @@ export function preflight(repo, id, { pid = ownerPid(), now = new Date(), isAliv
   const card = parseBoard(board).columns.flatMap((c) => c.cards).find((c) => c.id === id);
   if (!card) throw new Error(`#${id} isn't on the board`);
   if (!card.details.some((d) => /^done when:/i.test(d))) throw new Error(`#${id} has no done when, so the crew can't tell when it's built: soloagile card set ${id} --done-when "…"`);
+  // A fleet run costs about 4x a normal build, so only 3 points or more, or a risky card,
+  // takes it (#298). A look card keeps its short path; a card with no points is refused below.
+  if (card.mark !== 'look' && card.points !== null && card.points < 3 && !isRisky(card)) {
+    throw new Error(`#${id} is ${card.points} point${card.points === 1 ? '' : 's'} and not risky: build it the normal way`);
+  }
   const status = spawnSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8' });
   if (status.status !== 0) throw new Error(`${repo} isn't a git repository`);
   const dirty = status.stdout.split('\n').filter((l) => l.trim() && !/^.. pm\//.test(l));
