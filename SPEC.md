@@ -438,6 +438,11 @@ The six columns, always in this order and always present, even when empty:
   - Needs your look: `live <date>`, or `from <date>` when the user can't do the look before
     that day (a real event, a delivery). Until the day comes, the card is marked Later,
     sits last in Waiting on you, and isn't counted as waiting anywhere.
+    A fleet card in Needs your look is on a waiting branch instead: built, tested and
+    committed on branch `card-<n>`, unmerged and unpushed, so it isn't live. The look is
+    of that branch, from its `report: pm/runs/<n>/report.md` line. The user's yes merges
+    it (`soloagile fleet merge <n>`), then releases or deploys it as any card, and only
+    then does it go to Done. What to fix goes back to the crew on the same branch.
   - Needs your decision: `asked <date>`
 
 ```markdown
