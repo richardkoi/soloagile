@@ -24,3 +24,6 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 20. Set a milestone to in progress when its first card starts. (From retro of M34, #232.)
 21. When a card is done with a not-tested gap that matters, make a follow-up card for it. (From retro of M34, #243.)
 22. Give a card that waits on a real run a time guess from past runs, not the project's usual guess. (From retro of M34, #242.)
+23. Say an away run's time guess to the user in words at its start: likely and surely. (From retro of M29 and M44, #213.)
+24. Before a card waits on a real run, check whether a past run's logs already show it. (From retro of M29 and M44, #213, #291.)
+25. Put a follow-up card in the closest open milestone, not a new milestone of its own. (From retro of M29 and M44, M44.)
