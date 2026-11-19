@@ -59,6 +59,7 @@ import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
+import { logCost } from '../src/costs.js';
 import { cardBase, clash, clashText, cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, reviewPack, runCost, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
@@ -595,6 +596,14 @@ if (cmd === 'card') {
     if (argv[0] === 'move' && r.column === 'Needs your look') {
       const id = Number(argv[1].replace('#', ''));
       for (const path of clearCardShots(here, id)) console.log(`soloagile: removed #${id}'s shots folder: ${path}`);
+    }
+    // What the build cost (#280): the usage reading as it starts, and its row in
+    // pm/runs/costs.md as it lands, the same way for a fleet run and a normal build.
+    if (argv[0] === 'move' && (r.column === 'Doing' || r.column === 'Needs your look')) {
+      const id = Number(argv[1].replace('#', ''));
+      const usage = await readUsage();
+      if (r.column === 'Doing') await recordUsageStart(here, id, usage);
+      else if (logCost(here, id, usage)) console.log(`soloagile: #${id}'s cost is in pm/runs/costs.md`);
     }
     buildAndSay(here);
     // What's left of the run (#210): said when a card lands, and when a card in Doing has

@@ -332,6 +332,12 @@ The six columns, always in this order and always present, even when empty:
   `soloagile fleet clash 12 13 …` lists the files each card names (under its plan.md's
   `## Files` heading, or on its `helper: owns` note) and exits 1 when two share one: those
   run one after the other, not side by side (#278).
+- **What each card cost (#280).** `soloagile card move <n> doing` records the usage reading
+  (`pm/runs/<n>/usage-start.json`, as fleet preflight does), and `card move <n> look` takes
+  the end reading and writes the card's row in `pm/runs/costs.md`: its points, fleet or
+  normal (a fleet card has a plan.md in its run), and its share of the week and the 5 hours.
+  A table by size sets the fleet's runs beside normal builds of the same points. With no
+  usage address, or a window that reset, nothing is written.
   The fleet guard (`bin/fleet-guard.js`, a PreToolUse hook) refuses a fleet helper, any
   agent whose type starts `soloagile:`, a token, the environment, a key, a login or a .env
   file. Every other session, the user's own included, is left alone.
