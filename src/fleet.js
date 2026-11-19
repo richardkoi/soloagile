@@ -221,7 +221,8 @@ export function fleetBranch(repo, id, { from } = {}) {
     git('worktree', 'add', '-b', branch, path, ...(from ? [from] : []));
     if (from) git('config', `branch.${branch}.fleetBase`, from);
   }
-  return { path, branch, made: true, ...linkIgnored(root, path, exclude) };
+  const links = linkIgnored(root, path, exclude);
+  return { path, branch, made: true, ...links, compose: composeOverride(root, path, links.linkedFrom, exclude) };
 }
 
 // A new copy lacks what git doesn't keep: fetched data, node_modules, a game engine's
@@ -263,6 +264,61 @@ function linkIgnored(root, copy, exclude) {
   const add = linked.map((rel) => `/${rel.split('\\').join('/')}`).filter((line) => !had.includes(line));
   if (add.length) writeFileSync(exclude, `${had.join('\n').replace(/\n*$/, '\n')}${add.join('\n')}\n`);
   return { linked, linkedFrom };
+}
+
+// Docker can't follow the copy's links (#292): each points at the main tree by its full path on
+// this machine, which a container doesn't have, so weatherglider's sky tests failed in a copy.
+// So a copy whose Compose file mounts a fleetLinks path gets a Compose override, which Compose
+// loads by itself beside the main file, mounting the main tree's real folder at the same
+// target; Compose merges volumes by target, so it replaces the copy's mount. A mount of a folder
+// that holds a fleetLinks path (./data:/data holding data/sky) gets the main tree's path mounted
+// at its place inside the target. Only short volume lines (- ./src:/target[:mode]) are read. A
+// copy that already has an override (one git keeps) is left alone and said. Returns
+// { file, mounts } or { kept: file }, or null with no Compose file or nothing to mount.
+const COMPOSE = [['compose.yaml', 'compose.override.yaml'], ['compose.yml', 'compose.override.yml'],
+  ['docker-compose.yml', 'docker-compose.override.yml'], ['docker-compose.yaml', 'docker-compose.override.yaml']];
+function composeOverride(root, copy, linkedFrom, exclude) {
+  const pair = COMPOSE.find(([main]) => existsSync(join(copy, main)));
+  if (!pair || !linkedFrom.length) return null;
+  const mounts = new Map(); // service -> volume lines
+  let inServices = false;
+  let serviceIndent = -1;
+  let service = null;
+  let inVolumes = -1;
+  for (const line of readFileSync(join(copy, pair[0]), 'utf8').split('\n')) {
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) { inServices = /^services:\s*$/.test(line); service = null; continue; }
+    if (!inServices) continue;
+    const key = line.match(/^\s*([\w.-]+):\s*$/);
+    if (serviceIndent < 0 && key) serviceIndent = indent;
+    if (indent === serviceIndent) { service = key ? key[1] : null; inVolumes = -1; continue; }
+    if (!service) continue;
+    if (inVolumes >= 0 && indent <= inVolumes) inVolumes = -1;
+    if (/^\s*volumes:\s*$/.test(line)) { inVolumes = indent; continue; }
+    const item = inVolumes >= 0 && line.match(/^\s*-\s*["']?\.\/([^:"']+):([^:"'\s]+)(?::(\w+))?["']?\s*(#.*)?$/);
+    if (!item) continue;
+    const src = relative(root, resolve(root, item[1]));
+    const mode = item[3] ? `:${item[3]}` : '';
+    for (const rel of linkedFrom) {
+      let host = null;
+      let target = null;
+      if (src === rel || src.startsWith(`${rel}/`)) { host = join(root, src); target = item[2]; }
+      else if (rel.startsWith(`${src}/`)) { host = join(root, rel); target = `${item[2].replace(/\/$/, '')}/${rel.slice(src.length + 1)}`; }
+      if (!host) continue;
+      const lines = mounts.get(service) ?? [];
+      const out = `"${host}:${target}${mode}"`;
+      if (!lines.includes(out)) lines.push(out);
+      mounts.set(service, lines);
+    }
+  }
+  if (!mounts.size) return null;
+  if (existsSync(join(copy, pair[1]))) return { kept: pair[1] };
+  const body = [...mounts].map(([name, lines]) => `  ${name}:\n    volumes:\n${lines.map((l) => `      - ${l}`).join('\n')}`);
+  writeFileSync(join(copy, pair[1]), `# Made by soloagile fleet branch (#292): the main tree's folders for the copy's links,\n# which Docker can't follow. Not kept by git.\nservices:\n${body.join('\n')}\n`);
+  const had = readFileSync(exclude, 'utf8').split('\n');
+  if (!had.includes(`/${pair[1]}`)) writeFileSync(exclude, `${had.join('\n').replace(/\n*$/, '\n')}/${pair[1]}\n`);
+  return { file: pair[1], mounts: [...mounts.values()].flat().length };
 }
 
 // The security scan (#238): a plain search of a change's added lines for keys, tokens, .env,

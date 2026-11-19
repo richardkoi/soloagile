@@ -439,6 +439,8 @@ if (cmd === 'fleet') {
       // each fleetLinks path once, not every entry linked inside a kept folder
       const named = [...new Set(b.linked.map((p) => b.linkedFrom.find((r) => p === r || p.startsWith(`${r}/`)) ?? p))];
       if (named.length) console.log(`soloagile: linked from the main tree: ${named.join(', ')} (${b.linked.length} links)`);
+      if (b.compose?.file) console.log(`soloagile: ${b.compose.file} mounts the main tree's folders for Docker, which can't follow the links (${b.compose.mounts} mounts)`);
+      if (b.compose?.kept) console.log(`soloagile: the copy has its own ${b.compose.kept}: Docker can't follow the links, so mount the main tree's folders there by hand`);
     }
     else console.log(unlock(process.cwd(), id) ? `soloagile: #${id} is unlocked` : `soloagile: #${id} had no lock`);
   } catch (err) {

@@ -329,6 +329,9 @@ The six columns, always in this order and always present, even when empty:
   `["data/game", "web/node_modules"]`: each is linked from the main tree, whole when the copy
   lacks it, or entry by entry into a folder git keeps. A card that writes into a link writes
   into the main tree's.
+  Docker can't follow those links, so when the copy's Compose file mounts a fleetLinks path,
+  `fleet branch` also writes a `docker-compose.override.yml` (git doesn't keep it) mounting the
+  main tree's real folder at the same target. A copy with its own override is left alone and said.
   `soloagile fleet clash 12 13 …` lists the files each card names (under its plan.md's
   `## Files` heading, or on its `helper: owns` note) and exits 1 when two share one: those
   run one after the other, not side by side (#278).

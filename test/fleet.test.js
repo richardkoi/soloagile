@@ -1485,6 +1485,37 @@ test("fleet branch links the main tree's git-ignored paths named in fleetLinks i
   assert.match(run.stdout, /linked from the main tree: node_modules, data \(2 links\)/);
 });
 
+test("fleet branch gives a copy a Compose override mounting the main tree's folders, which Docker can't reach through links (#292)", () => {
+  const dir = repo();
+  const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'pipe' });
+  writeFileSync(join(dir, '.gitignore'), 'data/sky/*\n!data/sky/.gitkeep\nnode_modules/\n');
+  mkdirSync(join(dir, 'data', 'sky'), { recursive: true });
+  writeFileSync(join(dir, 'data', 'sky', '.gitkeep'), '');
+  writeFileSync(join(dir, 'docker-compose.yml'), [
+    'services:', '  sky:', '    build: ./sky', '    volumes:', '      - ./sky:/app', '      - ./data/sky:/data/sky',
+    '      - "./data:/all:ro"  # the whole data folder', '    ports:', '      - "8000:8000"',
+    '  web:', '    volumes:', '      - ./node_modules:/app/node_modules', '      - ./web:/app/web', 'volumes:', '  spare:', '',
+  ].join('\n'));
+  git('add', '.gitignore', 'data/sky/.gitkeep', 'docker-compose.yml');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'compose');
+  mkdirSync(join(dir, 'data', 'sky', 'crops'));
+  mkdirSync(join(dir, 'node_modules'));
+  writeFileSync(join(dir, 'pm', 'settings.json'), JSON.stringify({ fleetLinks: ['data/sky', 'node_modules'] }));
+  const made = fleetBranch(dir, 1);
+  assert.deepEqual(made.compose, { file: 'docker-compose.override.yml', mounts: 3 });
+  const override = readFileSync(join(made.path, 'docker-compose.override.yml'), 'utf8');
+  assert.match(override, new RegExp(`  sky:\\n    volumes:\\n      - "${dir}/data/sky:/data/sky"\\n      - "${dir}/data/sky:/all/sky:ro"`), 'a mount of a linked path, and of a folder holding one');
+  assert.match(override, new RegExp(`  web:\\n    volumes:\\n      - "${dir}/node_modules:/app/node_modules"\\n`));
+  assert.doesNotMatch(override, /\/app"|\/app\/web|8000|spare/, 'mounts of paths not linked, ports and top-level volumes are left out');
+  assert.equal(execFileSync('git', ['status', '--porcelain'], { cwd: made.path, encoding: 'utf8' }), '', 'the override leaves the copy clean');
+  const run = spawnSync('node', [PM, 'fleet', 'branch', '2'], { cwd: dir, encoding: 'utf8' });
+  assert.match(run.stdout, /docker-compose\.override\.yml mounts the main tree's folders for Docker/);
+  writeFileSync(join(dir, 'docker-compose.override.yml'), 'services: {}\n');
+  git('add', '-f', 'docker-compose.override.yml');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'own override');
+  assert.deepEqual(fleetBranch(dir, 3).compose, { kept: 'docker-compose.override.yml' }, "a project's own override is kept and said");
+});
+
 test('a fleet card of 1 or 2 points takes the lighter path: no Milo, the checks and a real run, said in report.md (#279)', () => {
   const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
   assert.match(skill, /\*\*A fleet card of 1 or 2 points takes a lighter path\*\*/);
