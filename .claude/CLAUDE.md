@@ -17,3 +17,7 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 13. Before building a visual card, ask what it should show, even when it copies an existing look. (From retro of M25, #194.)
 14. Release soloagile only with tools/release.sh: it runs the tests, validate and the trigger tests first. (From retro of M10 and M22, #169; card #192.)
 15. Before each release, update README.md for what the release changes; tools/release.sh publishes the GitHub release note. (From Rich, 2026-11-18.)
+16. Tell Tobin to commit as soon as the fix works, before writing his notes. (From retro of M36-M42, #236.)
+17. Move a card to Doing before its first edit, not after the build has begun. (From retro of M36-M42, #272.)
+18. When a fleet copy's linked folder was made empty by Docker as root, link its entries some other way or say so before the build. (From retro of M36-M42, #242.)
+19. Give Milo his review pack whole: never retype or trim it. (From retro of M36-M42, #242.)
