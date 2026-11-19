@@ -20,13 +20,9 @@ check, then 8. Skip Milo's review, the fact-check and the security list (steps 4
 say in report.md that a look card skips them. A miss in Cora's picture check still goes
 back to Tobin, two rounds at most.
 
-**A fleet card of 1 or 2 points takes a lighter path** (#279): on M40, few of Milo's
-findings held up, and the worst bug was found by running the command. Run every step
-except two: skip Milo's review and the fact-check (steps 4 and 5). Keep step 3b's update
-and step 6's scan, a script that costs nothing when quiet. In step 7, besides the checks,
-make a real run of what it changed (the command, tool or page, as a user would) and say
-what it did; say in report.md that a card this size skips them. A card the user
-marked `look` keeps the short path above. 3 points or more takes every step.
+**Only cards of 3 points or more, or any size touching keys, tokens, .env, logins,
+permissions or data, are marked fleet**: preflight refuses a smaller plain card, which
+builds the normal way (#298).
 
 **1. Preflight (Ada).** In the project's folder run `soloagile fleet preflight <n>`. If it
 refuses, say why in a line and stop: no token has been spent. It locks the card, moves the
@@ -115,14 +111,11 @@ decision rather than reviewing him yourself.
 real code in Tobin's copy and decide: **upheld** (it's real, with the line that proves it)
 or **rejected** (with the reason, such as the code he couldn't see that handles it). Write
 one verdict per finding. With none upheld, go on. With some upheld, start a new Tobin (a
-new Agent call, never a message to the old one) with the upheld findings, to fix them on
-the same branch and add to build.md; after each rework round, run step 3b again (main may
-have moved), then review the new change with `soloagile fleet milo <n> --round 2` (a new Milo, the same
-way; it adds his reply to review.md under `## Round 2`) and write the new verdicts under a
-`## Round 2` heading. Two rework
-rounds at most: if findings are still upheld after
-the second, move the card to Needs your decision with them, run `soloagile fleet unlock
-<n>`, and stop.
+new Agent call, never a message to the old one) with the upheld findings, to fix them once
+on the same branch, each with a test, and add to build.md. After the rework, run step 3b
+again (main may have moved). There is no second Milo round (#301): Tobin's tests and step 7's
+checks decide. If they still fail, move the card to Needs your decision with what fails,
+run `soloagile fleet unlock <n>`, and stop.
 
 **6. Security list (a script, then Rufus only on a hit), `pm/runs/<n>/security-list.md`.**
 Run `soloagile fleet scan <n>`. It compares card-<n> against the branch the card was built
@@ -139,7 +132,7 @@ checks from `## Checks` in `pm/overview.md`, as for any card; for anything in a 
 run `soloagile shots --card <n>` (it builds the page from the copy's code and shoots it) and read its pictures. A card with a
 design.md: start a new Cora with the four pictures' paths and design.md, to write
 `pm/runs/<n>/picture-check.md`; what she finds off goes in report.md, and a clear miss goes
-back to Tobin as a rework round (step 5's limit of two counts it). Write report.md:
+back to Tobin as a rework round, two at most counting step 5's. Write report.md:
 the card and its done when, each stage with what it did and its file (security list: "no
 hits, not needed" when the scan was quiet), the checks with their results, and what wasn't
 tested. Then the card's lines, as today: `soloagile card note <n> "tested: …"`, a `not
