@@ -14,40 +14,41 @@ code yourself. The crew is in the plugin's `docs/fleet-crew.md`. If the `fleet` 
 off, say it is off (`soloagile set fleet on` switches it on) and stop. If no card was
 named, ask which.
 
+**Only cards of 3 points or more, or any size touching keys, tokens, .env, logins,
+permissions or data, are marked fleet**: preflight refuses a smaller plain card, which
+builds the normal way (#298).
+
 **A card marked `look` takes the short path**: pure visual work, so only Cora and Tobin.
 Run steps 1, 2, 2b (always, it has a screen), 3, and step 7's checks and Cora's picture
 check, then 8. Skip Milo's review, the fact-check and the security list (steps 4 to 6), and
 say in report.md that a look card skips them. A miss in Cora's picture check still goes
 back to Tobin, two rounds at most.
 
-**A fleet card of 1 or 2 points takes a lighter path** (#279): on M40, few of Milo's
-findings held up, and the worst bug was found by running the command. Run every step
-except two: skip Milo's review and the fact-check (steps 4 and 5). Keep step 3b's update
-and step 6's scan, a script that costs nothing when quiet. In step 7, besides the checks,
-make a real run of what it changed (the command, tool or page, as a user would) and say
-what it did; say in report.md that a card this size skips them. A card the user
-marked `look` keeps the short path above. 3 points or more takes every step.
+**Notes are short** (#300): plan.md, build.md and report.md are each a checklist of about 20
+lines of `- ` items: what changes, which files, each done when with its test, the test
+command and its result (pass/fail counts only), and open risks. No prose narration and no
+pasted test output.
+
+**To stop on a choice**: move the card to Needs your decision with the options
+(`soloagile card move <n> decision --option "…" --option "…"`, the recommended one first),
+run `soloagile fleet unlock <n>`, and stop.
 
 **1. Preflight (Ada).** In the project's folder run `soloagile fleet preflight <n>`. If it
 refuses, say why in a line and stop: no token has been spent. It locks the card, moves the
-card to Doing at the stage the run starts at (plan → design, build → develop, review on →
-test; several fleet cards can be in Doing at once) and names the stage to start at; a run
-that stopped part way resumes there, so skip the stages whose files are already in
-`pm/runs/<n>/`.
+card to Doing (several fleet cards can be there at once) and names the stage to start at:
+a run that stopped part way skips the stages whose files are already in `pm/runs/<n>/`.
 
 **2. Plan (Orla), writes `pm/runs/<n>/plan.md`.** Read the card in full
 (`soloagile card show <n>`), its chosen design if it has one (its "chosen" line, and its
-picture in `pm/designs/`), and the code it will touch. Write plan.md: the card and its
-done when; a `## Files to change` section naming each file in backticks and how it changes
-(`soloagile fleet clash` reads it); one test per "done when"; the project's checks,
-from `## Checks` in `pm/overview.md`; what is out of the card; and a `## Skills` section
+picture in `pm/designs/`), and the code it will touch. Write plan.md as a checklist: the
+card and its done when; a `## Files to change` section naming each file in backticks and
+how it changes, a line each (`soloagile fleet clash` reads it); one test per "done when";
+the test command and the project's checks, from `## Checks` in `pm/overview.md`; what is
+out of the card; open risks; and a `## Skills` section
 naming, for Tobin and for Cora, the installed skills that fit this card and why (from the
-skills listed in your session, such as a frontend design skill for a page, or the
-project's own skills), or "none" for a worker no skill fits. Milo and Rufus have no tools,
-so they load none. If the plan needs a real
-choice the card and design don't make, don't guess: move the card to Needs your decision
-with the options (`soloagile card move <n> decision --option "…" --option "…"`, the
-recommended one first), run `soloagile fleet unlock <n>`, and stop.
+skills listed in your session, or the project's own), or "none" for a worker no skill
+fits. Milo and Rufus have no tools, so they load none. A real choice the card and design
+don't make: don't guess, stop on a choice.
 
 **Several fleet cards at once** (#278): only cards whose plans name different files run
 side by side. With each plan.md written, run `soloagile fleet clash <n> <m> …`: exit 0
@@ -60,39 +61,34 @@ changes anything a person sees (a page, a screen, a chart) gets a design before 
 built; for any other card, skip this and Cora's check in step 7. Start Cora with the Agent
 tool, `subagent_type: "soloagile:cora"`, giving her the card, plan.md and the path to write
 design.md and its mock-up to. If design.md has a `## Choice for the user`, make it a
-Needs your decision card with those options, a picture of each
-(`soloagile design <n> <letter> <mock-up.html>`), run `soloagile fleet unlock <n>`, and
-stop. Otherwise add her recommendation to plan.md, so Tobin builds to it.
+Needs your decision card with those options and a picture of each
+(`soloagile design <n> <letter> <mock-up.html>`), then unlock and stop as above. Otherwise
+add her recommendation to plan.md, so Tobin builds to it.
 
 **3. Build (Tobin), writes `pm/runs/<n>/build.md`.** Run `soloagile fleet branch <n>`:
-it makes Tobin's own copy of the code on branch `card-<n>` and prints its path. A card built
-on another unmerged card uses `soloagile fleet branch <n> --from <m>`. Start Tobin
-with the Agent tool, `subagent_type: "soloagile:tobin"`, giving him the card, plan.md in
-full, his copy's path and the full path to write build.md to, and telling him to load the
-skills plan.md names for him with the Skill tool before anything else (the same for Cora
-in 2b and 7). Check his transcript shows each Skill call; say in report.md which loaded. Don't use `isolation`: his
-copy is already made. When he returns, read build.md and check his branch has a commit
+it makes Tobin's own copy of the code on branch `card-<n>` and prints its path (a card
+built on another unmerged card: `soloagile fleet branch <n> --from <m>`). Start Tobin
+with the Agent tool, `subagent_type: "soloagile:tobin"`, without `isolation` (his copy is
+made), giving him the card, plan.md in full, his copy's path, the full path for build.md,
+his checklist, and the skills plan.md names for him, to load with the Skill tool before
+anything else (the same for Cora in 2b and 7). Check his transcript shows each Skill call.
+When he returns, read build.md and check his branch has a commit
 (`git log main..card-<n> --oneline`). If he stopped at his turn cap with the card unbuilt,
 don't restart or message him for more turns (a restarted helper gets a fresh cap, #232):
 say how far he got and stop. But a turn cap notice that says his background work is still
 running is not a stop: wait for his hand-back, which comes as a message once that work
-ends, and check his branch then (#281). A question in build.md goes to the user as a Needs your
-decision card.
+ends, and check his branch then (#281). A question in build.md: stop on a choice.
 
 **3b. Up to date with main.** Run `soloagile fleet update <n>`: it merges the main tree's
-branch (usually main) into `card-<n>` inside Tobin's copy, so Milo reviews the change as it
-will merge, not from the card's old base. Up to date or merged with no clash, go on. On a
-clash (exit 1, the copy left mid-merge) start a new Tobin (a new Agent call) with the
-clashing files, the copy's path, and both sides' intent: the card's done when, and the main
-commits that touched those files (`git log card-<n>..main -- <files>`). Tell him to resolve
-them in the copy keeping both sides' intent, run the checks, commit the merge, and add a
-`## Merge with main` section to build.md. Then run `soloagile fleet update <n>` again; it
-must say up to date (it refuses a branch whose changed files still hold conflict markers,
-and says to commit a merge resolved but not committed). Say in report.md whether the update
-was current, clean or a clash, and its files. The user's yes merges later with `soloagile
-fleet merge <n>`, which refuses a branch main has moved past since (another card merged
-first): it goes back through this step, a resolving Tobin and Milo's review before it
-merges.
+branch (usually main) into `card-<n>` in Tobin's copy, so Milo reviews the change as it
+will merge. Up to date or merged with no clash, go on. On a clash (exit 1, the copy left
+mid-merge) start a new Tobin (a new Agent call) with the clashing files, the copy's path,
+and both sides' intent: the card's done when, and the main commits that touched those
+files (`git log card-<n>..main -- <files>`). Tell him to resolve them keeping both sides'
+intent, run the checks, commit the merge, and add a `## Merge with main` section to
+build.md. Then run `soloagile fleet update <n>` again; it must say up to date. The user's yes merges later with `soloagile fleet merge <n>`,
+which refuses a branch main has moved past since (another card merged first): it goes back
+through this step, a resolving Tobin and Milo's review before it merges.
 
 **4. Blind review (Milo), `pm/runs/<n>/review.md`.** Run `soloagile fleet review <n>`: it
 prints the card's "done when" lines, the diff of `card-<n>` against the branch it was built
@@ -106,8 +102,7 @@ when even the diff is over 120 KB it gives each changed file's `git diff --stat`
 says the change is too big for a blind review: then say so in report.md. Then start Milo
 with `soloagile fleet milo <n>` (#277), never the Agent tool and never by pasting the pack:
 it makes the same pack and gives it to him whole on his input, in his own `claude -p` run
-with agents/milo.md as his prompt, no tools, no settings, hooks or CLAUDE.md, in an empty
-folder, on a different model from Tobin. It writes his reply into review.md word for word
+with no tools, on a different model from Tobin. It writes his reply into review.md word for word
 and prints it. It exits 1 if his run fails: say so in report.md and stop at Needs your
 decision rather than reviewing him yourself.
 
@@ -115,41 +110,38 @@ decision rather than reviewing him yourself.
 real code in Tobin's copy and decide: **upheld** (it's real, with the line that proves it)
 or **rejected** (with the reason, such as the code he couldn't see that handles it). Write
 one verdict per finding. With none upheld, go on. With some upheld, start a new Tobin (a
-new Agent call, never a message to the old one) with the upheld findings, to fix them on
-the same branch and add to build.md; after each rework round, run step 3b again (main may
-have moved), then review the new change with `soloagile fleet milo <n> --round 2` (a new Milo, the same
-way; it adds his reply to review.md under `## Round 2`) and write the new verdicts under a
-`## Round 2` heading. Two rework
-rounds at most: if findings are still upheld after
-the second, move the card to Needs your decision with them, run `soloagile fleet unlock
-<n>`, and stop.
+new Agent call, never a message to the old one) with the upheld findings, to fix them once
+on the same branch, each with a test, and add to build.md. After the rework, run step 3b
+again (main may have moved). There is no second Milo round (#301): Tobin's tests and step
+7's checks decide. If they still fail, stop on a choice with what fails.
 
 **6. Security list (a script, then Rufus only on a hit), `pm/runs/<n>/security-list.md`.**
 Run `soloagile fleet scan <n>`. It compares card-<n> against the branch the card was built
-on (its first line names it; `--base <branch>` chooses another). Its words (token, login and
-the rest) count only in code, not in whole-comment lines of a file type whose comments it
-knows or in Markdown prose; a key itself counts anywhere. If its first line says it read a
-3-line diff, a comment or fence far above a change may have been missed. With no hits it says so and exits 0: write nothing, start
+on (its first line names it; `--base <branch>` chooses another). If its first line says it read a
+3-line diff, a comment or fence far above a change may have been missed.
+With no hits it says so and exits 0: write nothing, start
 no one, and go on. With hits (exit 1), start Rufus with the Agent tool, `subagent_type:
 "soloagile:rufus"`, giving him the diff and the scan's lines, and write his reply into
 security-list.md word for word. It is a reading list for the user, never a sign-off.
 
 **7. Test and notes (Orla), `pm/runs/<n>/report.md`.** In Tobin's copy, run the project's
-checks from `## Checks` in `pm/overview.md`, as for any card; for anything in a browser,
-run `soloagile shots --card <n>` (it builds the page from the copy's code and shoots it) and read its pictures. A card with a
-design.md: start a new Cora with the four pictures' paths and design.md, to write
-`pm/runs/<n>/picture-check.md`; what she finds off goes in report.md, and a clear miss goes
-back to Tobin as a rework round (step 5's limit of two counts it). Write report.md:
-the card and its done when, each stage with what it did and its file (security list: "no
-hits, not needed" when the scan was quiet), the checks with their results, and what wasn't
-tested. Then the card's lines, as today: `soloagile card note <n> "tested: …"`, a `not
-tested:` line for the rest, and `soloagile card note <n> "report: pm/runs/<n>/report.md"`
-so the card links it. report.md ends with the output of `soloagile fleet cost <n>`, pasted
-as it is: the run's share of the week and the 5 hours, or a not measured line.
+checks from `## Checks` in `pm/overview.md`; for anything in a browser, run
+`soloagile shots --card <n>` (it builds the page from the copy's code and shoots it) and
+read its pictures. A card with a design.md: start a new Cora with the four pictures' paths
+and design.md, to write `pm/runs/<n>/picture-check.md`; a clear miss goes back to Tobin as
+a rework round, two at most counting step 5's. Write report.md as a checklist: the card's
+done when, each with its test and pass or fail; a line per stage with its file (the skills
+that loaded; the update: current, clean or a clash, and its files; security list: "no
+hits, not needed" when the scan was quiet; what the picture check found off; any stage
+skipped, and why); each check's command with its pass/fail counts; what wasn't tested;
+open risks. Then the card's lines: `soloagile card note <n> "tested: …"`, a `not tested:`
+line for the rest, and `soloagile card note <n> "report: pm/runs/<n>/report.md"` so the
+card links it. report.md ends with the output of `soloagile fleet cost <n>`, pasted as it
+is: the run's share of the week and the 5 hours, or a not measured line.
 
 **8. Leave it waiting.** Run `soloagile fleet unlock <n>`. The work stays on branch
-`card-<n>`, unmerged and unpushed. Move
-the card to Needs your look, and tell the user the branch and the report.
+`card-<n>`, unmerged and unpushed. Move the card to Needs your look, and tell the user the
+branch and the report.
 
 Never: merge, push, write the card's code, or move a card to Done. Only the user's yes does
 that.

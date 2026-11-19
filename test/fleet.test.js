@@ -231,7 +231,7 @@ test('Tobin is a plugin agent with set tools, a turn cap and the strongest model
   assert.match(skill, /don't restart or message him for more turns/);
 });
 
-test('Milo reviews blind: no tools, a different model from Tobin, and two rework rounds at most', () => {
+test('Milo reviews blind: no tools, a different model from Tobin, and one fix round (#301)', () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const milo = readFileSync(join(root, 'agents', 'milo.md'), 'utf8');
   assert.match(milo, /^model: sonnet$/m);
@@ -239,7 +239,7 @@ test('Milo reviews blind: no tools, a different model from Tobin, and two rework
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
   assert.match(skill, /soloagile fleet milo <n>/); // his own run, the pack on his input (#277)
   assert.match(skill, /gives\s+it\s+to\s+him\s+whole\s+on\s+his\s+input/);
-  assert.match(skill, /Two\s+rework\s+rounds\s+at\s+most/);
+  assert.match(skill, /fix\s+them\s+once/);
   assert.match(skill, /a\s+new\s+Agent\s+call,\s+never\s+a\s+message\s+to\s+the\s+old\s+one/);
 });
 
@@ -1377,7 +1377,7 @@ test('the fleet skill brings the branch up to date before the blind review, and 
   assert.match(step, /new Tobin/);
   assert.match(step, /resolve/);
   assert.match(step, /## Merge with main/);
-  assert.match(skill.replace(/\n\s*/g, ' '), /after each rework round[^.]*step 3b/i);
+  assert.match(skill.replace(/\n\s*/g, ' '), /after the rework, run step 3b/i);
 });
 
 // #267 round 1: the findings Orla upheld.
@@ -1541,14 +1541,6 @@ test("fleet branch gives a copy a Compose override mounting the main tree's fold
   assert.deepEqual(fleetBranch(dir, 3).compose, { kept: 'docker-compose.override.yml' }, "a project's own override is kept and said");
 });
 
-test('a fleet card of 1 or 2 points takes the lighter path: no Milo, the checks and a real run, said in report.md (#279)', () => {
-  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
-  assert.match(skill, /\*\*A fleet card of 1 or 2 points takes a lighter path\*\*/);
-  assert.match(skill, /1 or 2 points.*skip Milo's review and the fact-check \(steps 4 and 5\)/);
-  assert.match(skill, /1 or 2 points.*a real run of what it changed/);
-  assert.match(skill, /1 or 2 points.*say in report\.md that a card this size skips them/);
-});
-
 test('fleet clash names the files each card will change and the cards that share one (#278)', () => {
   const dir = repo();
   const board = BOARD.replace('- #2 No done when yet · M1 · 2 pts', '- #2 No done when yet · M1 · 2 pts\n  helper: owns src/feed.js, test/feed.test.js\n- #3 Third · M1 · 1 pt\n  done when: it works');
@@ -1653,10 +1645,8 @@ test("the fleet skill starts Milo with soloagile fleet milo, never by pasting hi
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const skill = readFileSync(join(root, 'skills', 'fleet', 'SKILL.md'), 'utf8');
   const step4 = skill.split('**4. Blind review')[1].split('**5.')[0];
-  const step5 = skill.split('**5. Fact-check')[1].split('**6.')[0];
   assert.match(step4, /soloagile fleet milo <n>/);
   assert.doesNotMatch(step4, /subagent_type: "soloagile:milo"/);
-  assert.match(step5, /soloagile fleet milo <n> --round 2/);
 });
 
 test("a fleet run's cost gives its tokens beside the percentages (#286)", () => {

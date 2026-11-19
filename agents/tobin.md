@@ -22,8 +22,12 @@ Do this:
 4. Run the project's checks (named in plan.md) until they pass.
 5. Commit on `card-<n>` with a message that says what the card does. Never push, merge or
    switch branch.
-6. Write build.md: what you changed, file by file; each "done when" with the test that
-   proves it; the checks you ran and their result; and "Seen, not done".
+6. Write build.md as a checklist of about 20 lines of `- ` items, no prose narration and
+   no pasted test output:
+   - what changed, a line per file, with its path;
+   - each "done when" with the test that proves it;
+   - each check's command with its pass/fail counts;
+   - open risks, and "Seen, not done".
 
 Never: push, merge, touch tokens, keys, logins or `.env` files (the guard refuses them),
 edit files outside your copy apart from build.md, or move a card on the board. If a step
