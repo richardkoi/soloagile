@@ -75,6 +75,7 @@ test('card move to doing records the start reading, and to look logs the cost (#
 // come from Claude Code's own logs for the project (and its fleet copies), counted between
 // the card's move to Doing and now, each message once, as TokenSentinel and ccusage count.
 import { formatTokens, projectTokens, projectSlug } from '../src/tokens.js';
+import { minute } from '../src/history.js';
 
 const logLine = (at, id, usage, extra = {}) => JSON.stringify({ type: 'assistant', timestamp: at, requestId: `r-${id}`, message: { id, usage }, ...extra });
 const logs = (dir) => {
@@ -119,6 +120,26 @@ test("costs.md gives each card its tokens beside the percentages, and the by-siz
   assert.match(md, /\| Card \| Points \| How \| Week \| 5 hours \| Tokens \| Date \|/);
   assert.match(md, /\| #1 \| 2 \| fleet \| 0\.0% \| 0\.0% \| 700 \| 2026-11-18 \|/, 'a 0% card still reads its tokens');
   assert.match(md, /\| 2 \| 1 run, 0\.0% of the 5 hours, 700 tokens \| none yet \|/);
+});
+
+test("a normal build done during a fleet run, with no move to Doing, gets its row with tokens (#306)", () => {
+  // Card 1 is a fleet run in Doing from 10:00 (its Tobin and its copy log tokens); the main
+  // session builds card 2 normally beside it and moves it straight to Needs your look at 11:00.
+  const dir = project();
+  const projectsDir = logs(dir);
+  const main = join(projectsDir, projectSlug(dir));
+  writeFileSync(join(main, 's1', 'subagents', 'a.meta.json'), JSON.stringify({ agentType: 'soloagile:tobin', description: 'Tobin builds #1' }));
+  writeFileSync(join(main, 's2.jsonl'), logLine('2026-11-18T10:30:00Z', 'm5', { input_tokens: 9, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }));
+  const local = (iso) => minute(new Date(iso));
+  writeFileSync(join(dir, 'pm', 'history.md'), `# History\n\n- ${local('2026-11-17T09:00:00Z')} · Up next · #2 Normal card · M1 · 2 pts\n- ${local('2026-11-18T10:00:00Z')} · Doing · #1 Fleet card · M1 · 2 pts\n`);
+  const now = new Date('2026-11-18T11:00:00Z');
+  const row = () => readFileSync(join(dir, 'pm', 'runs', 'costs.md'), 'utf8').match(/\| #2 \|.*/)[0];
+  assert.equal(logCost(dir, 2, { said: 'no usage address set' }, { now, projectsDir }), true, 'no start reading, still a row');
+  assert.equal(row(), '| #2 | 2 | normal | – | – | 9 | 2026-11-18 |', "s2's turn only: not #1's Tobin, the session s1 that started him, or #1's copy");
+  // when s1, the session running #1's fleet, is the one that moved #2, its own turns are #2's too
+  writeFileSync(join(main, 's1.jsonl'), `${readFileSync(join(main, 's1.jsonl'), 'utf8')}\n${JSON.stringify({ type: 'assistant', timestamp: '2026-11-18T10:59:00Z', message: { id: 'mv', content: [{ type: 'tool_use', name: 'Bash', input: { command: 'soloagile card move 2 look' } }] } })}`);
+  assert.equal(logCost(dir, 2, { said: 'no usage address set' }, { now, projectsDir }), true);
+  assert.equal(row(), '| #2 | 2 | normal | – | – | 409 | 2026-11-18 |', "s1's turn (400) joins, #1's Tobin still left out");
 });
 
 test("an old costs.md row with no tokens keeps its place and reads – (#286)", () => {

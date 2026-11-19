@@ -4,10 +4,14 @@
 // and writes the card's row here. pm/runs/costs.md holds one row per card and a table by
 // size that sets the fleet's runs beside normal builds of the same points.
 // The readings are the account's whole use, so anything else running at the time counts too.
+// A card that reached Needs your look with no move to Doing (built normally while a fleet run
+// held Doing, #306) has no readings, but still gets its row with tokens, counted from
+// buildStart (src/stagecost.js). A card's tokens leave out other cards' fleet runs.
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseBoard } from './board.js';
 import { localDate } from './init.js';
+import { buildStart, buildTokens } from './stagecost.js';
 import { formatTokens, projectTokens } from './tokens.js';
 
 const HEAD = `# What cards cost
@@ -16,7 +20,9 @@ Each card's share of the week and the 5 hours, from the usage reading when it mo
 to the one when it moved to Needs your look. A fleet card is one with a plan.md in its run.
 The readings are the account's whole use, so anything else running at the time counts too.
 The percentages are whole numbers at their source; Tokens is exact, counted from this
-project's own Claude Code logs (its fleet copies and helpers too) over the same time.
+project's own Claude Code logs (its fleet copies and helpers too) over the same time, other cards'
+fleet runs left out. A card that never moved to Doing has no readings (–); its tokens count
+from the board's last move before it landed.
 
 `;
 
@@ -65,23 +71,26 @@ ${byCard.join('\n')}
 `;
 }
 
-// Writes card id's row from its start reading and `end` (readUsage's result). Returns false,
-// writing nothing, when either reading has no numbers. A card logged again replaces its row.
+// Writes card id's row from its start reading and `end` (readUsage's result). With no start
+// reading the percentages read '–' and the tokens count from buildStart. Returns false,
+// writing nothing, when nothing could be measured. A card logged again replaces its row.
 export function logCost(repo, id, end, { now = new Date(), projectsDir } = {}) {
   const root = resolve(repo);
   const run = join(root, 'pm', 'runs', String(id));
   let start = null;
-  try { start = JSON.parse(readFileSync(join(run, 'usage-start.json'), 'utf8')); } catch { return false; }
-  if (!start?.pcts || !end?.pcts) return false;
+  try { start = JSON.parse(readFileSync(join(run, 'usage-start.json'), 'utf8')); } catch {}
   const spent = (name) => {
-    const from = start.pcts[name];
-    const to = end.pcts[name];
+    const from = start?.pcts?.[name];
+    const to = end?.pcts?.[name];
     // a window that reset during the build reads lower at the end: not measured
     return Number.isFinite(from) && Number.isFinite(to) && to >= from ? pct(to - from) : '–';
   };
   const week = spent('week');
   const five = spent('5 hours');
-  if (week === '–' && five === '–') return false;
+  const from = buildStart(root, id, now.getTime());
+  const n = from == null ? null : buildTokens(root, id, from, now.getTime(), projectsDir ? { projectsDir } : {});
+  const tokens = n == null ? '–' : formatTokens(n);
+  if (week === '–' && five === '–' && tokens === '–') return false;
   let board = '';
   try { board = readFileSync(join(root, 'pm', 'board.md'), 'utf8'); } catch {}
   const card = parseBoard(board).columns.flatMap((c) => c.cards).find((c) => c.id === id);
@@ -91,7 +100,7 @@ export function logCost(repo, id, end, { now = new Date(), projectsDir } = {}) {
     how: existsSync(join(run, 'plan.md')) ? 'fleet' : 'normal',
     week,
     five,
-    tokens: tokensSince(root, start.at, now, projectsDir),
+    tokens,
     date: localDate(now),
   };
   const file = join(root, 'pm', 'runs', 'costs.md');
