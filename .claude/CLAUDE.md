@@ -21,3 +21,6 @@ Lessons from retros, kept by `soloagile rule`. Each says where it came from.
 17. Move a card to Doing before its first edit, not after the build has begun. (From retro of M36-M42, #272.)
 18. When a fleet copy's linked folder was made empty by Docker as root, link its entries some other way or say so before the build. (From retro of M36-M42, #242.)
 19. Give Milo his review pack whole: never retype or trim it. (From retro of M36-M42, #242.)
+20. Set a milestone to in progress when its first card starts. (From retro of M34, #232.)
+21. When a card is done with a not-tested gap that matters, make a follow-up card for it. (From retro of M34, #243.)
+22. Give a card that waits on a real run a time guess from past runs, not the project's usual guess. (From retro of M34, #242.)
