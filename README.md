@@ -6,7 +6,8 @@ that gives every project a private page, and keeps it current as the work happen
 ![A project's board: Ideas, Up next, Doing, Waiting on you and Done](docs/board.png)
 
 The page shows six things: the **board**, the **plan**, **reports**, the **release notes**,
-brief **docs**, and **links** to everything Claude creates. You read it; Claude writes it.
+brief **docs**, and **links** to everything Claude creates. You read it; Claude writes it. Each card in
+Doing says when it should be done, "by 19:40", and turns amber once it runs over.
 To change anything, you tell Claude.
 
 ## Install
