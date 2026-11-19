@@ -329,6 +329,9 @@ The six columns, always in this order and always present, even when empty:
   `["data/game", "web/node_modules"]`: each is linked from the main tree, whole when the copy
   lacks it, or entry by entry into a folder git keeps. A card that writes into a link writes
   into the main tree's.
+  `soloagile fleet clash 12 13 …` lists the files each card names (under its plan.md's
+  `## Files` heading, or on its `helper: owns` note) and exits 1 when two share one: those
+  run one after the other, not side by side (#278).
   The fleet guard (`bin/fleet-guard.js`, a PreToolUse hook) refuses a fleet helper, any
   agent whose type starts `soloagile:`, a token, the environment, a key, a login or a .env
   file. Every other session, the user's own included, is left alone.

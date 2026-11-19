@@ -9,7 +9,7 @@ import './isolate.js';
 import { parseCardLine } from '../src/board.js';
 import { runCard } from '../src/card.js';
 import { HABITS, habitStates } from '../src/habits.js';
-import { blockRanges, cardBase, cardDiff, costLines, dropRun, fleetBranch, mergeCard, preflight, recordUsageStart, reviewPack, runCost, runDir, runPageHtml, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
+import { blockRanges, cardBase, cardFiles, cardDiff, costLines, dropRun, fleetBranch, mergeCard, preflight, recordUsageStart, reviewPack, runCost, runDir, runPageHtml, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 import { maskUrl, readUsage } from '../src/usage.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
@@ -1491,4 +1491,31 @@ test('a fleet card of 1 or 2 points takes the lighter path: no Milo, the checks 
   assert.match(skill, /1 or 2 points.*skip Milo's review and the fact-check \(steps 4 and 5\)/);
   assert.match(skill, /1 or 2 points.*a real run of what it changed/);
   assert.match(skill, /1 or 2 points.*say in report\.md that a card this size skips them/);
+});
+
+test('fleet clash names the files each card will change and the cards that share one (#278)', () => {
+  const dir = repo();
+  const board = BOARD.replace('- #2 No done when yet · M1 · 2 pts', '- #2 No done when yet · M1 · 2 pts\n  helper: owns src/feed.js, test/feed.test.js\n- #3 Third · M1 · 1 pt\n  done when: it works');
+  writeFileSync(join(dir, 'pm', 'board.md'), board.replace('next-id: 3', 'next-id: 4'));
+  mkdirSync(join(dir, 'pm', 'runs', '1'), { recursive: true });
+  writeFileSync(join(dir, 'pm', 'runs', '1', 'plan.md'), '# Plan\n\n## Files to change and how\n- `src/feed.js`: parse it, see `docs/x.md`\n- `README.md`, a line\n\n## Tests\n- `test/other.test.js`\n');
+  const run = (...a) => spawnSync('node', [PM, 'fleet', 'clash', ...a], { cwd: dir, encoding: 'utf8' });
+  const shared = run('1', '2');
+  assert.equal(shared.status, 1, shared.stderr);
+  assert.match(shared.stdout, /#1: src\/feed\.js, docs\/x\.md, README\.md/);
+  assert.doesNotMatch(shared.stdout, /#1:.*other\.test/, 'only the files section counts');
+  assert.match(shared.stdout, /#2: src\/feed\.js, test\/feed\.test\.js/);
+  assert.match(shared.stdout, /#1 and #2 share src\/feed\.js: one after the other/);
+  const apart = run('2', '1', '--only', 'nothing');
+  assert.equal(apart.status, 2, 'an unknown flag is refused');
+  const none = run('1', '3');
+  assert.equal(none.status, 2);
+  assert.match(none.stderr, /#3 names no files: no plan\.md files section and no "helper: owns" note/);
+});
+
+test("fleet clash leaves code names out of a plan's files (#278)", () => {
+  const dir = repo();
+  mkdirSync(join(dir, 'pm', 'runs', '1'), { recursive: true });
+  writeFileSync(join(dir, 'pm', 'runs', '1', 'plan.md'), '## Files to change\n- `tools/x.mjs` reads `main.title.away` and `Menu.row_key`, see `game/main.gd` and `README.md`\n');
+  assert.deepEqual(cardFiles(dir, 1), ['tools/x.mjs', 'game/main.gd', 'README.md']);
 });

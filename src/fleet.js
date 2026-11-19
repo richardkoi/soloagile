@@ -789,3 +789,44 @@ export function writeRunPages(pmDir, toHtml) {
   }
   return ids;
 }
+
+// Which cards may run side by side (#278): on M40 every parallel card clashed at merge.
+// A card's files are the paths in backticks under its run's plan.md "## Files…" heading,
+// or else the paths on its "helper: owns …" note (the parallel skill's). Cards that share a
+// file run one after the other. Returns { files: Map id → [paths], shared: [{ a, b, files }] }.
+const FILE_TYPE = /^[\w./-]*\.(md|js|mjs|cjs|ts|tsx|jsx|json|py|gd|tscn|html|css|sh|yml|yaml|toml|txt|go|rs|c|h|cpp|svelte|vue|sql)$/i;
+
+export function cardFiles(repo, id) {
+  const root = resolve(repo);
+  const plan = join(root, 'pm', 'runs', String(id), 'plan.md');
+  if (existsSync(plan)) {
+    const section = readFileSync(plan, 'utf8').split(/^## /m).find((part) => /^Files\b/i.test(part));
+    if (section) {
+      // a path has a slash or ends in a file type; main.title.away or Menu.row_key is code, not a file
+      const paths = [...section.matchAll(/`([^`\s]+)`/g)].map((m) => m[1])
+        .filter((p) => /^[\w.\/-]+$/.test(p) && (p.includes('/') || FILE_TYPE.test(p)));
+      if (paths.length) return [...new Set(paths)];
+    }
+  }
+  const card = parseBoard(readFileSync(join(root, 'pm', 'board.md'), 'utf8')).columns.flatMap((c) => c.cards).find((c) => c.id === id);
+  const owns = card?.details.find((d) => /^helper: owns /.test(d));
+  if (owns) return [...new Set(owns.replace(/^helper: owns /, '').split(/,\s*|\s+and\s+/).map((p) => p.trim().replace(/[`.]$/, '').replace(/^`/, '')).filter(Boolean))];
+  throw new Error(`#${id} names no files: no plan.md files section and no "helper: owns" note`);
+}
+
+export function clash(repo, ids) {
+  const files = new Map(ids.map((id) => [id, cardFiles(repo, id)]));
+  const shared = [];
+  ids.forEach((a, i) => ids.slice(i + 1).forEach((b) => {
+    const both = files.get(a).filter((f) => files.get(b).includes(f));
+    if (both.length) shared.push({ a, b, files: both });
+  }));
+  return { files, shared };
+}
+
+export const clashText = ({ files, shared }) => [
+  ...[...files].map(([id, paths]) => `#${id}: ${paths.join(', ')}`),
+  ...(shared.length
+    ? shared.map(({ a, b, files: both }) => `#${a} and #${b} share ${both.join(', ')}: one after the other, not side by side`)
+    : ['no two share a file: they can run side by side']),
+].join('\n');

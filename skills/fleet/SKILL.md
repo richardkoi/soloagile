@@ -38,7 +38,8 @@ that stopped part way resumes there, so skip the stages whose files are already 
 **2. Plan (Orla), writes `pm/runs/<n>/plan.md`.** Read the card in full
 (`soloagile card show <n>`), its chosen design if it has one (its "chosen" line, and its
 picture in `pm/designs/`), and the code it will touch. Write plan.md: the card and its
-done when; the files to change and how; one test per "done when"; the project's checks,
+done when; a `## Files to change` section naming each file in backticks and how it changes
+(`soloagile fleet clash` reads it); one test per "done when"; the project's checks,
 from `## Checks` in `pm/overview.md`; what is out of the card; and a `## Skills` section
 naming, for Tobin and for Cora, the installed skills that fit this card and why (from the
 skills listed in your session, such as a frontend design skill for a page, or the
@@ -47,6 +48,12 @@ so they load none. If the plan needs a real
 choice the card and design don't make, don't guess: move the card to Needs your decision
 with the options (`soloagile card move <n> decision --option "…" --option "…"`, the
 recommended one first), run `soloagile fleet unlock <n>`, and stop.
+
+**Several fleet cards at once** (#278): only cards whose plans name different files run
+side by side. With each plan.md written, run `soloagile fleet clash <n> <m> …`: exit 0
+says they can; exit 1 names the cards that share a file, and those run one after the
+other, the later on the earlier's branch (`soloagile fleet branch <m> --from <n>`) or
+after it merges.
 
 **2b. Design (Cora), `pm/runs/<n>/design.md`, only for a card with a screen.** A card that
 changes anything a person sees (a page, a screen, a chart) gets a design before it is

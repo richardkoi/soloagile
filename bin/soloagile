@@ -59,7 +59,7 @@ import { makePictures, parsePictureArgs, takeScript } from '../src/pictures.js';
 import { HABITS, habitOn, habitStates, setHabit } from '../src/habits.js';
 import { newerInstall } from '../src/version.js';
 import { herdrText, installHerdr } from '../src/herdr.js';
-import { cardBase, cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, reviewPack, runCost, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
+import { cardBase, clash, clashText, cardDiff, dropRun, fleetBranch, mergeCard, preflight, preflightText, recordUsageStart, reviewPack, runCost, scanCard, scanDiff, scanText, sendBack, unlock, updateBranch, updateText } from '../src/fleet.js';
 
 // A session keeps the plugin version it started with, hooks included. When a newer version
 // is installed beside this one, the whole command goes to it, stdin and all, so an old
@@ -366,8 +366,24 @@ if (cmd === 'fleet') {
   // Print and wait until it is all written before process.exit, which into a pipe would
   // otherwise cut a big output at 64 KB, as with board --json above (#268).
   const say = (text) => new Promise((done) => process.stdout.write(`${text}\n`, done));
+  // soloagile fleet clash <n> <m> …: which cards share a file (#278); exit 1 when two do
+  if (verb === 'clash') {
+    const ids = [n, ...rest].map((x) => Number(String(x ?? '').replace(/^#/, '')));
+    if (ids.length < 2 || ids.some((x) => !Number.isInteger(x) || x < 1)) {
+      console.error('usage: soloagile fleet clash <card> <card> [<card>…]');
+      process.exit(2);
+    }
+    try {
+      const found = clash(process.cwd(), ids);
+      await say(clashText(found));
+      process.exit(found.shared.length ? 1 : 0);
+    } catch (err) {
+      console.error(`soloagile: ${err.message}`);
+      process.exit(2);
+    }
+  }
   if (!['preflight', 'unlock', 'branch', 'update', 'review', 'scan', 'cost', 'merge', 'sendback', 'drop'].includes(verb) || !Number.isInteger(id) || id < 1) {
-    console.error('usage: soloagile fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>], branch <card> [--from <card>])');
+    console.error('usage: soloagile fleet preflight|branch|update|review|scan|cost|unlock|merge|sendback|drop <card>   (scan <card> [--base <branch>], branch <card> [--from <card>], clash <card> <card>…)');
     process.exit(2);
   }
   try {
