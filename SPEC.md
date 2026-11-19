@@ -315,7 +315,8 @@ The six columns, always in this order and always present, even when empty:
   Every other lane implies its stage: Ideas and Up next are Plan, Needs your look is
   Feedback. `soloagile build` reports a stage written anywhere else, except on a design card.
 - **A fleet mark, when the fleet habit is on:** `fleet` (the crew plans, builds, reviews and
-  tests it) or `look` (the short path for visual work), written before the stage:
+  tests it; a card of 1 or 2 points skips Milo's review and the fact-check, #279) or `look`
+  (the short path for visual work), written before the stage:
   `- #12 Feed parser · M3 · 5 pts · ~40 min · fleet · develop`. Claude marks cards when
   planning, and the user can mark any: `soloagile card set 12 --mark fleet|look|none`.
   Before a run, `soloagile fleet preflight 12` refuses a card with no done when or a

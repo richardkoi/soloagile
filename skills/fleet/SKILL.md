@@ -20,6 +20,14 @@ check, then 8. Skip Milo's review, the fact-check and the security list (steps 4
 say in report.md that a look card skips them. A miss in Cora's picture check still goes
 back to Tobin, two rounds at most.
 
+**A fleet card of 1 or 2 points takes a lighter path** (#279): on M40, few of Milo's
+findings held up, and the worst bug was found by running the command. Run every step
+except two: skip Milo's review and the fact-check (steps 4 and 5). Keep step 3b's update
+and step 6's scan, a script that costs nothing when quiet. In step 7, besides the checks,
+make a real run of what it changed (the command, tool or page, as a user would) and say
+what it did; say in report.md that a card this size skips them. A card the user
+marked `look` keeps the short path above. 3 points or more takes every step.
+
 **1. Preflight (Ada).** In the project's folder run `soloagile fleet preflight <n>`. If it
 refuses, say why in a line and stop: no token has been spent. It locks the card, moves the
 card to Doing at the stage the run starts at (plan → design, build → develop, review on →

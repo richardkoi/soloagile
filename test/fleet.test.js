@@ -1484,3 +1484,11 @@ test("fleet branch links the main tree's git-ignored paths named in fleetLinks i
   const run = spawnSync('node', [PM, 'fleet', 'branch', '2'], { cwd: dir, encoding: 'utf8' });
   assert.match(run.stdout, /linked from the main tree: node_modules, data \(2 links\)/);
 });
+
+test('a fleet card of 1 or 2 points takes the lighter path: no Milo, the checks and a real run, said in report.md (#279)', () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(skill, /\*\*A fleet card of 1 or 2 points takes a lighter path\*\*/);
+  assert.match(skill, /1 or 2 points.*skip Milo's review and the fact-check \(steps 4 and 5\)/);
+  assert.match(skill, /1 or 2 points.*a real run of what it changed/);
+  assert.match(skill, /1 or 2 points.*say in report\.md that a card this size skips them/);
+});
