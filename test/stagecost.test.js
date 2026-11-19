@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './isolate.js';
 import { minute } from '../src/history.js';
-import { cardWindow, stageCosts, stageText } from '../src/stagecost.js';
+import { buildStart, cardWindow, otherBuilds, stageCosts, stageText } from '../src/stagecost.js';
 import { projectSlug } from '../src/tokens.js';
 
 const PM = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'soloagile');
@@ -123,4 +123,35 @@ test('soloagile fleet cost <n> --root prints the ## Cost and the stage table (#2
   const bad = spawnSync('node', [PM, 'fleet', 'cost', '5', '--root'], { cwd: root, encoding: 'utf8', env });
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /--root needs a folder/);
+});
+
+// #306: card 7, built normally with no move to Doing while card 5's fleet run held it, lands at
+// minute 20. Its build counts from the board's last move before it (5's Doing at minute 0).
+const moveLine = (min, cmd) => JSON.stringify({ type: 'assistant', timestamp: at(min), message: { id: `t${n++}`, content: [{ type: 'tool_use', name: 'Bash', input: { command: cmd } }] } });
+function normalBuild(mover) {
+  const { root, projects } = fixture();
+  writeFileSync(join(root, 'pm', 'history.md'), `# History\n\n- ${minute(new Date(T0 - 86400000))} · Up next · #7 Seven · M1 · 1 pt\n- ${minute(new Date(T0))} · Doing · #5 Five · M1 · 2 pts\n- ${minute(new Date(T0 + 20 * 60000))} · Needs your look · #7 Seven · M1 · 1 pt\n- ${minute(new Date(T0 + 60 * 60000))} · Needs your look · #5 Five · M1 · 2 pts\n`);
+  const file = mover === 'driver' ? join(projects, '-somewhere-else', 'drv.jsonl') : join(projects, projectSlug(root), 'mine.jsonl');
+  writeFileSync(file, `${readFileSync(file, 'utf8')}${moveLine(20, 'soloagile card move 7 look')}\n`);
+  return { root, projects };
+}
+
+test("a normal build moved by the fleet card's own session takes its turns out of the main session (#306)", () => {
+  const { root, projects } = normalBuild('driver');
+  const w = cardWindow(root, 5);
+  const rows = byStage(stageCosts(root, 5, w.from, w.to, { projectsDir: projects }));
+  assert.equal(rows['main session'].input_tokens, 1, "the driver's turn at minute 1 is #7's, only minute 30's is #5's");
+  assert.equal(rows.Tobin.input_tokens, 4, 'helpers are untouched');
+  assert.equal(buildStart(root, 7, T0 + 20 * 60000), T0, "no Doing move: the board's last move before it");
+  const others = otherBuilds(root, 5, w.from, w.to, [join(projects, '-somewhere-else', 'drv.jsonl')]);
+  assert.match(stageText(5, w, [], others), /leaves out its turns while it built these cards normally[^]*\n- #7, \d\d:\d\d to \d\d:\d\d$/);
+  assert.doesNotMatch(stageText(5, w, [], {}), /leaves out/, 'no normal build, no footnote');
+});
+
+test("a normal build moved from another session leaves the fleet card's main session whole (#306)", () => {
+  // as when `soloagile fleet run` gives the fleet card a session of its own (#299)
+  const { root, projects } = normalBuild('own');
+  const w = cardWindow(root, 5);
+  const rows = byStage(stageCosts(root, 5, w.from, w.to, { projectsDir: projects }));
+  assert.equal(rows['main session'].input_tokens, 2);
 });
