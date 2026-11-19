@@ -36,28 +36,39 @@ export function projectTokens(root, from, to, { projectsDir = defaultDir() } = {
   } catch { return null; }
   if (!dirs.includes(slug)) return null;
   const msgs = new Map();
-  let anon = 0;
   for (const d of dirs) {
     for (const file of jsonlFiles(join(projectsDir, d), from)) {
-      let text = '';
-      try { text = readFileSync(file, 'utf8'); } catch { continue; }
-      for (const line of text.split('\n')) {
-        if (!line.includes('"usage"')) continue;
-        let rec;
-        try { rec = JSON.parse(line); } catch { continue; }
-        const u = rec?.type === 'assistant' ? rec.message?.usage : null;
-        if (!u || typeof u !== 'object') continue;
-        const at = Date.parse(rec.timestamp);
-        if (!(at >= from && at <= to)) continue;
-        const key = rec.message.id || rec.requestId ? `${rec.message.id ?? ''}|${rec.requestId ?? ''}` : `#${anon++}`;
-        msgs.set(key, ['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']
-          .reduce((sum, k) => sum + (Number(u[k]) || 0), 0));
-      }
+      for (const [key, m] of fileUsage(file, from, to)) msgs.set(key, m.tokens);
     }
   }
   let total = 0;
   for (const n of msgs.values()) total += n;
   return total;
+}
+
+export const USAGE_FIELDS = ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens'];
+let anon = 0;
+
+// One log file's assistant messages between from and to (ms), each once: a Map of
+// "message id|request id" -> { at, usage, tokens }, usage holding the four counts as numbers
+// and tokens their sum. src/stagecost.js (#297) uses it to count each stage of a run apart.
+export function fileUsage(file, from, to) {
+  const msgs = new Map();
+  let text = '';
+  try { text = readFileSync(file, 'utf8'); } catch { return msgs; }
+  for (const line of text.split('\n')) {
+    if (!line.includes('"usage"')) continue;
+    let rec;
+    try { rec = JSON.parse(line); } catch { continue; }
+    const u = rec?.type === 'assistant' ? rec.message?.usage : null;
+    if (!u || typeof u !== 'object') continue;
+    const at = Date.parse(rec.timestamp);
+    if (!(at >= from && at <= to)) continue;
+    const key = rec.message.id || rec.requestId ? `${rec.message.id ?? ''}|${rec.requestId ?? ''}` : `#${anon++}`;
+    const usage = Object.fromEntries(USAGE_FIELDS.map((k) => [k, Number(u[k]) || 0]));
+    msgs.set(key, { at, usage, tokens: USAGE_FIELDS.reduce((sum, k) => sum + usage[k], 0) });
+  }
+  return msgs;
 }
 
 // 12 · 1.2k · 57k · 1.2M · 2.5B
