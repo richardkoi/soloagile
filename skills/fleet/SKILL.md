@@ -59,7 +59,9 @@ in 2b and 7). Check his transcript shows each Skill call; say in report.md which
 copy is already made. When he returns, read build.md and check his branch has a commit
 (`git log main..card-<n> --oneline`). If he stopped at his turn cap with the card unbuilt,
 don't restart or message him for more turns (a restarted helper gets a fresh cap, #232):
-say how far he got and stop. A question in build.md goes to the user as a Needs your
+say how far he got and stop. But a turn cap notice that says his background work is still
+running is not a stop: wait for his hand-back, which comes as a message once that work
+ends, and check his branch then (#281). A question in build.md goes to the user as a Needs your
 decision card.
 
 **3b. Up to date with main.** Run `soloagile fleet update <n>`: it merges the main tree's

@@ -1455,3 +1455,8 @@ test("fleet update gives the copy's path in every state, and the text uses it (#
   assert.equal(clash.path, path);
   assert.match(updateText(1, { ...clash, path: '/somewhere/else' }), /left mid-merge in \/somewhere\/else for Tobin/);
 });
+
+test('a turn-cap notice while the helper\'s background work still runs is not a stop: wait for the hand-back (#281)', () => {
+  const skill = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'fleet', 'SKILL.md'), 'utf8').replace(/\n\s*/g, ' ');
+  assert.match(skill, /turn cap.*background work (is )?still running.*not a stop.*wait for (his|the) hand-back/i);
+});
